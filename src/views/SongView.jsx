@@ -351,34 +351,25 @@ function EditSongModal({ song, onSave, onClose }) {
 // twoColumn: 'auto' | true | false
 
 function ChordSheetPage({ song, semitones, targetKey, twoColumn, onTwoColumnChange, printRef }) {
-  const contentRef = React.useRef(null)
+  const measureRef = React.useRef(null)
   const [isOverflowing, setIsOverflowing] = React.useState(false)
 
-  // A4 proportions: 210mm × 297mm ≈ 1:1.414
-  // We use a fixed width via max-w and let height be determined by content.
-  // "Page" area = content area minus header (~160px) minus controls (~60px) minus padding
-  // We treat ~900px tall as the single-column threshold (roughly A4 at screen resolution)
-  const A4_CONTENT_HEIGHT = 920 // px — approx one A4 page of chord content
+  const A4_CONTENT_HEIGHT = 920
 
-  React.useEffect(() => {
-    if (!contentRef.current) return
-    const checkOverflow = () => {
-      const h = contentRef.current?.scrollHeight || 0
-      setIsOverflowing(h > A4_CONTENT_HEIGHT)
-    }
-    checkOverflow()
-    const ro = new ResizeObserver(checkOverflow)
-    ro.observe(contentRef.current)
-    return () => ro.disconnect()
+  // Measure natural single-column height from a hidden mirror so the
+  // measurement isn't contaminated when the visible content reflows into 2-col.
+  React.useLayoutEffect(() => {
+    if (!measureRef.current) return
+    const h = measureRef.current.scrollHeight || 0
+    setIsOverflowing(h > A4_CONTENT_HEIGHT)
   }, [song.parsed_content, semitones])
 
-  // Effective 2-col state: auto means use overflow detection
   const effectiveTwoCol = twoColumn === true || (twoColumn === 'auto' && isOverflowing)
 
   return (
     <div
       ref={printRef}
-      className="border border-[var(--color-border)] rounded-lg bg-[var(--color-bg)] overflow-hidden"
+      className="relative border border-[var(--color-border)] rounded-lg bg-[var(--color-bg)] overflow-hidden"
     >
       {/* Page header strip */}
       <div className="flex items-center justify-between px-5 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg-warm)] no-print">
@@ -399,16 +390,36 @@ function ChordSheetPage({ song, semitones, targetKey, twoColumn, onTwoColumnChan
       <div
         className="p-8"
         style={{
-          // Minimum height that feels like a page; content expands beyond if needed
           minHeight: `${A4_CONTENT_HEIGHT}px`,
         }}
       >
-        <div ref={contentRef}>
+        <SongRenderer
+          parsedContent={song.parsed_content}
+          semitones={semitones}
+          targetKey={targetKey}
+          twoColumn={effectiveTwoCol}
+        />
+      </div>
+
+      {/* Hidden single-column mirror used only to measure natural height.
+          Kept in DOM (not display:none) so layout/scrollHeight is valid. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          left: '-9999px',
+          top: 0,
+          width: '100%',
+        }}
+      >
+        <div ref={measureRef} className="p-8">
           <SongRenderer
             parsedContent={song.parsed_content}
             semitones={semitones}
             targetKey={targetKey}
-            twoColumn={effectiveTwoCol}
+            twoColumn={false}
           />
         </div>
       </div>

@@ -256,7 +256,8 @@ function PrintLine({ line }) {
     marginTop: '16px',
     marginBottom: '4px',
     display: 'block',
-    breakBefore: 'column',
+    breakAfter: 'avoid-column',
+    breakInside: 'avoid',
   }
 
   const chordStyle = {

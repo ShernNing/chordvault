@@ -164,17 +164,16 @@ body {
 /* ─── 2-Column Layout ─────────────────────────────────────────── */
 .chord-sheet-2col {
   columns: 2;
-  column-gap: 3rem;
+  column-gap: 2rem;
   column-fill: balance;
 }
 
+/* Keep section header glued to the lines that follow it; don't force a
+   column break before every section, that produces broken layout when there
+   are more sections than columns. */
 .chord-sheet-2col .section-header {
-  break-before: column;
+  break-after: avoid-column;
   break-inside: avoid;
-}
-
-.chord-sheet-2col .section-header:first-child {
-  break-before: auto;
 }
 
 .chord-sheet-2col .chord-lyric-pair {
@@ -185,6 +184,12 @@ body {
 .chord-sheet-2col .chord-line,
 .chord-sheet-2col .lyric-line {
   break-inside: avoid;
+}
+
+/* Reset top margin only at the visual top of each column, not just the
+   first child of the entire sheet, so column 2 doesn't get a phantom gap. */
+.chord-sheet-2col .section-header:first-child {
+  margin-top: 0;
 }
 
 @media (max-width: 768px) {
