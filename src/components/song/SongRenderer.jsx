@@ -61,10 +61,20 @@ function _splitSections(sections, colHeight) {
 function _estimatePrintLineHeight(line) {
   switch (line.type) {
     case 'chord_line': return 15
-    case 'lyric_line': return 21  // text(17) + margin-bottom(4)
-    case 'blank':      return 16
-    default:           return 17
+    case 'lyric_line': return 16  // text(14) + margin-bottom(2)
+    case 'blank':      return 8
+    default:           return 16
   }
+}
+
+// Strip blank lines that fall between a chord line and its lyric (chord → blank → lyric)
+function _stripIntraPairBlanks(lines) {
+  return lines.filter((line, i) => {
+    if (line.type !== 'blank') return true
+    const prev = lines[i - 1]
+    const next = lines[i + 1]
+    return !(prev?.type === 'chord_line' && next?.type === 'lyric_line')
+  })
 }
 
 function _groupPrintSections(lines) {
@@ -83,7 +93,7 @@ function _groupPrintSections(lines) {
 }
 
 function _estimatePrintSectionHeight(section, isFirst) {
-  let h = section.header ? (isFirst ? 18 : 34) : 0
+  let h = section.header ? (isFirst ? 16 : 24) : 0
   for (const l of section.lines) h += _estimatePrintLineHeight(l)
   return h
 }
@@ -140,11 +150,14 @@ export default function SongRenderer({
     const line = content[i]
     const effectiveType = overrides[i] || line.type
 
-    if (effectiveType === 'chord_line' && i + 1 < content.length) {
-      const nextType = overrides[i + 1] || content[i + 1].type
-      if (nextType === 'lyric_line') {
-        groups.push({ type: 'pair', chord: { ...line, type: effectiveType }, lyric: { ...content[i + 1], type: nextType }, chordIndex: i, lyricIndex: i + 1 })
-        i += 2
+    if (effectiveType === 'chord_line') {
+      // Skip past any blank lines to find a lyric partner
+      let j = i + 1
+      while (j < content.length && (overrides[j] || content[j].type) === 'blank') j++
+      if (j < content.length && (overrides[j] || content[j].type) === 'lyric_line') {
+        const lyricType = overrides[j] || content[j].type
+        groups.push({ type: 'pair', chord: { ...line, type: effectiveType }, lyric: { ...content[j], type: lyricType }, chordIndex: i, lyricIndex: j })
+        i = j + 1
         continue
       }
     }
@@ -335,7 +348,7 @@ const PRINT_WRAPPER_STYLE = {
 
 function PrintSongHeader({ song, keyLabel }) {
   return (
-    <div style={{ marginBottom: '10px', borderBottom: '1px solid #e5e5e5', paddingBottom: '6px' }}>
+    <div style={{ marginBottom: '6px', borderBottom: '1px solid #e5e5e5', paddingBottom: '4px' }}>
       <div style={{ fontSize: '13px', fontWeight: '700' }}>
         {song.title}
         {song.artist ? ` - ${song.artist}` : ''}
@@ -359,7 +372,7 @@ export function PrintableSongSheet({ song, semitones, targetKey, keyLabel }) {
     ? transposeParsedContent(song.parsed_content, semitones, targetKey)
     : song.parsed_content
 
-  const sections = _groupPrintSections(content || [])
+  const sections = _groupPrintSections(_stripIntraPairBlanks(content || []))
   const nonBlankLines = (content || []).filter(l => l.type !== 'blank').length
   const useColumns = nonBlankLines > 45
 
@@ -394,7 +407,7 @@ export function TwoPrintableSongSheets({ song1, semitones1, targetKey1, keyLabel
     const content = semitones !== 0
       ? transposeParsedContent(song.parsed_content, semitones, targetKey)
       : song.parsed_content
-    const sections = _groupPrintSections(content || [])
+    const sections = _groupPrintSections(_stripIntraPairBlanks(content || []))
     return (
       <div style={{ flex: 1, minWidth: 0 }}>
         <PrintSongHeader song={song} keyLabel={keyLabel} />
@@ -420,8 +433,8 @@ function PrintLine({ line }) {
     fontWeight: '700',
     color: '#000000',
     lineHeight: '1.2',
-    marginTop: '16px',
-    marginBottom: '4px',
+    marginTop: '8px',
+    marginBottom: '2px',
     display: 'block',
   }
 
@@ -443,8 +456,8 @@ function PrintLine({ line }) {
     color: '#000000',
     whiteSpace: 'pre-wrap',
     display: 'block',
-    lineHeight: '1.4',
-    marginBottom: '4px',
+    lineHeight: '1.2',
+    marginBottom: '2px',
   }
 
   switch (line.type) {
@@ -462,7 +475,7 @@ function PrintLine({ line }) {
       return <span style={lyricStyle}>{line.text}</span>
 
     case 'blank':
-      return <div style={{ height: '16px' }} />
+      return <div style={{ height: '8px' }} />
 
     default:
       return <span style={lyricStyle}>{line.text}</span>

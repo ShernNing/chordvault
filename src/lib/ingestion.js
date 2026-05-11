@@ -87,7 +87,7 @@ export function parseRawContent(rawText) {
       default: parsedLines.push({ type: 'lyric_line', text: line, uncertain: false })
     }
   }
-  return collapseBlanks(parsedLines)
+  return stripIntraPairBlanks(collapseBlanks(parsedLines))
 }
 
 function collapseBlanks(lines) {
@@ -98,6 +98,15 @@ function collapseBlanks(lines) {
     else { result.push(line); lastWasBlank = false }
   }
   return result
+}
+
+function stripIntraPairBlanks(lines) {
+  return lines.filter((line, i) => {
+    if (line.type !== 'blank') return true
+    const prev = lines[i - 1]
+    const next = lines[i + 1]
+    return !(prev?.type === 'chord_line' && next?.type === 'lyric_line')
+  })
 }
 
 export function extractChords(parsedContent) {
