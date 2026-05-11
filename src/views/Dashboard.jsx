@@ -65,10 +65,9 @@ export default function Dashboard() {
     if (!chosenSetlistId) return
     setBulkAdding(true)
     try {
-      const setlistId = Number(chosenSetlistId)
       for (const songId of selectedIds) {
         const song = songs.find(s => s.id === songId)
-        await setlistOps.addSong(setlistId, songId, song?.original_key || null, 0)
+        await setlistOps.addSong(chosenSetlistId, songId, song?.original_key || null, 0)
       }
       setAddToSetlistOpen(false)
       setChosenSetlistId('')
