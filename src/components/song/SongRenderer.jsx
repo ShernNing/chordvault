@@ -210,12 +210,29 @@ export function PrintableSongSheet({ song, semitones, targetKey, title, keyLabel
     ? transposeParsedContent(song.parsed_content, semitones, targetKey)
     : song.parsed_content
 
+  // Group lines into sections so each section stays together (breakInside: avoid)
+  const sections = []
+  let current = { header: null, lines: [] }
+  for (const line of content || []) {
+    if (line.type === 'section_header') {
+      sections.push(current)
+      current = { header: line, lines: [] }
+    } else {
+      current.lines.push(line)
+    }
+  }
+  sections.push(current)
+
+  // Use 2 columns only when content is long enough to warrant it
+  const nonBlankLines = (content || []).filter(l => l.type !== 'blank').length
+  const useColumns = nonBlankLines > 45
+
   return (
     <div style={{
       width: '794px',
       padding: '24px',
       backgroundColor: '#ffffff',
-      color: '#111111',
+      color: '#000000',
       fontFamily: "'Courier New', Courier, monospace",
       fontSize: '12px',
     }}>
@@ -229,9 +246,14 @@ export function PrintableSongSheet({ song, semitones, targetKey, title, keyLabel
       </div>
 
       {/* Content */}
-      <div style={{ columns: '2', columnGap: '32px' }}>
-        {content?.map((line, i) => (
-          <PrintLine key={i} line={line} />
+      <div style={useColumns ? { columns: '2', columnGap: '32px', columnFill: 'auto' } : {}}>
+        {sections.map((section, si) => (
+          <div key={si} style={{ breakInside: 'avoid', display: 'block' }}>
+            {section.header && <PrintLine line={section.header} />}
+            {section.lines.map((line, li) => (
+              <PrintLine key={li} line={line} />
+            ))}
+          </div>
         ))}
       </div>
     </div>
@@ -243,7 +265,7 @@ function PrintLine({ line }) {
     fontFamily: "'Courier New', Courier, monospace",
     fontSize: '12px',
     fontWeight: '700',
-    color: '#111111',
+    color: '#000000',
     lineHeight: '1.2',
     marginTop: '16px',
     marginBottom: '4px',
@@ -256,7 +278,7 @@ function PrintLine({ line }) {
     fontFamily: "'Courier New', Courier, monospace",
     fontSize: '12px',
     fontWeight: '700',
-    color: '#111111',
+    color: '#000000',
     whiteSpace: 'pre',
     display: 'block',
     lineHeight: '1.2',
@@ -267,7 +289,7 @@ function PrintLine({ line }) {
     fontFamily: "'Courier New', Courier, monospace",
     fontSize: '12px',
     fontWeight: '400',
-    color: '#111111',
+    color: '#000000',
     whiteSpace: 'pre-wrap',
     display: 'block',
     lineHeight: '1.4',
