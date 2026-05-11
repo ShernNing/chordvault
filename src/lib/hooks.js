@@ -145,7 +145,14 @@ export function useSongs(sortBy = 'title') {
     await load()
   }, [load])
 
-  return { songs, loading, error, reload: load, createSong, updateSong, deleteSong }
+  const bulkDeleteSongs = useCallback(async (ids) => {
+    for (const id of ids) {
+      await songOps.delete(id)
+    }
+    await load()
+  }, [load])
+
+  return { songs, loading, error, reload: load, createSong, updateSong, deleteSong, bulkDeleteSongs }
 }
 
 // ─── Single Song ───────────────────────────────────────────────────────────

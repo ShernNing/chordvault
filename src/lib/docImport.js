@@ -11,7 +11,7 @@
  *  - Two or more consecutive blank lines
  */
 
-import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference } from './ingestion'
+import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference, classifyLine } from './ingestion'
 
 // ─── DOCX Parsing ─────────────────────────────────────────────────────────
 
@@ -31,6 +31,9 @@ export async function extractTextFromDocx(file) {
 /**
  * Read a PDF file and return its plain text content.
  * Uses pdf.js loaded from CDN.
+ *
+ * Groups text items by Y position to reconstruct lines — critical for chord sheets
+ * where each chord line and lyric line must be on its own text line.
  */
 export async function extractTextFromPDF(file) {
   // Load pdfjs-dist from CDN
@@ -41,14 +44,87 @@ export async function extractTextFromPDF(file) {
   }
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
-  const textParts = []
+  const pageTexts = []
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
     const textContent = await page.getTextContent()
-    const pageText = textContent.items.map(item => item.str).join(' ')
-    textParts.push(pageText)
+    pageTexts.push(reconstructLinesFromPDF(textContent.items))
   }
-  return textParts.join('\n')
+  return pageTexts.join('\n')
+}
+
+/**
+ * Reconstruct text lines from pdf.js text items by grouping on Y position.
+ *
+ * pdf.js gives raw text runs with (x, y) coordinates. A naive join(' ') collapses
+ * all lines into one blob and splits words mid-character. This function:
+ *  1. Buckets items by Y coordinate (within a 3-unit tolerance)
+ *  2. Sorts each bucket left-to-right by X
+ *  3. Joins items with a space only when there's a real gap between them
+ *  4. Inserts blank lines where the vertical gap between consecutive lines is
+ *     larger than ~1.5 line heights (paragraph break)
+ */
+function reconstructLinesFromPDF(items) {
+  if (!items.length) return ''
+
+  // Bucket items by Y position — PDF y=0 is page bottom, so higher y = higher on page
+  const Y_TOLERANCE = 3
+  const buckets = []
+  for (const item of items) {
+    if (!item.str) continue
+    const y = item.transform[5]
+    const existing = buckets.find(b => Math.abs(b.y - y) <= Y_TOLERANCE)
+    if (existing) {
+      existing.items.push(item)
+    } else {
+      buckets.push({ y, items: [item] })
+    }
+  }
+
+  // Sort top-to-bottom (descending y in PDF space)
+  buckets.sort((a, b) => b.y - a.y)
+
+  // Estimate typical line height from median y-gap between consecutive buckets
+  let lineHeight = 12 // default ~12pt
+  if (buckets.length > 1) {
+    const gaps = []
+    for (let i = 1; i < buckets.length; i++) {
+      gaps.push(buckets[i - 1].y - buckets[i].y)
+    }
+    gaps.sort((a, b) => a - b)
+    lineHeight = gaps[Math.floor(gaps.length / 2)] || 12
+  }
+
+  const lines = []
+  for (let i = 0; i < buckets.length; i++) {
+    // Insert a blank line when vertical gap is larger than 1.5 line heights
+    if (i > 0) {
+      const gap = buckets[i - 1].y - buckets[i].y
+      if (gap > lineHeight * 1.5) lines.push('')
+    }
+
+    // Sort items in this line left-to-right
+    const sortedItems = [...buckets[i].items].sort((a, b) => a.transform[4] - b.transform[4])
+
+    // Join items — no space when items are immediately adjacent (kerning), space when gap exists
+    let lineStr = ''
+    for (let j = 0; j < sortedItems.length; j++) {
+      const item = sortedItems[j]
+      if (j === 0) {
+        lineStr = item.str
+      } else {
+        const prev = sortedItems[j - 1]
+        const prevRight = prev.transform[4] + (prev.width || 0)
+        const gap = item.transform[4] - prevRight
+        lineStr += (gap > 2 ? ' ' : '') + item.str
+      }
+    }
+
+    const trimmed = lineStr.trim()
+    if (trimmed) lines.push(trimmed)
+  }
+
+  return lines.join('\n')
 }
 
 function loadScript(src) {
@@ -64,39 +140,30 @@ function loadScript(src) {
 
 // ─── Song Boundary Detection ───────────────────────────────────────────────
 
-// Patterns that indicate the start of a new song
+// Patterns that indicate the start of a new song.
+// Keep these strict — false positives are worse than false negatives.
+// Chord lines are all-caps letters+spaces, so never use a generic all-caps pattern.
 const SONG_TITLE_PATTERNS = [
   // "1. The Joy (F)" or "2. TRIBES – Victory Worship (G)"
-  /^\d+\.\s+.{2,}/,
-  // "Matchless Love – Sinach (B)" — has an em-dash or hyphen + key at end
+  /^\d+[\.\)]\s+.{2,}/,
+  // "Matchless Love – Sinach (B)" — dash + key annotation required
+  // The key annotation is the reliable signal (titles with dashes but no key are ambiguous)
   /^[A-Z].+[–\-].+\([A-G][#b]?\)/,
-  // "Communion" as a standalone label
+  // "Communion" as a standalone separator label
   /^Communion\s*$/i,
-  // All-caps song title line (e.g. "AMAZING GRACE")
-  /^[A-Z][A-Z\s\-']{4,}$/,
 ]
 
 // Patterns that are definitely NOT song titles
 const SKIP_PATTERNS = [
-  /^\[/,           // section header
+  /^\[/,           // section header like [Verse 1]
   /^INTERLUDE/i,
-  /^(Ayo|ayo)/,    // phonetic lines
+  /^(Ayo|ayo)/,    // phonetic/vocal lines
 ]
 
-function looksLikeSongTitle(line) {
-  const trimmed = line.trim()
-  if (!trimmed || trimmed.length < 3) return false
+function looksLikeSongTitle(trimmed) {
+  if (!trimmed || trimmed.length < 2) return false
   if (SKIP_PATTERNS.some(p => p.test(trimmed))) return false
   return SONG_TITLE_PATTERNS.some(p => p.test(trimmed))
-}
-
-function countConsecutiveBlanks(lines, fromIndex) {
-  let count = 0
-  for (let i = fromIndex; i < lines.length; i++) {
-    if (!lines[i].trim()) count++
-    else break
-  }
-  return count
 }
 
 /**
@@ -114,9 +181,9 @@ export function splitDocumentIntoSongs(text) {
     const line = lines[i]
     const trimmed = line.trim()
 
-    // Track consecutive blanks — 3+ in a row = section break
     if (!trimmed) {
       consecutiveBlanks++
+      // Preserve up to 2 consecutive blank lines inside a song (chord-lyric formatting)
       if (currentTitle && consecutiveBlanks <= 2) {
         currentLines.push(line)
       }
@@ -124,25 +191,22 @@ export function splitDocumentIntoSongs(text) {
     }
     consecutiveBlanks = 0
 
-    // Check if this line is a new song title
     if (looksLikeSongTitle(trimmed)) {
-      // Save the current song if we have content
+      // Save the current song if it has real content
       if (currentTitle && currentLines.some(l => l.trim())) {
         songs.push({ rawTitle: currentTitle, rawContent: currentLines.join('\n').trim() })
       }
-      // Start new song
       currentTitle = trimmed
       currentLines = []
       continue
     }
 
-    // Accumulate lines for current song
     if (currentTitle) {
       currentLines.push(line)
     }
   }
 
-  // Don't forget the last song
+  // Flush last song
   if (currentTitle && currentLines.some(l => l.trim())) {
     songs.push({ rawTitle: currentTitle, rawContent: currentLines.join('\n').trim() })
   }
@@ -155,6 +219,7 @@ export function splitDocumentIntoSongs(text) {
 /**
  * Clean a raw title for use as the song's display title.
  * "1. The Joy (F)" → "The Joy"
+ * "2. TRIBES – Victory Worship (G)" → "TRIBES"
  * "Matchless Love – Sinach (B)" → "Matchless Love"
  */
 export function cleanTitle(rawTitle) {
@@ -163,9 +228,11 @@ export function cleanTitle(rawTitle) {
   title = title.replace(/^\d+[\.\)]\s+/, '')
   // Remove key annotation: " (F)" or " (Key G)"
   title = title.replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)\s*$/i, '')
-  // Remove artist after dash: "Song – Artist" → "Song"
-  // BUT keep if no dash, or if it's part of the title
-  // Only strip if followed by artist-looking text and a key annotation was already present
+  // Strip artist credit "Song – Artist" — only when original had a key annotation,
+  // which is the reliable signal that this is "Song – Artist (Key)" not a dash in a title.
+  if (extractArtistFromTitle(rawTitle)) {
+    title = title.replace(/\s*[–\-]\s*.+$/, '')
+  }
   return title.trim()
 }
 
@@ -173,15 +240,15 @@ export function cleanTitle(rawTitle) {
  * Extract artist from title if present.
  * "Matchless Love – Sinach (B)" → "Sinach"
  * "TRIBES – Victory Worship (G)" → "Victory Worship"
+ *
+ * Requires a key annotation to be present — distinguishes "Song – Artist (Key)"
+ * from song titles that contain dashes (e.g. "Spirit Lead Me – Into Your Will").
  */
 export function extractArtistFromTitle(rawTitle) {
-  // Match "Song Name – Artist (Key)" or "Song Name - Artist (Key)"
-  const match = rawTitle.match(/[–\-]\s*([^(\-–]+?)\s*(?:\([A-G][#b]?\))?$/)
+  // Key annotation must be present at end: "(G)", "(Bb)", "(Key F#)", etc.
+  const match = rawTitle.match(/[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i)
   if (!match) return ''
-  const candidate = match[1].trim()
-  // Don't treat key annotations as artists
-  if (/^\([A-G][#b]?\)$/.test(candidate)) return ''
-  return candidate
+  return match[1].trim()
 }
 
 // ─── Full Document Import Pipeline ────────────────────────────────────────

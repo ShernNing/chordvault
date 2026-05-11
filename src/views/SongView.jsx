@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Edit3, Save, X, Columns2, FileDown,
-  Trash2, Music2, AlertTriangle, Check, RefreshCw
+  Trash2, Music2, AlertTriangle, Check, RefreshCw, Copy
 } from 'lucide-react'
 import { useSong, useLocalStorage } from '../lib/hooks'
 import { transposeKey, getCapoDisplay } from '../lib/transposition'
@@ -27,6 +27,7 @@ export default function SongView() {
   const [isEditing, setIsEditing] = useState(false)
   const [deleteModal, setDeleteModal] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const printRef = useRef(null)
 
@@ -40,6 +41,12 @@ export default function SongView() {
 
   const handleTransposeChange = (semitones, capo) => {
     setTranspose({ semitones, capo })
+  }
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(song.raw_content || '')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleExportPDF = async () => {
@@ -108,6 +115,16 @@ export default function SongView() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-1 shrink-0 no-print">
+          <Tooltip content={copied ? 'Copied!' : 'Copy chord sheet'}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleCopy}
+              title="Copy chord sheet"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </Button>
+          </Tooltip>
           <Tooltip content="Export PDF">
             <Button
               variant="ghost"
