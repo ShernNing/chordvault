@@ -2,10 +2,12 @@ import React, { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   Music2, ListMusic, LayoutGrid, Plus, Moon, Sun,
-  Zap, Wifi, WifiOff, Menu, X, BookOpen, FileUp
+  Zap, Wifi, WifiOff, Menu, X, FileUp,
+  CloudOff, RefreshCw, LogIn, LogOut, User
 } from 'lucide-react'
-import { useOnlineStatus, useTheme } from '../../lib/hooks'
+import { useOnlineStatus, useTheme, useAuth, useSyncState } from '../../lib/hooks'
 import { Button, Tooltip } from '../ui'
+import AuthModal from '../auth/AuthModal'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Library', icon: LayoutGrid, exact: true },
@@ -17,6 +19,8 @@ const NAV_ITEMS = [
 export default function AppShell({ children }) {
   const isOnline = useOnlineStatus()
   const { isDark, isStage, toggleDark, toggleStage } = useTheme()
+  const { isLoggedIn, email, interaction, login, logout } = useAuth()
+  const syncState = useSyncState()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
 
@@ -77,12 +81,26 @@ export default function AppShell({ children }) {
               </Button>
             </Tooltip>
 
-            {/* Online indicator (desktop) */}
-            <div className="hidden sm:flex items-center gap-1 ml-1">
-              {isOnline
-                ? <Wifi size={12} className="text-green-500" />
-                : <WifiOff size={12} className="text-amber-500" />
-              }
+            {/* Auth */}
+            <div className="hidden sm:flex items-center ml-1">
+              {isLoggedIn ? (
+                <Tooltip content={`Signed in as ${email} — click to sign out`}>
+                  <button
+                    onClick={logout}
+                    className="flex items-center gap-1.5 h-7 px-2 rounded text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
+                  >
+                    <User size={12} />
+                    <span className="max-w-[100px] truncate">{email}</span>
+                    <LogOut size={11} className="opacity-50" />
+                  </button>
+                </Tooltip>
+              ) : (
+                <Tooltip content="Sign in to sync across devices">
+                  <Button variant="ghost" size="icon-sm" onClick={login} title="Sign in to sync">
+                    <LogIn size={14} />
+                  </Button>
+                </Tooltip>
+              )}
             </div>
 
             {/* Mobile menu */}
@@ -109,6 +127,25 @@ export default function AppShell({ children }) {
                   onClick={() => setMobileMenuOpen(false)}
                 />
               ))}
+              <div className="border-t border-[var(--color-border)] mt-1 pt-1">
+                {isLoggedIn ? (
+                  <button
+                    onClick={() => { logout(); setMobileMenuOpen(false) }}
+                    className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
+                  >
+                    <LogOut size={14} />
+                    Sign out ({email})
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { login(); setMobileMenuOpen(false) }}
+                    className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
+                  >
+                    <LogIn size={14} />
+                    Sign in to sync
+                  </button>
+                )}
+              </div>
             </nav>
           </div>
         )}
@@ -123,22 +160,51 @@ export default function AppShell({ children }) {
       <footer className="border-t border-[var(--color-border)] py-3 px-4 no-print">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <span className="text-xs text-[var(--color-ink-muted)] font-mono">ChordVault</span>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[var(--color-ink-muted)]">
-              {isOnline ? (
-                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                  <Wifi size={10} /> Synced
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                  <WifiOff size={10} /> Offline
-                </span>
-              )}
-            </span>
-          </div>
+          <SyncStatus isLoggedIn={isLoggedIn} syncState={syncState} isOnline={isOnline} />
         </div>
       </footer>
+
+      {/* ── Auth Modal ────────────────────────────────────────────── */}
+      <AuthModal interaction={interaction} />
     </div>
+  )
+}
+
+function SyncStatus({ isLoggedIn, syncState, isOnline }) {
+  if (!isLoggedIn) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-[var(--color-ink-muted)]">
+        <CloudOff size={10} /> Local only
+      </span>
+    )
+  }
+
+  const status = syncState?.status
+  if (status === 'syncing' || status === 'connecting') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400">
+        <RefreshCw size={10} className="animate-spin" /> Syncing…
+      </span>
+    )
+  }
+  if (!isOnline || status === 'offline') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+        <WifiOff size={10} /> Offline
+      </span>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-red-500">
+        <CloudOff size={10} /> Sync error
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+      <Wifi size={10} /> Synced
+    </span>
   )
 }
 

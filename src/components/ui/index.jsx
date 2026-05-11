@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, forwardRef } from 'react'
 import { Loader2, AlertCircle, RefreshCw, Music } from 'lucide-react'
 
 // ─── Button ────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ export function Button({
 }
 
 // ─── Input ─────────────────────────────────────────────────────────────────
-export function Input({
+export const Input = forwardRef(function Input({
   label,
   error,
   hint,
@@ -57,7 +57,7 @@ export function Input({
   containerClassName = '',
   size = 'md',
   ...props
-}) {
+}, ref) {
   const sizes = {
     sm: 'h-7 px-2 text-xs',
     md: 'h-8 px-3 text-sm',
@@ -72,6 +72,7 @@ export function Input({
         </label>
       )}
       <input
+        ref={ref}
         className={`
           w-full bg-[var(--color-bg)] border border-[var(--color-border)]
           text-[var(--color-ink)] placeholder-[var(--color-ink-muted)]
@@ -90,7 +91,7 @@ export function Input({
       {hint && !error && <p className="text-xs text-[var(--color-ink-muted)]">{hint}</p>}
     </div>
   )
-}
+})
 
 // ─── Textarea ──────────────────────────────────────────────────────────────
 export function Textarea({ label, error, hint, className = '', containerClassName = '', ...props }) {

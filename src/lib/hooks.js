@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { songOps, setlistOps, appStateOps } from './db'
+import { db, songOps, setlistOps, appStateOps } from './db'
 import { ingest } from './ingestion'
 
 // ─── Online Status ─────────────────────────────────────────────────────────
@@ -315,4 +315,46 @@ export function useSearch(allSongs) {
   }, [debouncedQuery, allSongs])
 
   return { query, setQuery, results }
+}
+
+// ─── Auth ──────────────────────────────────────────────────────────────────
+export function useAuth() {
+  const [currentUser, setCurrentUser] = useState({ isLoggedIn: false })
+  const [interaction, setInteraction] = useState(null)
+
+  useEffect(() => {
+    if (!db.cloud?.currentUser) return
+    const sub = db.cloud.currentUser.subscribe(u => setCurrentUser(u ?? { isLoggedIn: false }))
+    return () => sub.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!db.cloud?.userInteraction) return
+    const sub = db.cloud.userInteraction.subscribe(ia => setInteraction(ia ?? null))
+    return () => sub.unsubscribe()
+  }, [])
+
+  const login = useCallback(() => { db.cloud?.login?.() }, [])
+  const logout = useCallback(() => { db.cloud?.logout?.() }, [])
+
+  return {
+    isLoggedIn: currentUser?.isLoggedIn ?? false,
+    email: currentUser?.email,
+    interaction,
+    login,
+    logout,
+  }
+}
+
+// ─── Sync State ────────────────────────────────────────────────────────────
+export function useSyncState() {
+  const [syncState, setSyncState] = useState({ status: 'offline' })
+
+  useEffect(() => {
+    if (!db.cloud?.syncState) return
+    const sub = db.cloud.syncState.subscribe(s => setSyncState(s ?? { status: 'offline' }))
+    return () => sub.unsubscribe()
+  }, [])
+
+  return syncState
 }

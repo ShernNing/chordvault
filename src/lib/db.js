@@ -31,7 +31,8 @@ if (dexieCloudUrl && dexieCloudEnabled && db.cloud?.configure) {
   try {
     db.cloud.configure({
       databaseUrl: dexieCloudUrl,
-      requireAuth: true,
+      requireAuth: false,
+      customLoginGui: true,
     });
   } catch (error) {
     console.warn("Dexie Cloud configuration failed:", error);
