@@ -37,9 +37,19 @@ export default function NewSong() {
     //   "2. TRIBES – Victory Worship (G)"  → title=TRIBES, artist=Victory Worship
     //   "1. Amazing Grace (F)"             → title=Amazing Grace
     //   "Lord I Need You (F)"              → title=Lord I Need You
+    const isCategoryLabel = (line) =>
+      /^(?:\d+[\.\)]\s*)?(?:communion|post[\s\-]?sermon)\s*$/i.test(line.trim())
+
     if (!title.trim() && content.trim()) {
       const contentLines = content.split('\n')
-      const firstIdx = contentLines.findIndex(l => l.trim())
+      let firstIdx = contentLines.findIndex(l => l.trim())
+
+      // Skip category labels (Communion, Post Sermon, etc.) to reach the actual song title
+      while (firstIdx !== -1 && isCategoryLabel(contentLines[firstIdx])) {
+        contentLines.splice(firstIdx, 1)
+        firstIdx = contentLines.findIndex((l, i) => i >= firstIdx && l.trim())
+      }
+
       if (firstIdx !== -1) {
         const firstLine = contentLines[firstIdx].trim()
         if (
