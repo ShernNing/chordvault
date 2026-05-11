@@ -2,21 +2,12 @@ import Dexie from "dexie";
 import { dexieCloud } from "dexie-cloud-addon";
 
 // ─── Database Definition ───────────────────────────────────────────────────
-export const db = new Dexie("ChordVault");
+// Renamed from "ChordVault" to skip the broken v1→v2 PK-type upgrade path
+export const db = new Dexie("ChordVaultDB");
 
 dexieCloud(db);
 
 db.version(1).stores({
-  songs:
-    "++id, title, artist, original_key, created_at, updated_at, last_played_at, *tags",
-  setlists: "++id, name, created_at, updated_at",
-  setlist_songs: "++id, setlist_id, song_id, position",
-  sync_queue:
-    "++id, operation, table_name, record_id, payload, created_at, synced",
-  app_state: "key",
-});
-
-db.version(2).stores({
   songs:
     "id, title, artist, original_key, created_at, updated_at, last_played_at, *tags",
   setlists: "id, name, created_at, updated_at",
