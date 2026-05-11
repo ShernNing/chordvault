@@ -149,9 +149,13 @@ const SONG_TITLE_PATTERNS = [
   // "Matchless Love – Sinach (B)" — dash + key annotation required
   // The key annotation is the reliable signal (titles with dashes but no key are ambiguous)
   /^[A-Z].+[–\-].+\([A-G][#b]?\)/,
-  // "Communion" as a standalone separator label
-  /^Communion\s*$/i,
+  // Category separator labels
+  /^(?:communion|post[\s\-]?sermon)\s*$/i,
 ]
+
+// Category labels that are section separators, not song titles.
+// When detected as rawTitle, the real song title is the first line of rawContent.
+const CATEGORY_LABEL_RE = /^(?:\d+[\.\)]\s*)?(?:communion|post[\s\-]?sermon)\s*$/i
 
 // Patterns that are definitely NOT song titles
 const SKIP_PATTERNS = [
@@ -293,11 +297,26 @@ export async function importDocument(file) {
   }
 
   return rawSongs.map((raw, index) => {
-    const title = cleanTitle(raw.rawTitle)
-    const artist = extractArtistFromTitle(raw.rawTitle)
-    const parsedContent = parseRawContent(raw.rawContent)
+    // When rawTitle is a category label (Communion, Post Sermon, etc.),
+    // the real song title is the first non-blank line of rawContent.
+    let effectiveRawTitle = raw.rawTitle
+    let effectiveRawContent = raw.rawContent
+    if (CATEGORY_LABEL_RE.test(raw.rawTitle.trim())) {
+      const contentLines = raw.rawContent.split('\n')
+      const firstIdx = contentLines.findIndex(l => l.trim())
+      if (firstIdx !== -1) {
+        effectiveRawTitle = contentLines[firstIdx].trim()
+        contentLines.splice(firstIdx, 1)
+        while (contentLines.length > 0 && !contentLines[0].trim()) contentLines.shift()
+        effectiveRawContent = contentLines.join('\n').trim()
+      }
+    }
+
+    const title = cleanTitle(effectiveRawTitle)
+    const artist = extractArtistFromTitle(effectiveRawTitle)
+    const parsedContent = parseRawContent(effectiveRawContent)
     const chords = extractChords(parsedContent)
-    const titleKey = extractKeyFromTitle(raw.rawTitle)
+    const titleKey = extractKeyFromTitle(effectiveRawTitle)
     const detectedKey = detectKey(chords)
     const originalKey = titleKey || detectedKey?.key || null
     const accidentalPref = detectAccidentalPreference(chords)
@@ -305,10 +324,10 @@ export async function importDocument(file) {
 
     return {
       id: `import-${Date.now()}-${index}`,
-      rawTitle: raw.rawTitle,
+      rawTitle: effectiveRawTitle,
       title,
       artist,
-      rawContent: raw.rawContent,
+      rawContent: effectiveRawContent,
       parsed_content: parsedContent,
       original_key: originalKey,
       detected_key: detectedKey,
