@@ -22,3 +22,4 @@ npm-debug.log*
 # PWA cache (generated)
 dist/sw.js
 dist/workbox-*.js
+.claude/
