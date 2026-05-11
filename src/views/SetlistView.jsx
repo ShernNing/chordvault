@@ -45,6 +45,26 @@ import {
   Modal,
 } from "../components/ui";
 
+// Half-page column: (794 - 48px padding - 32px gap) / 2 = 357px ÷ ~7.2px/char ≈ 49 chars
+// Use 45 as conservative threshold to ensure no overflow
+const MAX_HALF_COL_CHARS = 45;
+
+function getMaxLineChars(parsedContent) {
+  let max = 0;
+  for (const line of parsedContent || []) {
+    let len = 0;
+    if (line.type === 'chord_line') {
+      len = line.tokens
+        ? line.tokens.reduce((s, t) => s + (t.leadingSpaces || 0) + t.text.length, 0)
+        : (line.raw || '').length;
+    } else if (line.type === 'lyric_line') {
+      len = (line.text || '').length;
+    }
+    if (len > max) max = len;
+  }
+  return max;
+}
+
 export default function SetlistView() {
   const { id } = useParams();
 
@@ -139,7 +159,8 @@ export default function SetlistView() {
           const nonBlankLines = (slot.song.parsed_content || []).filter(
             (l) => l.type !== "blank",
           ).length;
-          return { slot, shapeSemitones, shapeKey, keyLabel, fitsOneColumn: nonBlankLines <= 45 };
+          const maxChars = getMaxLineChars(slot.song.parsed_content);
+          return { slot, shapeSemitones, shapeKey, keyLabel, fitsHalfPage: nonBlankLines <= 45 && maxChars <= MAX_HALF_COL_CHARS };
         });
 
       let i = 0;
@@ -149,7 +170,7 @@ export default function SetlistView() {
         const container = createPrintContainer();
         const root = createRoot(container);
 
-        if (curr.fitsOneColumn && next?.fitsOneColumn) {
+        if (curr.fitsHalfPage && next?.fitsHalfPage) {
           // Both songs are short — combine onto one page
           root.render(
             <TwoPrintableSongSheets
