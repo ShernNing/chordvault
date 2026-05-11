@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, CheckCircle, Eye, EyeOff, Save } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X } from 'lucide-react'
 import { useSongs } from '../lib/hooks'
+import { supabaseSongOps } from '../lib/supabaseOps'
 import { ingest, classifyLine } from '../lib/ingestion'
 import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
 import SongRenderer from '../components/song/SongRenderer'
+import ConflictCard from '../components/song/ConflictCard'
 
 export default function NewSong() {
   const navigate = useNavigate()
@@ -17,6 +19,7 @@ export default function NewSong() {
   const [showPreview, setShowPreview] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [conflict, setConflict] = useState(null) // { importedSong, existingSong, resolution, newTitle, incomingEdits, existingEdits }
   const [titleAutoDetected, setTitleAutoDetected] = useState(false)
   const [artistAutoDetected, setArtistAutoDetected] = useState(false)
 
@@ -82,12 +85,107 @@ export default function NewSong() {
     setSaving(true)
     setError(null)
     try {
+      const dupes = await supabaseSongOps.getByTitles([title.trim()])
+      if (dupes.length > 0) {
+        setConflict({
+          importedSong: { title: title.trim(), artist: artist.trim(), rawContent, original_key: null },
+          existingSong: dupes[0],
+          resolution: 'skip',
+          newTitle: title.trim() + ' (2)',
+          incomingEdits: null,
+          existingEdits: null,
+        })
+        setSaving(false)
+        return
+      }
       const { song } = await createSong(rawContent, title.trim(), artist.trim(), tags)
       navigate(`/songs/${song.id}`)
     } catch (e) {
       setError(e.message)
       setSaving(false)
     }
+  }
+
+  const handleConflictConfirm = async () => {
+    if (!conflict) return
+    setSaving(true)
+    setError(null)
+    try {
+      const ie = conflict.incomingEdits
+      const incRaw = ie?.raw_content ?? rawContent
+      const incTitle = ie?.title ?? title.trim()
+      const incArtist = ie?.artist ?? artist.trim()
+      const incKey = ie?.original_key ?? null
+      const parsed = ingest(incRaw, incTitle)
+
+      const applyExistingEdits = async () => {
+        const ee = conflict.existingEdits
+        if (!ee) return
+        const exParsed = ee.raw_content ? ingest(ee.raw_content, ee.title) : null
+        await supabaseSongOps.update(conflict.existingSong.id, {
+          title: ee.title, artist: ee.artist, original_key: ee.original_key,
+          raw_content: ee.raw_content,
+          ...(exParsed ? { parsed_content: exParsed.parsed_content } : {}),
+        })
+      }
+
+      if (conflict.resolution === 'replace') {
+        await supabaseSongOps.update(conflict.existingSong.id, {
+          title: incTitle, artist: incArtist, original_key: incKey || parsed.original_key,
+          raw_content: incRaw, parsed_content: parsed.parsed_content, tags,
+        })
+        navigate(`/songs/${conflict.existingSong.id}`)
+      } else if (conflict.resolution === 'keep-both') {
+        const { song } = await createSong(incRaw, conflict.newTitle || incTitle + ' (2)', incArtist, tags)
+        await applyExistingEdits()
+        navigate(`/songs/${song.id}`)
+      } else {
+        // skip — still save any existing edits
+        await applyExistingEdits()
+        setConflict(null)
+        setSaving(false)
+      }
+    } catch (e) {
+      setError(e.message)
+      setSaving(false)
+    }
+  }
+
+  if (conflict) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={16} className="text-amber-500" />
+            <h1 className="font-display text-2xl text-[var(--color-ink)]">Song already exists</h1>
+          </div>
+          <p className="text-sm text-[var(--color-ink-soft)]">
+            A song with this title is already in your library. Choose what to do.
+          </p>
+        </div>
+
+        <ConflictCard
+          conflict={conflict}
+          onChange={updates => setConflict(prev => ({ ...prev, ...updates }))}
+          incomingLabel="Adding"
+        />
+
+        <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
+          <Button variant="ghost" size="sm" onClick={() => setConflict(null)}>
+            <X size={13} /> Back to editing
+          </Button>
+          <Button variant="primary" size="sm" loading={saving} onClick={handleConflictConfirm}>
+            <Save size={13} /> Confirm
+          </Button>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 p-3 border border-red-200 bg-red-50 rounded text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+            <AlertTriangle size={14} /> {error}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
