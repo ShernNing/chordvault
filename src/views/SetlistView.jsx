@@ -32,7 +32,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useSetlist, useSongs } from "../lib/hooks";
 import { transposeKey, getCapoDisplay, ALL_KEYS } from "../lib/transposition";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
-import { PrintableSongSheet } from "../components/song/SongRenderer";
+import { PrintableSongSheet, TwoPrintableSongSheets } from "../components/song/SongRenderer";
 import {
   Button,
   Input,
@@ -122,27 +122,60 @@ export default function SetlistView() {
       const containers = [];
       const roots = [];
 
-      for (const slot of slots) {
-        if (!slot.song) continue;
-        const semitones =
-          slot.chosen_key && slot.song.original_key
-            ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
-            : 0;
+      // Pre-compute per-slot data
+      const slotData = slots
+        .filter((slot) => slot.song)
+        .map((slot) => {
+          const semitones =
+            slot.chosen_key && slot.song.original_key
+              ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
+              : 0;
+          const displayKey = slot.chosen_key || slot.song.original_key;
+          const capo = slot.capo || 0;
+          const shapeSemitones = semitones - capo;
+          const shapeKey =
+            capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
+          const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
+          const nonBlankLines = (slot.song.parsed_content || []).filter(
+            (l) => l.type !== "blank",
+          ).length;
+          return { slot, shapeSemitones, shapeKey, keyLabel, fitsOneColumn: nonBlankLines <= 45 };
+        });
 
+      let i = 0;
+      while (i < slotData.length) {
+        const curr = slotData[i];
+        const next = slotData[i + 1];
         const container = createPrintContainer();
         const root = createRoot(container);
-        const displayKey = slot.chosen_key || slot.song.original_key;
-        const capo = slot.capo || 0;
-        const shapeSemitones = semitones - capo;
-        const shapeKey = capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
-        root.render(
-          <PrintableSongSheet
-            song={slot.song}
-            semitones={shapeSemitones}
-            targetKey={shapeKey}
-            keyLabel={`${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`}
-          />,
-        );
+
+        if (curr.fitsOneColumn && next?.fitsOneColumn) {
+          // Both songs are short — combine onto one page
+          root.render(
+            <TwoPrintableSongSheets
+              song1={curr.slot.song}
+              semitones1={curr.shapeSemitones}
+              targetKey1={curr.shapeKey}
+              keyLabel1={curr.keyLabel}
+              song2={next.slot.song}
+              semitones2={next.shapeSemitones}
+              targetKey2={next.shapeKey}
+              keyLabel2={next.keyLabel}
+            />,
+          );
+          i += 2;
+        } else {
+          root.render(
+            <PrintableSongSheet
+              song={curr.slot.song}
+              semitones={curr.shapeSemitones}
+              targetKey={curr.shapeKey}
+              keyLabel={curr.keyLabel}
+            />,
+          );
+          i += 1;
+        }
+
         containers.push(container);
         roots.push(root);
       }

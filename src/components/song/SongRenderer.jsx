@@ -1,25 +1,121 @@
 import React, { useState } from 'react'
-import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { transposeParsedContent } from '../../lib/transposition'
-import { Button } from '../ui'
 
-/**
- * Renders parsed_content array as a formatted chord sheet.
- * Handles: section headers, chord lines, lyric lines, blanks, instructions.
- * Supports transposition (semitones) and 2-column layout.
- * Supports uncertain line overrides.
- */
+// ─── Column layout helpers ───────────────────────────────────────────────────
+// JS-based section splitting so sections never break across columns.
+// Fill left column first; only start right column when left overflows.
+
+const SCREEN_COLUMN_HEIGHT = 856  // 920px container − 2×32px padding
+const PRINT_COLUMN_HEIGHT = 1000  // ~A4 content area minus song header
+
+function _estimateGroupHeight(group) {
+  if (group.type === 'pair') return 35  // chord(14) + lyric(17) + gap(4)
+  switch (group.line?.type) {
+    case 'section_header': return 38   // text(14) + margin-top(16) + margin-bottom(8)
+    case 'chord_line':     return 18
+    case 'lyric_line':     return 17
+    case 'blank':          return 16
+    default:               return 17
+  }
+}
+
+function _groupIntoSections(groups) {
+  const sections = []
+  let cur = { header: null, groups: [] }
+  for (const g of groups) {
+    if (g.type === 'single' && g.line?.type === 'section_header') {
+      sections.push(cur)
+      cur = { header: g, groups: [] }
+    } else {
+      cur.groups.push(g)
+    }
+  }
+  sections.push(cur)
+  return sections.filter(s => s.header !== null || s.groups.length > 0)
+}
+
+function _estimateSectionHeight(section, isFirst) {
+  // First section has no margin-top on its header
+  let h = section.header ? (isFirst ? 22 : 38) : 0
+  for (const g of section.groups) h += _estimateGroupHeight(g)
+  return h
+}
+
+function _splitSections(sections, colHeight) {
+  const left = [], right = []
+  let leftH = 0, useRight = false
+  for (let i = 0; i < sections.length; i++) {
+    const h = _estimateSectionHeight(sections[i], i === 0)
+    if (useRight || (leftH > 0 && leftH + h > colHeight)) {
+      useRight = true
+      right.push(sections[i])
+    } else {
+      left.push(sections[i])
+      leftH += h
+    }
+  }
+  return { left, right }
+}
+
+function _estimatePrintLineHeight(line) {
+  switch (line.type) {
+    case 'chord_line': return 15
+    case 'lyric_line': return 21  // text(17) + margin-bottom(4)
+    case 'blank':      return 16
+    default:           return 17
+  }
+}
+
+function _groupPrintSections(lines) {
+  const sections = []
+  let cur = { header: null, lines: [] }
+  for (const l of lines) {
+    if (l.type === 'section_header') {
+      sections.push(cur)
+      cur = { header: l, lines: [] }
+    } else {
+      cur.lines.push(l)
+    }
+  }
+  sections.push(cur)
+  return sections.filter(s => s.header !== null || s.lines.length > 0)
+}
+
+function _estimatePrintSectionHeight(section, isFirst) {
+  let h = section.header ? (isFirst ? 18 : 34) : 0
+  for (const l of section.lines) h += _estimatePrintLineHeight(l)
+  return h
+}
+
+function _splitPrintSections(sections) {
+  const left = [], right = []
+  let leftH = 0, useRight = false
+  for (let i = 0; i < sections.length; i++) {
+    const h = _estimatePrintSectionHeight(sections[i], i === 0)
+    if (useRight || (leftH > 0 && leftH + h > PRINT_COLUMN_HEIGHT)) {
+      useRight = true
+      right.push(sections[i])
+    } else {
+      left.push(sections[i])
+      leftH += h
+    }
+  }
+  return { left, right }
+}
+
+// ─── SongRenderer ────────────────────────────────────────────────────────────
+
 export default function SongRenderer({
   parsedContent,
   semitones = 0,
   targetKey = null,
   twoColumn = false,
   printMode = false,
-  onLineTypeOverride = null, // (lineIndex, newType) => void
+  onLineTypeOverride = null,
 }) {
-  const [overrides, setOverrides] = useState({}) // { lineIndex: newType }
+  const [overrides, setOverrides] = useState({})
 
-  // Apply transposition
   const content = semitones !== 0
     ? transposeParsedContent(parsedContent, semitones, targetKey)
     : parsedContent
@@ -37,9 +133,7 @@ export default function SongRenderer({
     onLineTypeOverride?.(index, newType)
   }
 
-  // Group chord+lyric lines into pairs so they stay together in columns.
-  // A chord_line followed immediately by a lyric_line = one paired block.
-  // Everything else renders individually.
+  // Pair adjacent chord+lyric lines into a single block
   const groups = []
   let i = 0
   while (i < content.length) {
@@ -58,38 +152,64 @@ export default function SongRenderer({
     i++
   }
 
+  const getKey = (g) => g.type === 'pair' ? `p${g.chordIndex}` : `s${g.index}`
+
+  const renderGroup = (group) => {
+    if (group.type === 'pair') {
+      const { chord, lyric, chordIndex } = group
+      const chordText = chord.tokens
+        ? chord.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('')
+        : (chord.raw || '')
+      return (
+        <div key={getKey(group)} className={`chord-lyric-pair ${chord.uncertain ? 'uncertain-line' : ''}`}>
+          <span className="chord-line">{chordText}</span>
+          <span className="lyric-line">{lyric.text}</span>
+          {chord.uncertain && !printMode && onLineTypeOverride && (
+            <UncertainOverlay
+              label="Chord line?"
+              onConfirm={() => handleOverride(chordIndex, 'chord_line')}
+              onReject={() => handleOverride(chordIndex, 'lyric_line')}
+            />
+          )}
+        </div>
+      )
+    }
+    return (
+      <RenderLine
+        key={getKey(group)}
+        line={group.line}
+        index={group.index}
+        printMode={printMode}
+        onOverride={onLineTypeOverride ? handleOverride : null}
+      />
+    )
+  }
+
+  if (!twoColumn) {
+    return (
+      <div className="chord-sheet">
+        {groups.map(renderGroup)}
+      </div>
+    )
+  }
+
+  // 2-column: group by section, split left-first, render as flex columns
+  const sections = _groupIntoSections(groups)
+  const { left, right } = _splitSections(sections, SCREEN_COLUMN_HEIGHT)
+
+  const renderCol = (colSections) =>
+    colSections.flatMap(section =>
+      (section.header ? [section.header, ...section.groups] : section.groups).map(renderGroup)
+    )
+
   return (
-    <div className={`chord-sheet ${twoColumn ? 'chord-sheet-2col' : ''}`}>
-      {groups.map((group, gi) => {
-        if (group.type === 'pair') {
-          const { chord, lyric, chordIndex, lyricIndex } = group
-          const chordText = chord.tokens
-            ? chord.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('')
-            : (chord.raw || '')
-          return (
-            <div key={gi} className={`chord-lyric-pair ${chord.uncertain ? 'uncertain-line' : ''}`}>
-              <span className="chord-line">{chordText}</span>
-              <span className="lyric-line">{lyric.text}</span>
-              {chord.uncertain && !printMode && onLineTypeOverride && (
-                <UncertainOverlay
-                  label="Chord line?"
-                  onConfirm={() => handleOverride(chordIndex, 'chord_line')}
-                  onReject={() => handleOverride(chordIndex, 'lyric_line')}
-                />
-              )}
-            </div>
-          )
-        }
-        return (
-          <RenderLine
-            key={gi}
-            line={group.line}
-            index={group.index}
-            printMode={printMode}
-            onOverride={onLineTypeOverride ? handleOverride : null}
-          />
-        )
-      })}
+    <div className="chord-sheet flex gap-8">
+      <div className="flex-1 min-w-0">
+        {renderCol(left)}
+      </div>
+      <div className="flex-1 min-w-0">
+        {renderCol(right)}
+      </div>
     </div>
   )
 }
@@ -202,59 +322,92 @@ function UncertainOverlay({ label, onConfirm, onReject }) {
   )
 }
 
-// ─── Chord Sheet Print Wrapper ─────────────────────────────────────────────
-// Used by PDF export — renders at A4 width with print styles
+// ─── Print components ────────────────────────────────────────────────────────
 
-export function PrintableSongSheet({ song, semitones, targetKey, title, keyLabel }) {
+const PRINT_WRAPPER_STYLE = {
+  width: '794px',
+  padding: '24px',
+  backgroundColor: '#ffffff',
+  color: '#000000',
+  fontFamily: "'Courier New', Courier, monospace",
+  fontSize: '12px',
+}
+
+function PrintSongHeader({ song, keyLabel }) {
+  return (
+    <div style={{ marginBottom: '10px', borderBottom: '1px solid #e5e5e5', paddingBottom: '6px' }}>
+      <div style={{ fontSize: '13px', fontWeight: '700' }}>
+        {song.title}
+        {song.artist ? ` - ${song.artist}` : ''}
+        {keyLabel ? ` (${keyLabel})` : ''}
+      </div>
+    </div>
+  )
+}
+
+function PrintSection({ section, sectionKey }) {
+  return (
+    <div key={sectionKey}>
+      {section.header && <PrintLine line={section.header} />}
+      {section.lines.map((line, li) => <PrintLine key={li} line={line} />)}
+    </div>
+  )
+}
+
+export function PrintableSongSheet({ song, semitones, targetKey, keyLabel }) {
   const content = semitones !== 0
     ? transposeParsedContent(song.parsed_content, semitones, targetKey)
     : song.parsed_content
 
-  // Group lines into sections so each section stays together (breakInside: avoid)
-  const sections = []
-  let current = { header: null, lines: [] }
-  for (const line of content || []) {
-    if (line.type === 'section_header') {
-      sections.push(current)
-      current = { header: line, lines: [] }
-    } else {
-      current.lines.push(line)
-    }
-  }
-  sections.push(current)
-
-  // Use 2 columns only when content is long enough to warrant it
+  const sections = _groupPrintSections(content || [])
   const nonBlankLines = (content || []).filter(l => l.type !== 'blank').length
   const useColumns = nonBlankLines > 45
 
+  if (!useColumns) {
+    return (
+      <div style={PRINT_WRAPPER_STYLE}>
+        <PrintSongHeader song={song} keyLabel={keyLabel} />
+        {sections.map((s, si) => <PrintSection key={si} section={s} sectionKey={si} />)}
+      </div>
+    )
+  }
+
+  const { left, right } = _splitPrintSections(sections)
   return (
-    <div style={{
-      width: '794px',
-      padding: '24px',
-      backgroundColor: '#ffffff',
-      color: '#000000',
-      fontFamily: "'Courier New', Courier, monospace",
-      fontSize: '12px',
-    }}>
-      {/* Song header */}
-      <div style={{ marginBottom: '10px', borderBottom: '1px solid #e5e5e5', paddingBottom: '6px' }}>
-        <div style={{ fontSize: '13px', fontWeight: '700' }}>
-          {song.title}
-          {song.artist ? ` - ${song.artist}` : ''}
-          {keyLabel ? ` (${keyLabel})` : ''}
+    <div style={PRINT_WRAPPER_STYLE}>
+      <PrintSongHeader song={song} keyLabel={keyLabel} />
+      <div style={{ display: 'flex', gap: '32px' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {left.map((s, si) => <PrintSection key={si} section={s} sectionKey={si} />)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {right.map((s, si) => <PrintSection key={1000 + si} section={s} sectionKey={1000 + si} />)}
         </div>
       </div>
+    </div>
+  )
+}
 
-      {/* Content */}
-      <div style={useColumns ? { columns: '2', columnGap: '32px', columnFill: 'auto' } : {}}>
-        {sections.map((section, si) => (
-          <div key={si} style={{ breakInside: 'avoid', display: 'block' }}>
-            {section.header && <PrintLine line={section.header} />}
-            {section.lines.map((line, li) => (
-              <PrintLine key={li} line={line} />
-            ))}
-          </div>
-        ))}
+// Two short songs side by side on one page (used by setlist PDF export)
+export function TwoPrintableSongSheets({ song1, semitones1, targetKey1, keyLabel1, song2, semitones2, targetKey2, keyLabel2 }) {
+  const renderSong = (song, semitones, targetKey, keyLabel) => {
+    const content = semitones !== 0
+      ? transposeParsedContent(song.parsed_content, semitones, targetKey)
+      : song.parsed_content
+    const sections = _groupPrintSections(content || [])
+    return (
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <PrintSongHeader song={song} keyLabel={keyLabel} />
+        {sections.map((s, si) => <PrintSection key={si} section={s} sectionKey={si} />)}
+      </div>
+    )
+  }
+
+  return (
+    <div style={PRINT_WRAPPER_STYLE}>
+      <div style={{ display: 'flex', gap: '32px' }}>
+        {renderSong(song1, semitones1, targetKey1, keyLabel1)}
+        {renderSong(song2, semitones2, targetKey2, keyLabel2)}
       </div>
     </div>
   )
@@ -270,8 +423,6 @@ function PrintLine({ line }) {
     marginTop: '16px',
     marginBottom: '4px',
     display: 'block',
-    breakAfter: 'avoid-column',
-    breakInside: 'avoid',
   }
 
   const chordStyle = {
