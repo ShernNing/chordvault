@@ -369,14 +369,9 @@ const PRINT_WRAPPER_STYLE = {
 
 function PrintSongHeader({ song, keyLabel, songNumber }) {
   return (
-    <div style={{ marginBottom: '8px', borderBottom: '2px solid #000000', paddingBottom: '4px' }}>
-      {songNumber != null && (
-        <span style={{ fontSize: '11px', fontWeight: '400', color: '#666666', marginRight: '4px', fontFamily: "'Courier New', Courier, monospace" }}>
-          {songNumber}.
-        </span>
-      )}
+    <div style={{ marginBottom: '8px' }}>
       <span style={{ fontSize: '14px', fontWeight: '700', color: '#000000' }}>
-        {[song.title, song.artist ? `- ${song.artist}` : null, keyLabel ? `(${keyLabel})` : null].filter(Boolean).join(' ')}
+        {[songNumber != null ? `${songNumber}.` : null, song.title, song.artist ? `- ${song.artist}` : null, keyLabel ? `(${keyLabel})` : null].filter(Boolean).join(' ')}
       </span>
     </div>
   )
