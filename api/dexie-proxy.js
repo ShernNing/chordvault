@@ -21,13 +21,19 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Handle body - support both string and object formats
+    let requestBody;
+    if (body) {
+      requestBody = typeof body === "string" ? body : JSON.stringify(body);
+    }
+
     const response = await fetch(`${dexieUrl}${endpoint}`, {
       method,
       headers: {
         "Content-Type": "application/json",
         ...headers,
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: requestBody,
     });
 
     const data = await response.json().catch(() => ({}));
