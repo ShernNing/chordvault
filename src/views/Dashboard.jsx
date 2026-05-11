@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Plus, Music2, Trash2, ListMusic, X } from 'lucide-react'
 import { useSongs, useSearch, useSetlists } from '../lib/hooks'
-import { setlistOps } from '../lib/db'
+import { supabaseSetlistOps } from '../lib/supabaseOps'
 import { Button, Input, Select, EmptyState, ErrorState, SongCardSkeleton, Modal } from '../components/ui'
 import SongCard from '../components/song/SongCard'
 
@@ -67,7 +67,7 @@ export default function Dashboard() {
     try {
       for (const songId of selectedIds) {
         const song = songs.find(s => s.id === songId)
-        await setlistOps.addSong(chosenSetlistId, songId, song?.original_key || null, 0)
+        await supabaseSetlistOps.addSong(chosenSetlistId, songId, song?.original_key || null, 0)
       }
       setAddToSetlistOpen(false)
       setChosenSetlistId('')

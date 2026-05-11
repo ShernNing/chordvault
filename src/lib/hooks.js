@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { songOps, setlistOps } from './db'
 import { supabaseSongOps, supabaseSetlistOps } from './supabaseOps'
-import { useAuth } from './AuthContext'
 import { ingest } from './ingestion'
 
 // ─── Online Status ─────────────────────────────────────────────────────────
@@ -59,14 +57,12 @@ export function useSongs(sortBy = 'title') {
   const [songs, setSongs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { isLoggedIn } = useAuth()
 
   const load = useCallback(async () => {
-    const ops = isLoggedIn ? supabaseSongOps : songOps
     try {
       setLoading(true)
       setError(null)
-      let data = await ops.getAll()
+      let data = await supabaseSongOps.getAll()
 
       switch (sortBy) {
         case 'artist': data = data.sort((a, b) => (a.artist || '').localeCompare(b.artist || '')); break
@@ -88,42 +84,38 @@ export function useSongs(sortBy = 'title') {
     } finally {
       setLoading(false)
     }
-  }, [isLoggedIn, sortBy])
+  }, [sortBy])
 
   useEffect(() => { load() }, [load])
 
   const createSong = useCallback(async (rawContent, title, artist, tags = []) => {
-    const ops = isLoggedIn ? supabaseSongOps : songOps
     const result = ingest(rawContent, title)
-    const song = await ops.create({ title, artist, raw_content: rawContent, parsed_content: result.parsed_content, original_key: result.original_key, tags })
+    const song = await supabaseSongOps.create({ title, artist, raw_content: rawContent, parsed_content: result.parsed_content, original_key: result.original_key, tags })
     await load()
     return { song, ingestionResult: result }
-  }, [isLoggedIn, load])
+  }, [load])
 
   const updateSong = useCallback(async (id, updates) => {
-    const ops = isLoggedIn ? supabaseSongOps : songOps
     let finalUpdates = { ...updates }
     if (updates.raw_content) {
       const result = ingest(updates.raw_content, updates.title)
       finalUpdates.parsed_content = result.parsed_content
       if (!updates.original_key) finalUpdates.original_key = result.original_key
     }
-    const song = await ops.update(id, finalUpdates)
+    const song = await supabaseSongOps.update(id, finalUpdates)
     await load()
     return song
-  }, [isLoggedIn, load])
+  }, [load])
 
   const deleteSong = useCallback(async (id) => {
-    const ops = isLoggedIn ? supabaseSongOps : songOps
-    await ops.delete(id)
+    await supabaseSongOps.delete(id)
     await load()
-  }, [isLoggedIn, load])
+  }, [load])
 
   const bulkDeleteSongs = useCallback(async (ids) => {
-    const ops = isLoggedIn ? supabaseSongOps : songOps
-    for (const id of ids) await ops.delete(id)
+    for (const id of ids) await supabaseSongOps.delete(id)
     await load()
-  }, [isLoggedIn, load])
+  }, [load])
 
   return { songs, loading, error, reload: load, createSong, updateSong, deleteSong, bulkDeleteSongs }
 }
@@ -133,39 +125,36 @@ export function useSong(id) {
   const [song, setSong] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { isLoggedIn } = useAuth()
 
   const load = useCallback(async () => {
     if (!id) return
-    const ops = isLoggedIn ? supabaseSongOps : songOps
     try {
       setLoading(true)
       setError(null)
-      const data = await ops.getById(id)
+      const data = await supabaseSongOps.getById(id)
       if (!data) throw new Error('Song not found')
       setSong(data)
-      await ops.markPlayed(id)
+      await supabaseSongOps.markPlayed(id)
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [id, isLoggedIn])
+  }, [id])
 
   useEffect(() => { load() }, [load])
 
   const update = useCallback(async (updates) => {
-    const ops = isLoggedIn ? supabaseSongOps : songOps
     let finalUpdates = { ...updates }
     if (updates.raw_content) {
       const result = ingest(updates.raw_content, updates.title || song?.title)
       finalUpdates.parsed_content = result.parsed_content
       if (!updates.original_key) finalUpdates.original_key = result.original_key
     }
-    const updated = await ops.update(id, finalUpdates)
+    const updated = await supabaseSongOps.update(id, finalUpdates)
     setSong(updated)
     return updated
-  }, [id, isLoggedIn, song])
+  }, [id, song])
 
   return { song, loading, error, reload: load, update }
 }
@@ -175,35 +164,31 @@ export function useSetlists() {
   const [setlists, setSetlists] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { isLoggedIn } = useAuth()
 
   const load = useCallback(async () => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
     try {
       setLoading(true)
       setError(null)
-      setSetlists(await ops.getAll())
+      setSetlists(await supabaseSetlistOps.getAll())
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [isLoggedIn])
+  }, [])
 
   useEffect(() => { load() }, [load])
 
   const createSetlist = useCallback(async (name) => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
-    const s = await ops.create(name)
+    const s = await supabaseSetlistOps.create(name)
     await load()
     return s
-  }, [isLoggedIn, load])
+  }, [load])
 
   const deleteSetlist = useCallback(async (id) => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
-    await ops.delete(id)
+    await supabaseSetlistOps.delete(id)
     await load()
-  }, [isLoggedIn, load])
+  }, [load])
 
   return { setlists, loading, error, reload: load, createSetlist, deleteSetlist }
 }
@@ -213,15 +198,13 @@ export function useSetlist(id) {
   const [setlist, setSetlist] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { isLoggedIn } = useAuth()
 
   const load = useCallback(async () => {
     if (!id) return
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
     try {
       setLoading(true)
       setError(null)
-      const data = await ops.getWithSongs(id)
+      const data = await supabaseSetlistOps.getWithSongs(id)
       if (!data) throw new Error('Setlist not found')
       setSetlist(data)
     } catch (e) {
@@ -229,39 +212,34 @@ export function useSetlist(id) {
     } finally {
       setLoading(false)
     }
-  }, [id, isLoggedIn])
+  }, [id])
 
   useEffect(() => { load() }, [load])
 
   const addSong = useCallback(async (songId, chosenKey, capo) => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
-    await ops.addSong(id, songId, chosenKey, capo)
+    await supabaseSetlistOps.addSong(id, songId, chosenKey, capo)
     await load()
-  }, [id, isLoggedIn, load])
+  }, [id, load])
 
   const removeSong = useCallback(async (slotId) => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
-    await ops.removeSong(slotId)
+    await supabaseSetlistOps.removeSong(slotId)
     await load()
-  }, [isLoggedIn, load])
+  }, [load])
 
   const updateSlot = useCallback(async (slotId, updates) => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
-    await ops.updateSongSlot(slotId, updates)
+    await supabaseSetlistOps.updateSongSlot(slotId, updates)
     await load()
-  }, [isLoggedIn, load])
+  }, [load])
 
   const reorder = useCallback(async (orderedSlotIds) => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
-    await ops.reorderSongs(id, orderedSlotIds)
+    await supabaseSetlistOps.reorderSongs(id, orderedSlotIds)
     await load()
-  }, [id, isLoggedIn, load])
+  }, [id, load])
 
   const rename = useCallback(async (name) => {
-    const ops = isLoggedIn ? supabaseSetlistOps : setlistOps
-    await ops.update(id, { name })
+    await supabaseSetlistOps.update(id, { name })
     await load()
-  }, [id, isLoggedIn, load])
+  }, [id, load])
 
   return { setlist, loading, error, reload: load, addSong, removeSong, updateSlot, reorder, rename }
 }

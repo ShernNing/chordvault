@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { importDocument } from '../lib/docImport'
 import { ingest } from '../lib/ingestion'
-import { songOps } from '../lib/db'
+import { supabaseSongOps } from '../lib/supabaseOps'
 import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
 import SongRenderer from '../components/song/SongRenderer'
 
@@ -76,7 +76,7 @@ export default function ImportView() {
 
     for (const song of toSave) {
       try {
-        await songOps.create({
+        await supabaseSongOps.create({
           title: song.title,
           artist: song.artist || '',
           raw_content: song.rawContent,

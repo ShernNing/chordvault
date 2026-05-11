@@ -15,6 +15,7 @@ import {
   Copy,
 } from "lucide-react";
 import { useSong, useLocalStorage } from "../lib/hooks";
+import { supabaseSongOps } from "../lib/supabaseOps";
 import { transposeKey, getCapoDisplay } from "../lib/transposition";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { ingest } from "../lib/ingestion";
@@ -298,8 +299,7 @@ export default function SongView() {
             variant='danger'
             size='sm'
             onClick={async () => {
-              const { songOps } = await import("../lib/db");
-              await songOps.delete(song.id);
+              await supabaseSongOps.delete(song.id);
               navigate("/");
             }}
           >
