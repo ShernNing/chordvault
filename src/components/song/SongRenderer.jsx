@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { transposeParsedContent } from '../../lib/transposition'
+import { normalizeSectionHeader } from '../../lib/ingestion'
 
 // ─── Column layout helpers ───────────────────────────────────────────────────
 // JS-based section splitting so sections never break across columns.
@@ -253,7 +254,7 @@ function RenderLine({ line, index, printMode, onOverride }) {
     case 'section_header':
       return (
         <div key={index} className="section-header">
-          {line.text}
+          {normalizeSectionHeader(line.text)}
         </div>
       )
 
@@ -481,7 +482,7 @@ function PrintLine({ line }) {
 
   switch (line.type) {
     case 'section_header':
-      return <span style={sectionStyle}>{line.text}</span>
+      return <span style={sectionStyle}>{normalizeSectionHeader(line.text)}</span>
 
     case 'chord_line': {
       const text = line.tokens

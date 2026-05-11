@@ -1,5 +1,45 @@
 import { Note } from 'tonal'
 
+const SECTION_NAME_MAP = {
+  'intro': 'Intro',
+  'verse': 'Verse',
+  'pre-chorus': 'Pre-Chorus',
+  'prechorus': 'Pre-Chorus',
+  'pre chorus': 'Pre-Chorus',
+  'chorus': 'Chorus',
+  'bridge': 'Bridge',
+  'instrumental': 'Instrumental',
+  'outro': 'Outro',
+  'tag': 'Tag',
+  'hook': 'Hook',
+  'interlude': 'Interlude',
+  'coda': 'Coda',
+  'ending': 'Ending',
+  'turnaround': 'Turnaround',
+  'vamp': 'Vamp',
+}
+
+export function normalizeSectionHeader(text) {
+  const trimmed = text.trim()
+  const inner = trimmed.startsWith('[') && trimmed.endsWith(']')
+    ? trimmed.slice(1, -1).trim()
+    : trimmed.replace(/:$/, '').trim()
+
+  const lower = inner.toLowerCase()
+  const numMatch = lower.match(/^(.+?)\s*(\d+)$/)
+  const baseName = numMatch ? numMatch[1].trim() : lower
+  const num = numMatch ? numMatch[2] : null
+
+  const canonical = SECTION_NAME_MAP[baseName]
+  if (canonical) {
+    return `[${num ? `${canonical} ${num}` : canonical}]`
+  }
+
+  // Unknown section: title-case each word
+  const titleCased = inner.replace(/\b\w/g, c => c.toUpperCase())
+  return `[${titleCased}]`
+}
+
 export const CHORD_REGEX = /^[A-G][#b]?(maj|min|m|M|sus|dim|aug|add|6|7|9|11|13)?[0-9]*(\/[A-G][#b]?)?$/
 
 export function isChord(token) {
@@ -74,7 +114,7 @@ export function parseRawContent(rawText) {
     }
     const lineType = classifyLine(line)
     switch (lineType) {
-      case 'section_header': parsedLines.push({ type: 'section_header', text: line.trim() }); break
+      case 'section_header': parsedLines.push({ type: 'section_header', text: normalizeSectionHeader(line.trim()) }); break
       case 'chord_line': {
         const tokens = tokenizeChordLine(line)
         const chordCount = tokens.filter(t => t.isChord).length
