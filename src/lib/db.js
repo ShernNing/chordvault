@@ -1,4 +1,5 @@
 import Dexie from 'dexie'
+import { dexieCloud } from 'dexie-cloud-addon'
 
 // ─── Database Definition ───────────────────────────────────────────────────
 export const db = new Dexie('ChordVault')
@@ -10,6 +11,15 @@ db.version(1).stores({
   sync_queue: '++id, operation, table_name, record_id, payload, created_at, synced',
   app_state: 'key',
 })
+
+// ─── Dexie Cloud Configuration ─────────────────────────────────────────────
+if (import.meta.env.VITE_DEXIE_CLOUD_URL) {
+  db.cloud.configure({
+    databaseUrl: import.meta.env.VITE_DEXIE_CLOUD_URL,
+    requireAuth: true,
+    customLoginGui: false,
+  })
+}
 
 // ─── Song Operations ───────────────────────────────────────────────────────
 export const songOps = {
