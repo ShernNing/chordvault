@@ -69,6 +69,15 @@ export const songOps = {
   async getByTag(tag) {
     return db.songs.where('tags').equals(tag).toArray()
   },
+
+  async findByTitleArtist(title, artist) {
+    const t = (title || '').toLowerCase().trim()
+    const a = (artist || '').toLowerCase().trim()
+    return db.songs.filter(song =>
+      song.title?.toLowerCase().trim() === t &&
+      (song.artist || '').toLowerCase().trim() === a
+    ).toArray()
+  },
 }
 
 // ─── Setlist Operations ────────────────────────────────────────────────────

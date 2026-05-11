@@ -203,12 +203,38 @@ function UncertainOverlay({ label, onConfirm, onReject }) {
 }
 
 // ─── Chord Sheet Print Wrapper ─────────────────────────────────────────────
-// Used by PDF export — renders at A4 width with print styles
+// Used by PDF export — renders at A4 width with print styles.
+// Uses flex-based 2-col split instead of CSS columns (html2canvas ignores CSS multi-column).
+
+function splitForTwoColumns(content) {
+  if (!content || content.length === 0) return { left: [], right: [] }
+
+  const mid = Math.floor(content.length / 2)
+  const sectionIndices = content
+    .map((line, i) => line.type === 'section_header' ? i : -1)
+    .filter(i => i > 0) // skip index 0 — always stays in left col
+
+  if (sectionIndices.length === 0) {
+    return { left: content.slice(0, mid), right: content.slice(mid) }
+  }
+
+  // Find section header closest to midpoint
+  let bestIdx = sectionIndices[0]
+  let bestDist = Math.abs(sectionIndices[0] - mid)
+  for (const idx of sectionIndices.slice(1)) {
+    const dist = Math.abs(idx - mid)
+    if (dist < bestDist) { bestDist = dist; bestIdx = idx }
+  }
+
+  return { left: content.slice(0, bestIdx), right: content.slice(bestIdx) }
+}
 
 export function PrintableSongSheet({ song, semitones, targetKey, title, keyLabel }) {
   const content = semitones !== 0
     ? transposeParsedContent(song.parsed_content, semitones, targetKey)
     : song.parsed_content
+
+  const { left, right } = splitForTwoColumns(content || [])
 
   return (
     <div style={{
@@ -218,6 +244,7 @@ export function PrintableSongSheet({ song, semitones, targetKey, title, keyLabel
       color: '#111111',
       fontFamily: "'Courier New', Courier, monospace",
       fontSize: '12px',
+      boxSizing: 'border-box',
     }}>
       {/* Song header */}
       <div style={{ marginBottom: '20px', borderBottom: '1px solid #e5e5e5', paddingBottom: '12px' }}>
@@ -236,11 +263,16 @@ export function PrintableSongSheet({ song, semitones, targetKey, title, keyLabel
         )}
       </div>
 
-      {/* Content */}
-      <div style={{ columns: '2', columnGap: '32px' }}>
-        {content?.map((line, i) => (
-          <PrintLine key={i} line={line} />
-        ))}
+      {/* Two-column content via flex (CSS columns not supported by html2canvas) */}
+      <div style={{ display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {left.map((line, i) => <PrintLine key={i} line={line} />)}
+        </div>
+        {right.length > 0 && (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {right.map((line, i) => <PrintLine key={i} line={line} />)}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -256,7 +288,6 @@ function PrintLine({ line }) {
     marginTop: '16px',
     marginBottom: '4px',
     display: 'block',
-    breakBefore: 'column',
   }
 
   const chordStyle = {
