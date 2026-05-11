@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X, Search } from 'lucide-react'
 import { useSongs } from '../lib/hooks'
 import { supabaseSongOps } from '../lib/supabaseOps'
-import { ingest, classifyLine } from '../lib/ingestion'
+import { ingest, classifyLine, cleanArtistName } from '../lib/ingestion'
 import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
 import { lookupArtist } from '../lib/musicbrainz'
 import SongRenderer from '../components/song/SongRenderer'
@@ -62,7 +62,7 @@ export default function NewSong() {
             /[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i
           )
           const artistEmDash = !artistWithKey && firstLine.match(/[–—]\s*([^–—(]+?)\s*$/)
-          const detectedArtist = (artistWithKey?.[1] || artistEmDash?.[1] || '').trim()
+          const detectedArtist = cleanArtistName(artistWithKey?.[1] || artistEmDash?.[1] || '')
 
           let detected = firstLine
             .replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)\s*$/i, '')

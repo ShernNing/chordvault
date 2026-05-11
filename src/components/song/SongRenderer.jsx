@@ -68,17 +68,29 @@ function _estimatePrintLineHeight(line) {
   }
 }
 
-// Strip blank lines between chord→lyric pairs and after section headers
+// Strip blank lines between chord→lyric pairs and after section headers.
+// Also collapses consecutive blanks to 1 and removes trailing blanks.
 function _stripIntraPairBlanks(lines) {
-  return lines.filter((line, i) => {
+  // Collapse consecutive blanks to 1
+  const collapsed = []
+  let lastBlank = false
+  for (const l of lines) {
+    if (l.type === 'blank') { if (!lastBlank) collapsed.push(l); lastBlank = true }
+    else { collapsed.push(l); lastBlank = false }
+  }
+  // Strip intra-pair and post-header blanks
+  const stripped = collapsed.filter((line, i) => {
     if (line.type !== 'blank') return true
-    const prev = lines[i - 1]
-    const next = lines[i + 1]
+    const prev = collapsed[i - 1]
+    const next = collapsed[i + 1]
     if (prev?.type === 'chord_line' && next?.type === 'lyric_line') return false
     if (prev?.type === 'lyric_line' && next?.type === 'chord_line') return false
     if (prev?.type === 'section_header') return false
     return true
   })
+  // Remove trailing blanks
+  while (stripped.length > 0 && stripped[stripped.length - 1].type === 'blank') stripped.pop()
+  return stripped
 }
 
 function _groupPrintSections(lines) {

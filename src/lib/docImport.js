@@ -11,7 +11,7 @@
  *  - Two or more consecutive blank lines
  */
 
-import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference, classifyLine, cleanSongTitle } from './ingestion'
+import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference, classifyLine, cleanSongTitle, cleanArtistName } from './ingestion'
 
 // ─── DOCX Parsing ─────────────────────────────────────────────────────────
 
@@ -252,10 +252,10 @@ export function cleanTitle(rawTitle) {
 export function extractArtistFromTitle(rawTitle) {
   // Try: "Song – Artist (Key)" — hyphen/dash + key annotation
   const withKey = rawTitle.match(/[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i)
-  if (withKey) return withKey[1].trim()
+  if (withKey) return cleanArtistName(withKey[1])
   // Try: "Song – Artist" — em/en-dash without key (strong separator signal)
   const emDash = rawTitle.match(/[–—]\s*([^–—(]+?)\s*$/)
-  if (emDash) return emDash[1].trim()
+  if (emDash) return cleanArtistName(emDash[1])
   return ''
 }
 

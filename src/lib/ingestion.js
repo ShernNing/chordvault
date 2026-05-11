@@ -19,6 +19,14 @@ const SECTION_NAME_MAP = {
   'vamp': 'Vamp',
 }
 
+export function cleanArtistName(artist) {
+  if (!artist) return artist
+  // Strip everything from first slash onwards: "Sinach/Hillsong" → "Sinach"
+  const stripped = artist.split('/')[0].trim()
+  // Title case
+  return stripped.replace(/\S+/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+}
+
 export function cleanSongTitle(title) {
   if (!title) return title
   // Strip key annotation: (G), (Key G), (Bb major), etc.
@@ -109,12 +117,28 @@ export function parseInlineChordFormat(line) {
   return { chordLine, lyricLine }
 }
 
+const INLINE_SECTION_RE = /^(verse|chorus|bridge|pre-?chorus|prechorus|intro|outro|tag|hook|interlude|coda|vamp|ending|turnaround)\s*(\d*)\s*(?:[-:]\s*|\s+)(.+)$/i
+
 export function parseRawContent(rawText) {
   const rawLines = rawText.split('\n')
   const parsedLines = []
   for (let i = 0; i < rawLines.length; i++) {
     // Strip bar separators: "E | B | A | D" → "E  B  A  D"
     const line = rawLines[i].includes('|') ? rawLines[i].replace(/\s*\|\s*/g, '  ') : rawLines[i]
+
+    // Detect inline section+chord: "Intro A", "intro - a", "Verse 1: C G Am"
+    const inlineSec = INLINE_SECTION_RE.exec(line)
+    if (inlineSec) {
+      const secLabel = inlineSec[2] ? `${inlineSec[1]} ${inlineSec[2]}` : inlineSec[1]
+      const chordPart = inlineSec[3].trim().toUpperCase()
+      if (isChordLine(chordPart)) {
+        parsedLines.push({ type: 'section_header', text: normalizeSectionHeader(secLabel) })
+        const tokens = tokenizeChordLine(chordPart)
+        parsedLines.push({ type: 'chord_line', tokens, raw: chordPart, uncertain: false })
+        continue
+      }
+    }
+
     const inlineResult = parseInlineChordFormat(line)
     if (inlineResult) {
       parsedLines.push({ type: 'chord_line', tokens: tokenizeChordLine(inlineResult.chordLine), raw: inlineResult.chordLine, uncertain: false })
@@ -136,7 +160,11 @@ export function parseRawContent(rawText) {
       default: parsedLines.push({ type: 'lyric_line', text: line, uncertain: false })
     }
   }
-  return stripIntraPairBlanks(collapseBlanks(parsedLines))
+  const collapsed = collapseBlanks(parsedLines)
+  const stripped = stripIntraPairBlanks(collapsed)
+  // Remove trailing blanks at end of content
+  while (stripped.length > 0 && stripped[stripped.length - 1].type === 'blank') stripped.pop()
+  return stripped
 }
 
 function collapseBlanks(lines) {
@@ -155,6 +183,7 @@ function stripIntraPairBlanks(lines) {
     const prev = lines[i - 1]
     const next = lines[i + 1]
     if (prev?.type === 'chord_line' && next?.type === 'lyric_line') return false
+    if (prev?.type === 'lyric_line' && next?.type === 'chord_line') return false
     if (prev?.type === 'section_header') return false
     return true
   })
