@@ -31,15 +31,23 @@ const dexieCloudUrl =
   typeof import.meta !== "undefined"
     ? import.meta.env?.VITE_DEXIE_CLOUD_URL
     : undefined;
+const dexieCloudEnabled =
+  typeof import.meta !== "undefined"
+    ? import.meta.env?.VITE_DEXIE_CLOUD_ENABLED === "true"
+    : false;
 
-if (dexieCloudUrl && db.cloud?.configure) {
-  db.cloud.configure({
-    databaseUrl: dexieCloudUrl,
-    requireAuth: true,
-    customLoginGui: false,
-    syncedTables: ["songs", "setlists", "setlist_songs"],
-    unsyncedTables: ["sync_queue", "app_state"],
-  });
+if (dexieCloudUrl && dexieCloudEnabled && db.cloud?.configure) {
+  try {
+    db.cloud.configure({
+      databaseUrl: dexieCloudUrl,
+      requireAuth: true,
+      customLoginGui: false,
+      syncedTables: ["songs", "setlists", "setlist_songs"],
+      unsyncedTables: ["sync_queue", "app_state"],
+    });
+  } catch (error) {
+    console.warn("Dexie Cloud configuration failed:", error);
+  }
 }
 
 // ─── Song Operations ───────────────────────────────────────────────────────

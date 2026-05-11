@@ -6,22 +6,23 @@ A responsive, PWA-enabled chord sheet manager for musicians. Built with React + 
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | React 18 + Vite |
-| Styling | Tailwind CSS |
-| Database | Dexie (IndexedDB) |
-| Music engine | tonal |
-| PDF export | jsPDF + html2canvas |
-| Drag and drop | @dnd-kit |
-| PWA | vite-plugin-pwa + Workbox |
-| Hosting | Vercel (free) |
+| Layer         | Technology                |
+| ------------- | ------------------------- |
+| Framework     | React 18 + Vite           |
+| Styling       | Tailwind CSS              |
+| Database      | Dexie (IndexedDB)         |
+| Music engine  | tonal                     |
+| PDF export    | jsPDF + html2canvas       |
+| Drag and drop | @dnd-kit                  |
+| PWA           | vite-plugin-pwa + Workbox |
+| Hosting       | Vercel (free)             |
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
 - npm 9+
 
@@ -100,12 +101,14 @@ To sync across devices, sign up for [Dexie Cloud](https://dexie.cloud) (free tie
 2. Create a database, get your database URL
 3. Uncomment the Dexie Cloud lines in `src/lib/db.js`
 4. Add your DB URL as `VITE_DEXIE_CLOUD_URL` in your Vercel environment variables
+5. Set `VITE_DEXIE_CLOUD_ENABLED=true` in your environment to enable sync
 
 ---
 
 ## Features
 
 ### Song Library
+
 - Paste any chord sheet (standard chord-above-lyric or inline `[G]chord` format)
 - Auto-detects key with confidence score
 - Real-time parse preview while pasting
@@ -114,38 +117,45 @@ To sync across devices, sign up for [Dexie Cloud](https://dexie.cloud) (free tie
 - Sort by title, artist, recently added, recently played
 
 ### Chord Rendering
+
 - Monospace chord alignment (Courier New)
 - Section headers: `[Chorus]`, `[Verse]`, etc.
 - 2-column toggle for longer songs
 - Uncertain line detection with manual override
 
 ### Transposition
+
 - ±12 semitones with single-click ±1 buttons
 - Jump directly to target key via dropdown
 - Enharmonic spelling follows musical convention (key of E uses sharps, key of Bb uses flats)
 - Transpose state persisted per song in localStorage
 
 ### Capo
+
 - Capo 0–12 with display: "Play D with capo 2 → sounds like E"
 - Per-song capo state persisted in localStorage
 
 ### Stage Mode
+
 - Pure black background (`#000000`)
 - Gold chords (`#FFD700`), white lyrics
 - Toggle via the ⚡ button in the header
 
 ### Setlists
+
 - Create named setlists
 - Drag-and-drop reorder
 - Per-slot key and capo override (applies only within the setlist)
 - Export entire setlist to PDF (one song per page, 2-column A4)
 
 ### PDF Export
+
 - Single song: from song view → 📥 button
 - Full setlist: from setlist view → Export PDF button
 - A4 format, 2-column layout, print-clean (no UI chrome)
 
 ### PWA / Offline
+
 - Install to home screen on iOS/Android/desktop
 - Works fully offline after first load
 - Offline banner when no connection detected
@@ -155,6 +165,7 @@ To sync across devices, sign up for [Dexie Cloud](https://dexie.cloud) (free tie
 ## Chord Format Support
 
 ### Standard (chord above lyric)
+
 ```
 [Verse 1]
 G              Em
@@ -164,6 +175,7 @@ That saved a wretch like me
 ```
 
 ### Inline chord format
+
 ```
 Amazing [G]grace how [Em]sweet the sound
 That [C]saved a [G]wretch like me
