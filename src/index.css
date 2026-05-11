@@ -169,12 +169,7 @@ body {
 }
 
 .chord-sheet-2col .section-header {
-  break-before: column;
   break-inside: avoid;
-}
-
-.chord-sheet-2col .section-header:first-child {
-  break-before: auto;
 }
 
 .chord-sheet-2col .chord-lyric-pair {

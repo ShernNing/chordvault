@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, CheckCircle, Eye, EyeOff, Save } from 'lucide-react'
 import { useSongs } from '../lib/hooks'
 import { ingest } from '../lib/ingestion'
-import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
+import { Button, Input, Textarea, TagInput, Badge, ErrorState, Modal } from '../components/ui'
 import SongRenderer from '../components/song/SongRenderer'
 
 export default function NewSong() {
@@ -17,13 +17,12 @@ export default function NewSong() {
   const [showPreview, setShowPreview] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [duplicateModal, setDuplicateModal] = useState(null) // { duplicates: Song[] }
 
   // Live parse result
   const ingestionResult = rawContent.trim() ? ingest(rawContent, title) : null
 
-  const handleSave = async () => {
-    if (!title.trim()) { setError('Title is required'); return }
-    if (!rawContent.trim()) { setError('Chord sheet content is required'); return }
+  const doSave = async () => {
     setSaving(true)
     setError(null)
     try {
@@ -33,6 +32,41 @@ export default function NewSong() {
       setError(e.message)
       setSaving(false)
     }
+  }
+
+  const handleSave = async () => {
+    if (!title.trim()) { setError('Title is required'); return }
+    if (!rawContent.trim()) { setError('Chord sheet content is required'); return }
+    setSaving(true)
+    setError(null)
+    try {
+      const { songOps } = await import('../lib/db')
+      const duplicates = await songOps.findByTitleArtist(title.trim(), artist.trim())
+      if (duplicates.length > 0) {
+        setSaving(false)
+        setDuplicateModal({ duplicates })
+        return
+      }
+    } catch {
+      // ignore check errors, proceed with save
+    }
+    await doSave()
+  }
+
+  const handleReplaceExisting = async () => {
+    setDuplicateModal(null)
+    setSaving(true)
+    try {
+      const { songOps } = await import('../lib/db')
+      for (const dup of duplicateModal.duplicates) {
+        await songOps.delete(dup.id)
+      }
+    } catch (e) {
+      setError(e.message)
+      setSaving(false)
+      return
+    }
+    await doSave()
   }
 
   return (
@@ -156,6 +190,37 @@ export default function NewSong() {
           )}
         </div>
       </div>
+
+      {/* Duplicate detection modal */}
+      <Modal
+        isOpen={!!duplicateModal}
+        onClose={() => setDuplicateModal(null)}
+        title="Duplicate song detected"
+      >
+        <p className="text-sm text-[var(--color-ink-soft)] mb-3">
+          {duplicateModal?.duplicates?.length === 1 ? 'A song' : 'Songs'} with this title and artist already {duplicateModal?.duplicates?.length === 1 ? 'exists' : 'exist'}:
+        </p>
+        <div className="space-y-2 mb-5">
+          {duplicateModal?.duplicates?.map(d => (
+            <div key={d.id} className="flex items-center gap-2 p-2 border border-[var(--color-border)] rounded bg-[var(--color-bg-warm)]">
+              <span className="text-sm font-semibold text-[var(--color-ink)]">{d.title}</span>
+              {d.artist && <span className="text-xs text-[var(--color-ink-muted)]">— {d.artist}</span>}
+              {d.original_key && <Badge variant="key">{d.original_key}</Badge>}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-[var(--color-ink-muted)] mb-5">
+          To keep both, cancel and change the song title or artist before saving.
+        </p>
+        <div className="flex gap-2 justify-end">
+          <Button variant="secondary" size="sm" onClick={() => setDuplicateModal(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" size="sm" onClick={handleReplaceExisting} loading={saving}>
+            Replace existing
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }
