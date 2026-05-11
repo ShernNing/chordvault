@@ -4,6 +4,8 @@ import { dexieCloud } from "dexie-cloud-addon";
 // ─── Database Definition ───────────────────────────────────────────────────
 export const db = new Dexie("ChordVault");
 
+dexieCloud(db);
+
 db.version(1).stores({
   songs:
     "++id, title, artist, original_key, created_at, updated_at, last_played_at, *tags",
