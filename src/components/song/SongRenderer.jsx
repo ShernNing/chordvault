@@ -67,13 +67,15 @@ function _estimatePrintLineHeight(line) {
   }
 }
 
-// Strip blank lines that fall between a chord line and its lyric (chord → blank → lyric)
+// Strip blank lines between chord→lyric pairs and after section headers
 function _stripIntraPairBlanks(lines) {
   return lines.filter((line, i) => {
     if (line.type !== 'blank') return true
     const prev = lines[i - 1]
     const next = lines[i + 1]
-    return !(prev?.type === 'chord_line' && next?.type === 'lyric_line')
+    if (prev?.type === 'chord_line' && next?.type === 'lyric_line') return false
+    if (prev?.type === 'section_header') return false
+    return true
   })
 }
 
@@ -149,6 +151,15 @@ export default function SongRenderer({
   while (i < content.length) {
     const line = content[i]
     const effectiveType = overrides[i] || line.type
+
+    // Skip blank lines immediately after a section header
+    if (effectiveType === 'blank') {
+      const prev = groups[groups.length - 1]
+      if (prev?.type === 'single' && prev.line.type === 'section_header') {
+        i++
+        continue
+      }
+    }
 
     if (effectiveType === 'chord_line') {
       // Skip past any blank lines to find a lyric partner

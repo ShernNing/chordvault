@@ -105,7 +105,9 @@ function stripIntraPairBlanks(lines) {
     if (line.type !== 'blank') return true
     const prev = lines[i - 1]
     const next = lines[i + 1]
-    return !(prev?.type === 'chord_line' && next?.type === 'lyric_line')
+    if (prev?.type === 'chord_line' && next?.type === 'lyric_line') return false
+    if (prev?.type === 'section_header') return false
+    return true
   })
 }
 
