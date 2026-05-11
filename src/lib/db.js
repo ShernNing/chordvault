@@ -41,9 +41,6 @@ if (dexieCloudUrl && dexieCloudEnabled && db.cloud?.configure) {
     db.cloud.configure({
       databaseUrl: dexieCloudUrl,
       requireAuth: true,
-      customLoginGui: false,
-      syncedTables: ["songs", "setlists", "setlist_songs"],
-      unsyncedTables: ["sync_queue", "app_state"],
     });
   } catch (error) {
     console.warn("Dexie Cloud configuration failed:", error);
