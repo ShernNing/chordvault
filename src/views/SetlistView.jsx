@@ -132,12 +132,15 @@ export default function SetlistView() {
         const container = createPrintContainer();
         const root = createRoot(container);
         const displayKey = slot.chosen_key || slot.song.original_key;
+        const capo = slot.capo || 0;
+        const shapeSemitones = semitones - capo;
+        const shapeKey = capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
         root.render(
           <PrintableSongSheet
             song={slot.song}
-            semitones={semitones}
-            targetKey={displayKey}
-            keyLabel={`${displayKey || ""}${slot.capo > 0 ? ` (capo ${slot.capo})` : ""}`}
+            semitones={shapeSemitones}
+            targetKey={shapeKey}
+            keyLabel={`${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`}
           />,
         );
         containers.push(container);

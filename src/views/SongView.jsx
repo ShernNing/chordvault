@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useSong, useLocalStorage } from "../lib/hooks";
 import { supabaseSongOps } from "../lib/supabaseOps";
-import { transposeKey, getCapoDisplay } from "../lib/transposition";
+import { transposeKey, getCapoDisplay, getCapoShapeKey } from "../lib/transposition";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { ingest } from "../lib/ingestion";
 import {
@@ -66,6 +66,10 @@ export default function SongView() {
     ? transposeKey(song.original_key, transpose.semitones)
     : null;
 
+  // Chords to display = shape key (shifted down by capo frets)
+  const shapeKey = getCapoShapeKey(displayKey, transpose.capo)
+  const shapeSemitones = transpose.semitones - transpose.capo
+
   const handleTransposeChange = (semitones, capo) => {
     setTranspose({ semitones, capo });
   };
@@ -86,8 +90,8 @@ export default function SongView() {
       root.render(
         <PrintableSongSheet
           song={song}
-          semitones={transpose.semitones}
-          targetKey={displayKey}
+          semitones={shapeSemitones}
+          targetKey={shapeKey}
           keyLabel={
             displayKey
               ? `${displayKey}${transpose.capo > 0 ? ` (capo ${transpose.capo})` : ""}`
@@ -258,8 +262,8 @@ export default function SongView() {
       {/* ── Chord Sheet ───────────────────────────────────────────── */}
       <ChordSheetPage
         song={song}
-        semitones={transpose.semitones}
-        targetKey={displayKey}
+        semitones={shapeSemitones}
+        targetKey={shapeKey}
         twoColumn={twoColumn}
         onTwoColumnChange={setTwoColumn}
         printRef={printRef}
