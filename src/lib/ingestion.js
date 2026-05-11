@@ -48,7 +48,7 @@ export function normalizeSectionHeader(text) {
   return `[${titleCased}]`
 }
 
-export const CHORD_REGEX = /^[A-G][#b]?(maj|min|m|M|sus|dim|aug|add|6|7|9|11|13)?[0-9]*(\/[A-G][#b]?)?$/
+export const CHORD_REGEX = /^[A-G][#b]?(maj|min|m|M|dim|aug|add)?[0-9]*(sus[0-9]*)?(\/[A-G][#b]?)?$/
 
 export function isChord(token) {
   if (!token || token.length === 0) return false
@@ -113,7 +113,8 @@ export function parseRawContent(rawText) {
   const rawLines = rawText.split('\n')
   const parsedLines = []
   for (let i = 0; i < rawLines.length; i++) {
-    const line = rawLines[i]
+    // Strip bar separators: "E | B | A | D" → "E  B  A  D"
+    const line = rawLines[i].includes('|') ? rawLines[i].replace(/\s*\|\s*/g, '  ') : rawLines[i]
     const inlineResult = parseInlineChordFormat(line)
     if (inlineResult) {
       parsedLines.push({ type: 'chord_line', tokens: tokenizeChordLine(inlineResult.chordLine), raw: inlineResult.chordLine, uncertain: false })
