@@ -66,6 +66,7 @@ export function useSongs(sortBy = 'title') {
 
       switch (sortBy) {
         case 'artist': data = data.sort((a, b) => (a.artist || '').localeCompare(b.artist || '')); break
+        case 'key': data = data.sort((a, b) => (a.original_key || '').localeCompare(b.original_key || '') || (a.title || '').localeCompare(b.title || '')); break
         case 'recent': data = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); break
         case 'played':
           data = data.sort((a, b) => {

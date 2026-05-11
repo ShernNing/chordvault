@@ -32,6 +32,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useSetlist, useSongs } from "../lib/hooks";
 import { transposeKey, getCapoDisplay, ALL_KEYS } from "../lib/transposition";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
+import { exportSetlistToDocx } from "../lib/docxExport";
 import { PrintableSongSheet, TwoPrintableSongSheets } from "../components/song/SongRenderer";
 import {
   Button,
@@ -87,6 +88,7 @@ export default function SetlistView() {
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportingDocx, setExportingDocx] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
 
   const printRefs = useRef({});
@@ -178,10 +180,12 @@ export default function SetlistView() {
               semitones1={curr.shapeSemitones}
               targetKey1={curr.shapeKey}
               keyLabel1={curr.keyLabel}
+              songNumber1={i + 1}
               song2={next.slot.song}
               semitones2={next.shapeSemitones}
               targetKey2={next.shapeKey}
               keyLabel2={next.keyLabel}
+              songNumber2={i + 2}
             />,
           );
           i += 2;
@@ -192,6 +196,7 @@ export default function SetlistView() {
               semitones={curr.shapeSemitones}
               targetKey={curr.shapeKey}
               keyLabel={curr.keyLabel}
+              songNumber={i + 1}
             />,
           );
           i += 1;
@@ -218,6 +223,28 @@ export default function SetlistView() {
       console.error("PDF export error:", e);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportDocx = async () => {
+    setExportingDocx(true);
+    try {
+      const { semitonesFromKeyToKey } = await import("../lib/transposition");
+      await exportSetlistToDocx(setlist.name, slots.filter(s => s.song), (slot) => {
+        const semitones = slot.chosen_key && slot.song.original_key
+          ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
+          : 0;
+        const displayKey = slot.chosen_key || slot.song.original_key;
+        const capo = slot.capo || 0;
+        const shapeSemitones = semitones - capo;
+        const shapeKey = capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
+        const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
+        return { song: slot.song, semitones: shapeSemitones, targetKey: shapeKey, keyLabel };
+      });
+    } catch (e) {
+      console.error("Docx export error:", e);
+    } finally {
+      setExportingDocx(false);
     }
   };
 
@@ -300,6 +327,14 @@ export default function SetlistView() {
             loading={exporting}
           >
             <FileDown size={13} /> Export PDF
+          </Button>
+          <Button
+            variant='secondary'
+            size='sm'
+            onClick={handleExportDocx}
+            loading={exportingDocx}
+          >
+            <FileDown size={13} /> Export Word
           </Button>
         </div>
       </div>

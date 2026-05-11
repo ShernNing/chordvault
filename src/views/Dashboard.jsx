@@ -9,6 +9,7 @@ import SongCard from '../components/song/SongCard'
 const SORT_OPTIONS = [
   { value: 'title', label: 'Title A–Z' },
   { value: 'artist', label: 'Artist A–Z' },
+  { value: 'key', label: 'Key A–Z' },
   { value: 'recent', label: 'Recently added' },
   { value: 'played', label: 'Recently played' },
 ]

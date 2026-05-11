@@ -74,6 +74,7 @@ function _stripIntraPairBlanks(lines) {
     const prev = lines[i - 1]
     const next = lines[i + 1]
     if (prev?.type === 'chord_line' && next?.type === 'lyric_line') return false
+    if (prev?.type === 'lyric_line' && next?.type === 'chord_line') return false
     if (prev?.type === 'section_header') return false
     return true
   })
@@ -152,12 +153,21 @@ export default function SongRenderer({
     const line = content[i]
     const effectiveType = overrides[i] || line.type
 
-    // Skip blank lines immediately after a section header
+    // Skip blank lines immediately after a section header or between chord/lyric pairs
     if (effectiveType === 'blank') {
       const prev = groups[groups.length - 1]
       if (prev?.type === 'single' && prev.line.type === 'section_header') {
         i++
         continue
+      }
+      // Skip blank between pairs (lyric → chord): peek at next non-blank
+      if (prev?.type === 'pair') {
+        let j = i + 1
+        while (j < content.length && (overrides[j] || content[j].type) === 'blank') j++
+        if (j < content.length && (overrides[j] || content[j].type) === 'chord_line') {
+          i++
+          continue
+        }
       }
     }
 
@@ -357,13 +367,26 @@ const PRINT_WRAPPER_STYLE = {
   fontSize: '12px',
 }
 
-function PrintSongHeader({ song, keyLabel }) {
+function PrintSongHeader({ song, keyLabel, songNumber }) {
+  const parts = [
+    songNumber != null ? `${songNumber}.` : null,
+    song.title,
+    song.artist ? `- ${song.artist}` : null,
+    keyLabel ? `(${keyLabel})` : null,
+  ].filter(Boolean)
+  const title = parts.join(' ')
+
   return (
-    <div style={{ marginBottom: '6px', borderBottom: '1px solid #e5e5e5', paddingBottom: '4px' }}>
-      <div style={{ fontSize: '13px', fontWeight: '700' }}>
-        {song.title}
-        {song.artist ? ` - ${song.artist}` : ''}
-        {keyLabel ? ` (${keyLabel})` : ''}
+    <div style={{ marginBottom: '8px', paddingBottom: '4px' }}>
+      <div style={{
+        display: 'inline-block',
+        fontSize: '13px',
+        fontWeight: '700',
+        backgroundColor: '#000000',
+        color: '#ffffff',
+        padding: '2px 6px',
+      }}>
+        {title}
       </div>
     </div>
   )
@@ -378,7 +401,7 @@ function PrintSection({ section, sectionKey }) {
   )
 }
 
-export function PrintableSongSheet({ song, semitones, targetKey, keyLabel }) {
+export function PrintableSongSheet({ song, semitones, targetKey, keyLabel, songNumber }) {
   const content = semitones !== 0
     ? transposeParsedContent(song.parsed_content, semitones, targetKey)
     : song.parsed_content
@@ -390,7 +413,7 @@ export function PrintableSongSheet({ song, semitones, targetKey, keyLabel }) {
   if (!useColumns) {
     return (
       <div style={PRINT_WRAPPER_STYLE}>
-        <PrintSongHeader song={song} keyLabel={keyLabel} />
+        <PrintSongHeader song={song} keyLabel={keyLabel} songNumber={songNumber} />
         {sections.map((s, si) => <PrintSection key={si} section={s} sectionKey={si} />)}
       </div>
     )
@@ -399,7 +422,7 @@ export function PrintableSongSheet({ song, semitones, targetKey, keyLabel }) {
   const { left, right } = _splitPrintSections(sections)
   return (
     <div style={PRINT_WRAPPER_STYLE}>
-      <PrintSongHeader song={song} keyLabel={keyLabel} />
+      <PrintSongHeader song={song} keyLabel={keyLabel} songNumber={songNumber} />
       <div style={{ display: 'flex', gap: '32px' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {left.map((s, si) => <PrintSection key={si} section={s} sectionKey={si} />)}
@@ -413,15 +436,15 @@ export function PrintableSongSheet({ song, semitones, targetKey, keyLabel }) {
 }
 
 // Two short songs side by side on one page (used by setlist PDF export)
-export function TwoPrintableSongSheets({ song1, semitones1, targetKey1, keyLabel1, song2, semitones2, targetKey2, keyLabel2 }) {
-  const renderSong = (song, semitones, targetKey, keyLabel) => {
+export function TwoPrintableSongSheets({ song1, semitones1, targetKey1, keyLabel1, songNumber1, song2, semitones2, targetKey2, keyLabel2, songNumber2 }) {
+  const renderSong = (song, semitones, targetKey, keyLabel, songNumber) => {
     const content = semitones !== 0
       ? transposeParsedContent(song.parsed_content, semitones, targetKey)
       : song.parsed_content
     const sections = _groupPrintSections(_stripIntraPairBlanks(content || []))
     return (
       <div style={{ flex: 1, minWidth: 0 }}>
-        <PrintSongHeader song={song} keyLabel={keyLabel} />
+        <PrintSongHeader song={song} keyLabel={keyLabel} songNumber={songNumber} />
         {sections.map((s, si) => <PrintSection key={si} section={s} sectionKey={si} />)}
       </div>
     )
@@ -430,8 +453,8 @@ export function TwoPrintableSongSheets({ song1, semitones1, targetKey1, keyLabel
   return (
     <div style={PRINT_WRAPPER_STYLE}>
       <div style={{ display: 'flex', gap: '32px' }}>
-        {renderSong(song1, semitones1, targetKey1, keyLabel1)}
-        {renderSong(song2, semitones2, targetKey2, keyLabel2)}
+        {renderSong(song1, semitones1, targetKey1, keyLabel1, songNumber1)}
+        {renderSong(song2, semitones2, targetKey2, keyLabel2, songNumber2)}
       </div>
     </div>
   )

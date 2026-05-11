@@ -18,6 +18,7 @@ import { useSong, useLocalStorage } from "../lib/hooks";
 import { supabaseSongOps } from "../lib/supabaseOps";
 import { transposeKey, getCapoDisplay, getCapoShapeKey } from "../lib/transposition";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
+import { exportSongToDocx } from "../lib/docxExport";
 import { ingest } from "../lib/ingestion";
 import {
   Button,
@@ -54,6 +55,7 @@ export default function SongView() {
   const [isEditing, setIsEditing] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingDocx, setExportingDocx] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const printRef = useRef(null);
@@ -78,6 +80,20 @@ export default function SongView() {
     await navigator.clipboard.writeText(song.raw_content || "");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExportDocx = async () => {
+    setExportingDocx(true);
+    try {
+      const keyLabel = displayKey
+        ? `${displayKey}${transpose.capo > 0 ? ` (capo ${transpose.capo})` : ""}`
+        : null;
+      await exportSongToDocx(song, shapeSemitones, shapeKey, keyLabel);
+    } catch (e) {
+      console.error("Docx export failed:", e);
+    } finally {
+      setExportingDocx(false);
+    }
   };
 
   const handleExportPDF = async () => {
@@ -180,6 +196,17 @@ export default function SongView() {
               onClick={handleExportPDF}
               loading={exporting}
               title='Export PDF'
+            >
+              <FileDown size={14} />
+            </Button>
+          </Tooltip>
+          <Tooltip content='Export Word'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={handleExportDocx}
+              loading={exportingDocx}
+              title='Export Word'
             >
               <FileDown size={14} />
             </Button>
