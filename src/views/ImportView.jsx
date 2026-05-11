@@ -17,8 +17,9 @@ import SongRenderer from '../components/song/SongRenderer'
 export default function ImportView() {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
-  const [phase, setPhase] = useState('idle') // idle | uploading | reviewing | saving | done
+  const [phase, setPhase] = useState('idle') // idle | uploading | reviewing | conflicts | saving | done
   const [songs, setSongs] = useState([]) // ImportedSong[]
+  const [conflicts, setConflicts] = useState([]) // { importedSong, existingSong, resolution, newTitle }
   const [error, setError] = useState(null)
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 })
   const [savedCount, setSavedCount] = useState(0)
@@ -70,29 +71,67 @@ export default function ImportView() {
     const toSave = songs.filter(s => s.status === 'accepted' || s.status === 'edited')
     if (toSave.length === 0) return
 
+    const existing = await supabaseSongOps.getByTitles(toSave.map(s => s.title))
+    if (existing.length > 0) {
+      const conflictList = existing.map(ex => {
+        const imported = toSave.find(s => s.title.toLowerCase() === ex.title.toLowerCase())
+        return { importedSong: imported, existingSong: ex, resolution: 'skip', newTitle: imported.title + ' (2)' }
+      })
+      setConflicts(conflictList)
+      setPhase('conflicts')
+      return
+    }
+
+    await executeSave(toSave, [])
+  }
+
+  const executeSave = async (toSave, resolvedConflicts) => {
     setPhase('saving')
     setSaveProgress({ done: 0, total: toSave.length })
     let saved = 0
 
+    const conflictMap = Object.fromEntries(resolvedConflicts.map(c => [c.importedSong.id, c]))
+
     for (const song of toSave) {
+      const conflict = conflictMap[song.id]
       try {
-        await supabaseSongOps.create({
-          title: song.title,
-          artist: song.artist || '',
-          raw_content: song.rawContent,
-          parsed_content: song.parsed_content,
-          original_key: song.original_key,
-          tags: song.tags || [],
-        })
-        saved++
-        setSaveProgress({ done: saved, total: toSave.length })
+        if (conflict) {
+          if (conflict.resolution === 'replace') {
+            await supabaseSongOps.update(conflict.existingSong.id, {
+              title: song.title, artist: song.artist || '',
+              raw_content: song.rawContent, parsed_content: song.parsed_content,
+              original_key: song.original_key, tags: song.tags || [],
+            })
+            saved++
+          } else if (conflict.resolution === 'keep-both') {
+            await supabaseSongOps.create({
+              title: conflict.newTitle || song.title + ' (2)',
+              artist: song.artist || '', raw_content: song.rawContent,
+              parsed_content: song.parsed_content, original_key: song.original_key, tags: song.tags || [],
+            })
+            saved++
+          }
+          // 'skip' → do nothing
+        } else {
+          await supabaseSongOps.create({
+            title: song.title, artist: song.artist || '',
+            raw_content: song.rawContent, parsed_content: song.parsed_content,
+            original_key: song.original_key, tags: song.tags || [],
+          })
+          saved++
+        }
       } catch (e) {
         console.error('Failed to save song:', song.title, e)
       }
+      setSaveProgress(p => ({ ...p, done: p.done + 1 }))
     }
 
     setSavedCount(saved)
     setPhase('done')
+  }
+
+  const updateConflict = (importedId, updates) => {
+    setConflicts(prev => prev.map(c => c.importedSong.id === importedId ? { ...c, ...updates } : c))
   }
 
   const acceptedCount = songs.filter(s => s.status === 'accepted' || s.status === 'edited').length
@@ -118,6 +157,46 @@ export default function ImportView() {
           </Button>
           <Button variant="secondary" onClick={() => { setPhase('idle'); setSongs([]) }}>
             Import another
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'conflicts') {
+    const toSave = songs.filter(s => s.status === 'accepted' || s.status === 'edited')
+    return (
+      <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <AlertTriangle size={16} className="text-amber-500" />
+            <h1 className="font-display text-2xl text-[var(--color-ink)]">Duplicate songs found</h1>
+          </div>
+          <p className="text-sm text-[var(--color-ink-soft)]">
+            {conflicts.length} {conflicts.length === 1 ? 'song already exists' : 'songs already exist'} in your library. Choose what to do with each.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {conflicts.map(conflict => (
+            <ConflictCard
+              key={conflict.importedSong.id}
+              conflict={conflict}
+              onChange={updates => updateConflict(conflict.importedSong.id, updates)}
+            />
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
+          <Button variant="ghost" size="sm" onClick={() => setPhase('reviewing')}>
+            ← Back to review
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => executeSave(toSave, conflicts)}
+          >
+            <Save size={13} /> Continue saving
           </Button>
         </div>
       </div>
@@ -259,6 +338,71 @@ export default function ImportView() {
             onUpdate={(updates) => updateSong(song.id, updates)}
           />
         ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Conflict Card ─────────────────────────────────────────────────────────
+
+function ConflictCard({ conflict, onChange }) {
+  const { importedSong, existingSong, resolution, newTitle } = conflict
+
+  return (
+    <div className="border border-amber-300 dark:border-amber-700 rounded-lg overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800">
+        <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+        <span className="text-sm font-semibold text-[var(--color-ink)]">{importedSong.title}</span>
+        {importedSong.artist && (
+          <span className="text-xs text-[var(--color-ink-muted)]">— {importedSong.artist}</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-0 divide-x divide-[var(--color-border)] text-xs">
+        <div className="p-3 bg-[var(--color-bg-warm)]">
+          <p className="font-medium text-[var(--color-ink-muted)] uppercase tracking-wide text-[10px] mb-1">In library</p>
+          <p className="text-[var(--color-ink)]">{existingSong.title}</p>
+          {existingSong.artist && <p className="text-[var(--color-ink-muted)]">{existingSong.artist}</p>}
+        </div>
+        <div className="p-3 bg-[var(--color-bg)]">
+          <p className="font-medium text-[var(--color-ink-muted)] uppercase tracking-wide text-[10px] mb-1">Importing</p>
+          <p className="text-[var(--color-ink)]">{importedSong.title}</p>
+          {importedSong.artist && <p className="text-[var(--color-ink-muted)]">{importedSong.artist}</p>}
+        </div>
+      </div>
+
+      <div className="px-4 py-3 bg-[var(--color-bg)] border-t border-[var(--color-border)] space-y-2.5">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { value: 'skip', label: 'Skip import' },
+            { value: 'replace', label: 'Replace existing' },
+            { value: 'keep-both', label: 'Keep both' },
+          ].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => onChange({ resolution: opt.value })}
+              className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${
+                resolution === opt.value
+                  ? 'bg-[var(--color-ink)] text-[var(--color-bg)] border-[var(--color-ink)]'
+                  : 'border-[var(--color-border)] text-[var(--color-ink-soft)] hover:border-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {resolution === 'keep-both' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--color-ink-muted)] shrink-0">New title:</span>
+            <input
+              type="text"
+              value={newTitle}
+              onChange={e => onChange({ newTitle: e.target.value })}
+              className="flex-1 text-xs px-2 py-1.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-ink-muted)]"
+            />
+          </div>
+        )}
       </div>
     </div>
   )

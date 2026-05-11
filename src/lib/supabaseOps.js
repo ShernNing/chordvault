@@ -7,6 +7,14 @@ export const supabaseSongOps = {
     return data ?? []
   },
 
+  async getByTitles(titles) {
+    if (!titles.length) return []
+    const filter = titles.map(t => `title.ilike.${t}`).join(',')
+    const { data, error } = await supabase.from('songs').select('id, title, artist').or(filter)
+    if (error) throw error
+    return data ?? []
+  },
+
   async getById(id) {
     const { data, error } = await supabase.from('songs').select('*').eq('id', id).single()
     if (error) throw error
