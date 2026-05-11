@@ -9,7 +9,7 @@ export const supabaseSongOps = {
 
   async getByTitles(titles) {
     if (!titles.length) return []
-    const filter = titles.map(t => `title.ilike.${t}`).join(',')
+    const filter = titles.map(t => `title.ilike."${t.replace(/"/g, '""')}"`).join(',')
     const { data, error } = await supabase.from('songs').select('*').or(filter)
     if (error) throw error
     return data ?? []

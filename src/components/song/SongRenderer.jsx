@@ -213,27 +213,19 @@ export function PrintableSongSheet({ song, semitones, targetKey, title, keyLabel
   return (
     <div style={{
       width: '794px',
-      padding: '48px',
+      padding: '24px',
       backgroundColor: '#ffffff',
       color: '#111111',
       fontFamily: "'Courier New', Courier, monospace",
       fontSize: '12px',
     }}>
       {/* Song header */}
-      <div style={{ marginBottom: '20px', borderBottom: '1px solid #e5e5e5', paddingBottom: '12px' }}>
-        <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '2px' }}>
+      <div style={{ marginBottom: '10px', borderBottom: '1px solid #e5e5e5', paddingBottom: '6px' }}>
+        <div style={{ fontSize: '13px', fontWeight: '700' }}>
           {song.title}
+          {song.artist ? ` - ${song.artist}` : ''}
+          {keyLabel ? ` (${keyLabel})` : ''}
         </div>
-        {song.artist && (
-          <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-            {song.artist}
-          </div>
-        )}
-        {keyLabel && (
-          <div style={{ fontSize: '11px', color: '#888', fontFamily: 'Courier New' }}>
-            Key: {keyLabel}
-          </div>
-        )}
       </div>
 
       {/* Content */}
