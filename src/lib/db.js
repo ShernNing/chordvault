@@ -17,9 +17,14 @@ db.version(1).stores({
 });
 
 // ─── Dexie Cloud Configuration ─────────────────────────────────────────────
-if (import.meta.env.VITE_DEXIE_CLOUD_URL) {
+const dexieCloudUrl =
+  typeof import.meta !== "undefined"
+    ? import.meta.env?.VITE_DEXIE_CLOUD_URL
+    : undefined;
+
+if (dexieCloudUrl && db.cloud?.configure) {
   db.cloud.configure({
-    databaseUrl: import.meta.env.VITE_DEXIE_CLOUD_URL,
+    databaseUrl: dexieCloudUrl,
     requireAuth: true,
     customLoginGui: false,
   });
