@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X, Search } from 'lucide-react'
 import { useSongs } from '../lib/hooks'
 import { supabaseSongOps } from '../lib/supabaseOps'
 import { ingest, classifyLine } from '../lib/ingestion'
 import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
+import { lookupArtist } from '../lib/musicbrainz'
 import SongRenderer from '../components/song/SongRenderer'
 import ConflictCard from '../components/song/ConflictCard'
 
@@ -22,6 +23,8 @@ export default function NewSong() {
   const [conflict, setConflict] = useState(null) // { importedSong, existingSong, resolution, newTitle, incomingEdits, existingEdits }
   const [titleAutoDetected, setTitleAutoDetected] = useState(false)
   const [artistAutoDetected, setArtistAutoDetected] = useState(false)
+  const [lookingUpArtist, setLookingUpArtist] = useState(false)
+  const [artistLookupMsg, setArtistLookupMsg] = useState('')
 
   // Live parse result
   const ingestionResult = rawContent.trim() ? ingest(rawContent, title) : null
@@ -225,14 +228,39 @@ export default function NewSong() {
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <Input
-            label="Artist / Songwriter"
-            placeholder="e.g. John Newton"
-            value={artist}
-            onChange={e => { setArtist(e.target.value); setArtistAutoDetected(false) }}
-          />
-          {artistAutoDetected && (
+          <label className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">Artist / Songwriter</label>
+          <div className="flex gap-1.5">
+            <input
+              className="flex-1 h-8 px-2.5 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-[var(--color-ink)] placeholder-[var(--color-ink-muted)] hover:border-[var(--color-ink-muted)] focus:outline-none focus:border-[var(--color-ink)] transition-colors"
+              placeholder="e.g. John Newton"
+              value={artist}
+              onChange={e => { setArtist(e.target.value); setArtistAutoDetected(false); setArtistLookupMsg('') }}
+            />
+            <Button
+              variant="secondary"
+              size="icon-sm"
+              title="Look up artist"
+              loading={lookingUpArtist}
+              disabled={!title.trim()}
+              onClick={async () => {
+                setLookingUpArtist(true)
+                setArtistLookupMsg('')
+                try {
+                  const found = await lookupArtist(title)
+                  if (found) { setArtist(found); setArtistLookupMsg('Found') }
+                  else setArtistLookupMsg('Not found')
+                } catch { setArtistLookupMsg('Error') }
+                finally { setLookingUpArtist(false) }
+              }}
+            >
+              <Search size={13} />
+            </Button>
+          </div>
+          {artistAutoDetected && !artistLookupMsg && (
             <p className="text-[10px] text-[var(--color-ink-muted)]">Artist auto-detected from content</p>
+          )}
+          {artistLookupMsg && (
+            <p className="text-[10px] text-[var(--color-ink-muted)]">{artistLookupMsg}</p>
           )}
         </div>
         <div className="sm:col-span-2 flex flex-col gap-1">

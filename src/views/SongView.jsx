@@ -13,6 +13,7 @@ import {
   Check,
   RefreshCw,
   Copy,
+  Search,
 } from "lucide-react";
 import { useSong, useLocalStorage } from "../lib/hooks";
 import { supabaseSongOps } from "../lib/supabaseOps";
@@ -20,6 +21,7 @@ import { transposeKey, getCapoDisplay, getCapoShapeKey } from "../lib/transposit
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
 import { ingest } from "../lib/ingestion";
+import { lookupArtist } from "../lib/musicbrainz";
 import {
   Button,
   Input,
@@ -352,6 +354,8 @@ function EditSongModal({ song, onSave, onClose }) {
   const [originalKey, setOriginalKey] = useState(song.original_key || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [lookingUpArtist, setLookingUpArtist] = useState(false);
+  const [artistLookupMsg, setArtistLookupMsg] = useState('');
 
   // Live preview of re-parsed content
   const liveResult = rawContent.trim() ? ingest(rawContent, title) : null;
@@ -415,11 +419,38 @@ function EditSongModal({ song, onSave, onClose }) {
               className='sm:col-span-2'
               containerClassName='sm:col-span-2'
             />
-            <Input
-              label='Artist'
-              value={artist}
-              onChange={(e) => setArtist(e.target.value)}
-            />
+            <div className='flex flex-col gap-1'>
+              <label className='text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide'>Artist</label>
+              <div className='flex gap-1.5'>
+                <input
+                  className='flex-1 h-8 px-2.5 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-[var(--color-ink)] placeholder-[var(--color-ink-muted)] hover:border-[var(--color-ink-muted)] focus:outline-none focus:border-[var(--color-ink)] transition-colors'
+                  value={artist}
+                  onChange={(e) => { setArtist(e.target.value); setArtistLookupMsg('') }}
+                />
+                <Button
+                  variant='secondary'
+                  size='icon-sm'
+                  title='Look up artist'
+                  loading={lookingUpArtist}
+                  disabled={!title.trim()}
+                  onClick={async () => {
+                    setLookingUpArtist(true)
+                    setArtistLookupMsg('')
+                    try {
+                      const found = await lookupArtist(title)
+                      if (found) { setArtist(found); setArtistLookupMsg('Found') }
+                      else setArtistLookupMsg('Not found')
+                    } catch { setArtistLookupMsg('Error') }
+                    finally { setLookingUpArtist(false) }
+                  }}
+                >
+                  <Search size={13} />
+                </Button>
+              </div>
+              {artistLookupMsg && (
+                <p className='text-[10px] text-[var(--color-ink-muted)]'>{artistLookupMsg}</p>
+              )}
+            </div>
             <Input
               label='Key (override)'
               value={originalKey}
