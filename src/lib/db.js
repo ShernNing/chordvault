@@ -16,6 +16,16 @@ db.version(1).stores({
   app_state: "key",
 });
 
+db.version(2).stores({
+  songs:
+    "id, title, artist, original_key, created_at, updated_at, last_played_at, *tags",
+  setlists: "id, name, created_at, updated_at",
+  setlist_songs: "id, setlist_id, song_id, position",
+  sync_queue:
+    "++id, operation, table_name, record_id, payload, created_at, synced",
+  app_state: "key",
+});
+
 // ─── Dexie Cloud Configuration ─────────────────────────────────────────────
 const dexieCloudUrl =
   typeof import.meta !== "undefined"
@@ -27,6 +37,8 @@ if (dexieCloudUrl && db.cloud?.configure) {
     databaseUrl: dexieCloudUrl,
     requireAuth: true,
     customLoginGui: false,
+    syncedTables: ["songs", "setlists", "setlist_songs"],
+    unsyncedTables: ["sync_queue", "app_state"],
   });
 }
 
@@ -42,7 +54,9 @@ export const songOps = {
 
   async create(songData) {
     const now = new Date().toISOString();
-    const id = await db.songs.add({
+    const id = crypto.randomUUID();
+    await db.songs.add({
+      id,
       ...songData,
       created_at: now,
       updated_at: now,
@@ -122,7 +136,9 @@ export const setlistOps = {
 
   async create(name) {
     const now = new Date().toISOString();
-    const id = await db.setlists.add({
+    const id = crypto.randomUUID();
+    await db.setlists.add({
+      id,
       name,
       created_at: now,
       updated_at: now,
@@ -147,7 +163,9 @@ export const setlistOps = {
       .equals(setlistId)
       .toArray();
     const position = existing.length;
-    const id = await db.setlist_songs.add({
+    const id = crypto.randomUUID();
+    await db.setlist_songs.add({
+      id,
       setlist_id: setlistId,
       song_id: songId,
       position,

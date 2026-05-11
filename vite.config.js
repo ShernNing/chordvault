@@ -1,73 +1,97 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png'],
+      registerType: "autoUpdate",
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "icons/*.png"],
       manifest: {
-        name: 'ChordVault',
-        short_name: 'Chords',
-        description: 'Personal chord sheet manager for musicians',
-        theme_color: '#111111',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        name: "ChordVault",
+        short_name: "Chords",
+        description: "Personal chord sheet manager for musicians",
+        theme_color: "#111111",
+        background_color: "#ffffff",
+        display: "standalone",
+        orientation: "portrait",
+        scope: "/",
+        start_url: "/",
         icons: [
           {
-            src: 'icons/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png'
+            src: "icons/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
           },
           {
-            src: 'icons/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png'
+            src: "icons/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
           },
           {
-            src: 'icons/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
+            src: "icons/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "any maskable",
+          },
+        ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
+            handler: "CacheFirst",
             options: {
-              cacheName: 'google-fonts-cache',
+              cacheName: "google-fonts-cache",
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] }
-            }
+              cacheableResponse: { statuses: [0, 200] },
+            },
           },
           {
             urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
+            handler: "CacheFirst",
             options: {
-              cacheName: 'gstatic-fonts-cache',
+              cacheName: "gstatic-fonts-cache",
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] }
-            }
-          }
-        ]
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       devOptions: {
-        enabled: false
-      }
-    })
+        enabled: false,
+      },
+    }),
   ],
   resolve: {
     alias: {
-      '@': '/src'
-    }
-  }
-})
+      "@": "/src",
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("jspdf") || id.includes("html2canvas")) {
+            return "pdf";
+          }
+          if (id.includes("tonal")) {
+            return "music";
+          }
+          if (id.includes("mammoth")) {
+            return "doc";
+          }
+          if (id.includes("dexie")) {
+            return "db";
+          }
+          if (id.includes("lucide-react") || id.includes("@dnd-kit")) {
+            return "ui";
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000, // Increase limit to 1000kb to reduce warnings
+  },
+});
