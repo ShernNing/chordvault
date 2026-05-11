@@ -1,43 +1,15 @@
 import Dexie from "dexie";
-import { dexieCloud } from "dexie-cloud-addon";
 
-// ─── Database Definition ───────────────────────────────────────────────────
-// Renamed from "ChordVault" to skip the broken v1→v2 PK-type upgrade path
+// ─── Database Definition (local IndexedDB only) ────────────────────────────
 export const db = new Dexie("ChordVaultDB");
-
-dexieCloud(db);
 
 db.version(1).stores({
   songs:
     "id, title, artist, original_key, created_at, updated_at, last_played_at, *tags",
   setlists: "id, name, created_at, updated_at",
   setlist_songs: "id, setlist_id, song_id, position",
-  sync_queue:
-    "++id, operation, table_name, record_id, payload, created_at, synced",
   app_state: "key",
 });
-
-// ─── Dexie Cloud Configuration ─────────────────────────────────────────────
-const dexieCloudUrl =
-  typeof import.meta !== "undefined"
-    ? import.meta.env?.VITE_DEXIE_CLOUD_URL
-    : undefined;
-const dexieCloudEnabled =
-  typeof import.meta !== "undefined"
-    ? import.meta.env?.VITE_DEXIE_CLOUD_ENABLED === "true"
-    : false;
-
-if (dexieCloudUrl && dexieCloudEnabled && db.cloud?.configure) {
-  try {
-    db.cloud.configure({
-      databaseUrl: dexieCloudUrl,
-      requireAuth: false,
-      customLoginGui: true,
-    });
-  } catch (error) {
-    console.warn("Dexie Cloud configuration failed:", error);
-  }
-}
 
 // ─── Song Operations ───────────────────────────────────────────────────────
 export const songOps = {
@@ -198,28 +170,6 @@ export const appStateOps = {
 
   async set(key, value) {
     await db.app_state.put({ key, value });
-  },
-};
-
-// ─── Sync Queue (for future Dexie Cloud integration) ───────────────────────
-export const syncQueueOps = {
-  async enqueue(operation, tableName, recordId, payload) {
-    await db.sync_queue.add({
-      operation,
-      table_name: tableName,
-      record_id: recordId,
-      payload,
-      created_at: new Date().toISOString(),
-      synced: false,
-    });
-  },
-
-  async getPending() {
-    return db.sync_queue.where("synced").equals(0).toArray();
-  },
-
-  async markSynced(id) {
-    await db.sync_queue.update(id, { synced: true });
   },
 };
 

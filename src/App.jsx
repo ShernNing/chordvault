@@ -1,5 +1,6 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './lib/AuthContext'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './views/Dashboard'
 import NewSong from './views/NewSong'
@@ -10,6 +11,7 @@ import ImportView from './views/ImportView'
 
 export default function App() {
   return (
+    <AuthProvider>
     <BrowserRouter>
       <AppShell>
         <Routes>
@@ -23,5 +25,6 @@ export default function App() {
         </Routes>
       </AppShell>
     </BrowserRouter>
+    </AuthProvider>
   )
 }

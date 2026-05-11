@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
   Music2, ListMusic, LayoutGrid, Plus, Moon, Sun,
   Zap, Wifi, WifiOff, Menu, X, FileUp,
-  CloudOff, RefreshCw, LogIn, LogOut, User
+  CloudOff, LogIn, LogOut, User
 } from 'lucide-react'
-import { useOnlineStatus, useTheme, useAuth, useSyncState } from '../../lib/hooks'
+import { useOnlineStatus, useTheme } from '../../lib/hooks'
+import { useAuth } from '../../lib/AuthContext'
+import { supabase } from '../../lib/supabase'
 import { Button, Tooltip } from '../ui'
 import AuthModal from '../auth/AuthModal'
 
@@ -19,10 +21,13 @@ const NAV_ITEMS = [
 export default function AppShell({ children }) {
   const isOnline = useOnlineStatus()
   const { isDark, isStage, toggleDark, toggleStage } = useTheme()
-  const { isLoggedIn, email, interaction, login, logout } = useAuth()
-  const syncState = useSyncState()
+  const { isLoggedIn, email } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const location = useLocation()
+  const [authOpen, setAuthOpen] = useState(false)
+
+  const handleLogout = async () => {
+    await supabase?.auth.signOut()
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] flex flex-col">
@@ -30,7 +35,7 @@ export default function AppShell({ children }) {
       {!isOnline && (
         <div className="flex items-center justify-center gap-2 py-1.5 px-4 bg-amber-50 border-b border-amber-200 text-amber-700 text-xs font-medium dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300">
           <WifiOff size={12} />
-          Offline — showing cached songs
+          Offline — showing cached data
         </div>
       )}
 
@@ -49,44 +54,29 @@ export default function AppShell({ children }) {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {NAV_ITEMS.map(item => (
-              <NavItem key={item.to} {...item} />
-            ))}
+            {NAV_ITEMS.map(item => <NavItem key={item.to} {...item} />)}
           </nav>
 
           {/* Right controls */}
           <div className="flex items-center gap-1">
-            {/* Stage mode */}
             <Tooltip content={isStage ? 'Exit stage mode' : 'Stage mode'}>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={toggleStage}
-                className={isStage ? 'text-[var(--color-accent)]' : ''}
-                title="Toggle stage mode"
-              >
+              <Button variant="ghost" size="icon-sm" onClick={toggleStage} className={isStage ? 'text-[var(--color-accent)]' : ''}>
                 <Zap size={14} />
               </Button>
             </Tooltip>
 
-            {/* Dark mode */}
             <Tooltip content={isDark ? 'Light mode' : 'Dark mode'}>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={toggleDark}
-                title="Toggle dark mode"
-              >
+              <Button variant="ghost" size="icon-sm" onClick={toggleDark}>
                 {isDark ? <Sun size={14} /> : <Moon size={14} />}
               </Button>
             </Tooltip>
 
-            {/* Auth */}
+            {/* Auth (desktop) */}
             <div className="hidden sm:flex items-center ml-1">
               {isLoggedIn ? (
                 <Tooltip content={`Signed in as ${email} — click to sign out`}>
                   <button
-                    onClick={logout}
+                    onClick={handleLogout}
                     className="flex items-center gap-1.5 h-7 px-2 rounded text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
                   >
                     <User size={12} />
@@ -96,7 +86,7 @@ export default function AppShell({ children }) {
                 </Tooltip>
               ) : (
                 <Tooltip content="Sign in to sync across devices">
-                  <Button variant="ghost" size="icon-sm" onClick={login} title="Sign in to sync">
+                  <Button variant="ghost" size="icon-sm" onClick={() => setAuthOpen(true)}>
                     <LogIn size={14} />
                   </Button>
                 </Tooltip>
@@ -104,12 +94,7 @@ export default function AppShell({ children }) {
             </div>
 
             {/* Mobile menu */}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="md:hidden"
-              onClick={() => setMobileMenuOpen(o => !o)}
-            >
+            <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileMenuOpen(o => !o)}>
               {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
             </Button>
           </div>
@@ -120,29 +105,22 @@ export default function AppShell({ children }) {
           <div className="md:hidden border-t border-[var(--color-border)] bg-[var(--color-bg)] animate-fade-in">
             <nav className="flex flex-col p-2 gap-1">
               {NAV_ITEMS.map(item => (
-                <NavItem
-                  key={item.to}
-                  {...item}
-                  mobile
-                  onClick={() => setMobileMenuOpen(false)}
-                />
+                <NavItem key={item.to} {...item} mobile onClick={() => setMobileMenuOpen(false)} />
               ))}
               <div className="border-t border-[var(--color-border)] mt-1 pt-1">
                 {isLoggedIn ? (
                   <button
-                    onClick={() => { logout(); setMobileMenuOpen(false) }}
+                    onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
                     className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
                   >
-                    <LogOut size={14} />
-                    Sign out ({email})
+                    <LogOut size={14} /> Sign out ({email})
                   </button>
                 ) : (
                   <button
-                    onClick={() => { login(); setMobileMenuOpen(false) }}
+                    onClick={() => { setAuthOpen(true); setMobileMenuOpen(false) }}
                     className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
                   >
-                    <LogIn size={14} />
-                    Sign in to sync
+                    <LogIn size={14} /> Sign in to sync
                   </button>
                 )}
               </div>
@@ -160,51 +138,24 @@ export default function AppShell({ children }) {
       <footer className="border-t border-[var(--color-border)] py-3 px-4 no-print">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <span className="text-xs text-[var(--color-ink-muted)] font-mono">ChordVault</span>
-          <SyncStatus isLoggedIn={isLoggedIn} syncState={syncState} isOnline={isOnline} />
+          <span className={`flex items-center gap-1 text-xs ${
+            !isLoggedIn ? 'text-[var(--color-ink-muted)]'
+            : isOnline ? 'text-green-600 dark:text-green-400'
+            : 'text-amber-600 dark:text-amber-400'
+          }`}>
+            {!isLoggedIn
+              ? <><CloudOff size={10} /> Local only</>
+              : isOnline
+              ? <><Wifi size={10} /> Synced</>
+              : <><WifiOff size={10} /> Offline</>
+            }
+          </span>
         </div>
       </footer>
 
       {/* ── Auth Modal ────────────────────────────────────────────── */}
-      <AuthModal interaction={interaction} />
+      <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
-  )
-}
-
-function SyncStatus({ isLoggedIn, syncState, isOnline }) {
-  if (!isLoggedIn) {
-    return (
-      <span className="flex items-center gap-1 text-xs text-[var(--color-ink-muted)]">
-        <CloudOff size={10} /> Local only
-      </span>
-    )
-  }
-
-  const status = syncState?.status
-  if (status === 'syncing' || status === 'connecting') {
-    return (
-      <span className="flex items-center gap-1 text-xs text-blue-500 dark:text-blue-400">
-        <RefreshCw size={10} className="animate-spin" /> Syncing…
-      </span>
-    )
-  }
-  if (!isOnline || status === 'offline') {
-    return (
-      <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-        <WifiOff size={10} /> Offline
-      </span>
-    )
-  }
-  if (status === 'error') {
-    return (
-      <span className="flex items-center gap-1 text-xs text-red-500">
-        <CloudOff size={10} /> Sync error
-      </span>
-    )
-  }
-  return (
-    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-      <Wifi size={10} /> Synced
-    </span>
   )
 }
 
