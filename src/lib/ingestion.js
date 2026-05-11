@@ -19,6 +19,14 @@ const SECTION_NAME_MAP = {
   'vamp': 'Vamp',
 }
 
+export function cleanSongTitle(title) {
+  if (!title) return title
+  // Strip key annotation: (G), (Key G), (Bb major), etc.
+  const stripped = title.replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/gi, '').trim()
+  // Title case: capitalize first letter of each word, lowercase rest
+  return stripped.replace(/\S+/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+}
+
 export function normalizeSectionHeader(text) {
   const trimmed = text.trim()
   const inner = trimmed.startsWith('[') && trimmed.endsWith(']')

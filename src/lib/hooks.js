@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabaseSongOps, supabaseSetlistOps } from './supabaseOps'
-import { ingest } from './ingestion'
+import { ingest, cleanSongTitle } from './ingestion'
 
 // ─── Online Status ─────────────────────────────────────────────────────────
 export function useOnlineStatus() {
@@ -91,13 +91,15 @@ export function useSongs(sortBy = 'title') {
 
   const createSong = useCallback(async (rawContent, title, artist, tags = []) => {
     const result = ingest(rawContent, title)
-    const song = await supabaseSongOps.create({ title, artist, raw_content: rawContent, parsed_content: result.parsed_content, original_key: result.original_key, tags })
+    const cleanedTitle = cleanSongTitle(title)
+    const song = await supabaseSongOps.create({ title: cleanedTitle, artist, raw_content: rawContent, parsed_content: result.parsed_content, original_key: result.original_key, tags })
     await load()
     return { song, ingestionResult: result }
   }, [load])
 
   const updateSong = useCallback(async (id, updates) => {
     let finalUpdates = { ...updates }
+    if (updates.title) finalUpdates.title = cleanSongTitle(updates.title)
     if (updates.raw_content) {
       const result = ingest(updates.raw_content, updates.title)
       finalUpdates.parsed_content = result.parsed_content
@@ -147,6 +149,7 @@ export function useSong(id) {
 
   const update = useCallback(async (updates) => {
     let finalUpdates = { ...updates }
+    if (updates.title) finalUpdates.title = cleanSongTitle(updates.title)
     if (updates.raw_content) {
       const result = ingest(updates.raw_content, updates.title || song?.title)
       finalUpdates.parsed_content = result.parsed_content

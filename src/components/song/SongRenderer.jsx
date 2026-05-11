@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { transposeParsedContent } from '../../lib/transposition'
-import { normalizeSectionHeader } from '../../lib/ingestion'
+import { normalizeSectionHeader, cleanSongTitle } from '../../lib/ingestion'
 
 // ─── Column layout helpers ───────────────────────────────────────────────────
 // JS-based section splitting so sections never break across columns.
@@ -372,7 +372,7 @@ function PrintSongHeader({ song, keyLabel, songNumber }) {
   return (
     <div style={{ marginBottom: '8px' }}>
       <span style={{ fontSize: '14px', fontWeight: '700', color: '#000000' }}>
-        {[songNumber != null ? `${songNumber}.` : null, song.title, song.artist ? `- ${song.artist}` : null, keyLabel ? `(${keyLabel})` : null].filter(Boolean).join(' ')}
+        {[songNumber != null ? `${songNumber}.` : null, cleanSongTitle(song.title), song.artist ? `- ${song.artist}` : null, keyLabel ? `(${keyLabel})` : null].filter(Boolean).join(' ')}
       </span>
     </div>
   )
