@@ -11,7 +11,7 @@
  *  - Two or more consecutive blank lines
  */
 
-import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference, classifyLine } from './ingestion'
+import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference, classifyLine, cleanSongTitle } from './ingestion'
 
 // ─── DOCX Parsing ─────────────────────────────────────────────────────────
 
@@ -237,7 +237,7 @@ export function cleanTitle(rawTitle) {
   if (extractArtistFromTitle(rawTitle)) {
     title = title.replace(/\s*[–\-]\s*.+$/, '')
   }
-  return title.trim()
+  return cleanSongTitle(title.trim())
 }
 
 /**
