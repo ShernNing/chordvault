@@ -57,12 +57,12 @@ export default function NewSong() {
           firstLine.length > 1 &&
           firstLine.length < 120
         ) {
-          // Artist extraction: only when key annotation is present — that's the reliable
-          // signal for "Song – Artist (Key)" vs a dash in the song title itself.
-          const artistMatch = firstLine.match(
+          // Artist extraction: key annotation OR em/en-dash (–—) as strong separator signal
+          const artistWithKey = firstLine.match(
             /[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i
           )
-          const detectedArtist = artistMatch ? artistMatch[1].trim() : ''
+          const artistEmDash = !artistWithKey && firstLine.match(/[–—]\s*([^–—(]+?)\s*$/)
+          const detectedArtist = (artistWithKey?.[1] || artistEmDash?.[1] || '').trim()
 
           let detected = firstLine
             .replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)\s*$/i, '')

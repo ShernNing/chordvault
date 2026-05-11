@@ -146,9 +146,10 @@ function loadScript(src) {
 const SONG_TITLE_PATTERNS = [
   // "1. The Joy (F)" or "2. TRIBES – Victory Worship (G)"
   /^\d+[\.\)]\s+.{2,}/,
-  // "Matchless Love – Sinach (B)" — dash + key annotation required
-  // The key annotation is the reliable signal (titles with dashes but no key are ambiguous)
+  // "Matchless Love – Sinach (B)" — hyphen + key annotation
   /^[A-Z].+[–\-].+\([A-G][#b]?\)/,
+  // "Precious Jesus – Sinach" — em/en-dash without key (strong artist separator signal)
+  /^[A-Z].+[–—].+/,
   // Category separator labels
   /^(?:communion|post[\s\-]?sermon)\s*$/i,
 ]
@@ -249,10 +250,13 @@ export function cleanTitle(rawTitle) {
  * from song titles that contain dashes (e.g. "Spirit Lead Me – Into Your Will").
  */
 export function extractArtistFromTitle(rawTitle) {
-  // Key annotation must be present at end: "(G)", "(Bb)", "(Key F#)", etc.
-  const match = rawTitle.match(/[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i)
-  if (!match) return ''
-  return match[1].trim()
+  // Try: "Song – Artist (Key)" — hyphen/dash + key annotation
+  const withKey = rawTitle.match(/[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i)
+  if (withKey) return withKey[1].trim()
+  // Try: "Song – Artist" — em/en-dash without key (strong separator signal)
+  const emDash = rawTitle.match(/[–—]\s*([^–—(]+?)\s*$/)
+  if (emDash) return emDash[1].trim()
+  return ''
 }
 
 // ─── Full Document Import Pipeline ────────────────────────────────────────
