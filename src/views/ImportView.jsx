@@ -1,0 +1,479 @@
+import React, { useState, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  Upload, FileText, FileUp, CheckCircle, XCircle, Edit3,
+  ChevronDown, ChevronUp, AlertTriangle, Save, X, Check,
+  Music2, ArrowRight, Loader2, RotateCcw
+} from 'lucide-react'
+import { importDocument } from '../lib/docImport'
+import { ingest } from '../lib/ingestion'
+import { songOps } from '../lib/db'
+import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
+import SongRenderer from '../components/song/SongRenderer'
+
+// ─── States ────────────────────────────────────────────────────────────────
+// idle → uploading → reviewing → saving → done
+
+export default function ImportView() {
+  const navigate = useNavigate()
+  const fileInputRef = useRef(null)
+  const [phase, setPhase] = useState('idle') // idle | uploading | reviewing | saving | done
+  const [songs, setSongs] = useState([]) // ImportedSong[]
+  const [error, setError] = useState(null)
+  const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 })
+  const [savedCount, setSavedCount] = useState(0)
+
+  // ── File handler ──────────────────────────────────────────────────────────
+  const handleFile = useCallback(async (file) => {
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['docx', 'pdf'].includes(ext)) {
+      setError('Please upload a .docx or .pdf file.')
+      return
+    }
+    setError(null)
+    setPhase('uploading')
+    try {
+      const imported = await importDocument(file)
+      setSongs(imported)
+      setPhase('reviewing')
+    } catch (e) {
+      setError(e.message)
+      setPhase('idle')
+    }
+  }, [])
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files[0]
+    if (file) handleFile(file)
+  }, [handleFile])
+
+  // ── Per-song updates ──────────────────────────────────────────────────────
+  const updateSong = useCallback((id, updates) => {
+    setSongs(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s))
+  }, [])
+
+  const acceptSong = (id) => updateSong(id, { status: 'accepted' })
+  const discardSong = (id) => updateSong(id, { status: 'discarded' })
+  const restoreSong = (id) => updateSong(id, { status: 'pending' })
+
+  // Accept all pending at once
+  const acceptAll = () => {
+    setSongs(prev => prev.map(s =>
+      s.status === 'pending' ? { ...s, status: 'accepted' } : s
+    ))
+  }
+
+  // ── Save accepted songs ───────────────────────────────────────────────────
+  const handleSave = async () => {
+    const toSave = songs.filter(s => s.status === 'accepted' || s.status === 'edited')
+    if (toSave.length === 0) return
+
+    setPhase('saving')
+    setSaveProgress({ done: 0, total: toSave.length })
+    let saved = 0
+
+    for (const song of toSave) {
+      try {
+        await songOps.create({
+          title: song.title,
+          artist: song.artist || '',
+          raw_content: song.rawContent,
+          parsed_content: song.parsed_content,
+          original_key: song.original_key,
+          tags: song.tags || [],
+        })
+        saved++
+        setSaveProgress({ done: saved, total: toSave.length })
+      } catch (e) {
+        console.error('Failed to save song:', song.title, e)
+      }
+    }
+
+    setSavedCount(saved)
+    setPhase('done')
+  }
+
+  const acceptedCount = songs.filter(s => s.status === 'accepted' || s.status === 'edited').length
+  const pendingCount = songs.filter(s => s.status === 'pending').length
+
+  // ── Render phases ─────────────────────────────────────────────────────────
+
+  if (phase === 'done') {
+    return (
+      <div className="max-w-lg mx-auto py-16 text-center space-y-4 animate-fade-in">
+        <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-950 flex items-center justify-center mx-auto">
+          <CheckCircle size={24} className="text-green-600 dark:text-green-400" />
+        </div>
+        <h2 className="font-display text-2xl text-[var(--color-ink)]">
+          {savedCount} {savedCount === 1 ? 'song' : 'songs'} imported
+        </h2>
+        <p className="text-sm text-[var(--color-ink-soft)]">
+          All accepted songs have been added to your library.
+        </p>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Button variant="primary" onClick={() => navigate('/')}>
+            <Music2 size={14} /> Go to library
+          </Button>
+          <Button variant="secondary" onClick={() => { setPhase('idle'); setSongs([]) }}>
+            Import another
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'saving') {
+    return (
+      <div className="max-w-lg mx-auto py-16 text-center space-y-4">
+        <Loader2 size={28} className="animate-spin mx-auto text-[var(--color-ink-muted)]" />
+        <p className="text-sm text-[var(--color-ink-soft)]">
+          Saving {saveProgress.done} / {saveProgress.total}…
+        </p>
+      </div>
+    )
+  }
+
+  if (phase === 'uploading') {
+    return (
+      <div className="max-w-lg mx-auto py-16 text-center space-y-4">
+        <Loader2 size={28} className="animate-spin mx-auto text-[var(--color-ink-muted)]" />
+        <p className="text-sm text-[var(--color-ink-soft)]">Reading document and detecting songs…</p>
+      </div>
+    )
+  }
+
+  if (phase === 'idle') {
+    return (
+      <div className="max-w-xl mx-auto space-y-5">
+        <div>
+          <h1 className="font-display text-2xl text-[var(--color-ink)]">Import Document</h1>
+          <p className="text-sm text-[var(--color-ink-soft)] mt-1">
+            Upload a Word (.docx) or PDF file containing one or more chord sheets.
+            ChordVault will detect each song and let you review before saving.
+          </p>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 p-3 border border-red-200 bg-red-50 rounded text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+            <AlertTriangle size={14} /> {error}
+          </div>
+        )}
+
+        {/* Drop zone */}
+        <div
+          className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-12 text-center transition-colors hover:border-[var(--color-ink-muted)] cursor-pointer group"
+          onClick={() => fileInputRef.current?.click()}
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onDragEnter={(e) => e.currentTarget.classList.add('border-[var(--color-ink)]')}
+          onDragLeave={(e) => e.currentTarget.classList.remove('border-[var(--color-ink)]')}
+        >
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-12 h-12 rounded-full border border-[var(--color-border)] flex items-center justify-center group-hover:border-[var(--color-ink-muted)] transition-colors">
+              <FileUp size={20} className="text-[var(--color-ink-muted)]" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[var(--color-ink)]">
+                Drop a file here, or click to browse
+              </p>
+              <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
+                Supports .docx (Word) and .pdf
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".docx,.pdf"
+          className="hidden"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+
+        {/* Format hints */}
+        <div className="p-4 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-warm)] space-y-2">
+          <p className="text-xs font-semibold text-[var(--color-ink-soft)] uppercase tracking-wide">
+            Supported format
+          </p>
+          <div className="font-mono text-xs text-[var(--color-ink-soft)] space-y-1">
+            <p className="font-bold">1. The Joy (F)</p>
+            <p className="text-[var(--color-ink-muted)]">[Verse 1]</p>
+            <p><span className="font-bold text-[var(--color-ink)]">F</span>{'         '}<span className="font-bold text-[var(--color-ink)]">Dm</span></p>
+            <p>This is the day You made</p>
+            <p className="mt-2 font-bold">2. Amazing Grace (G)</p>
+            <p className="text-[var(--color-ink-muted)]">…</p>
+          </div>
+          <p className="text-xs text-[var(--color-ink-muted)]">
+            Song titles are detected by "1. Name (Key)" numbering or bold headings.
+            Each song gets its own review card.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Review phase ──────────────────────────────────────────────────────────
+  return (
+    <div className="max-w-3xl mx-auto space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl text-[var(--color-ink)]">
+            Review {songs.length} detected {songs.length === 1 ? 'song' : 'songs'}
+          </h1>
+          <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
+            {acceptedCount} accepted · {pendingCount} pending ·{' '}
+            {songs.filter(s => s.status === 'discarded').length} discarded
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {pendingCount > 0 && (
+            <Button variant="secondary" size="sm" onClick={acceptAll}>
+              <Check size={13} /> Accept all
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSave}
+            disabled={acceptedCount === 0}
+          >
+            <Save size={13} /> Save {acceptedCount} {acceptedCount === 1 ? 'song' : 'songs'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Song cards */}
+      <div className="space-y-3">
+        {songs.map((song, index) => (
+          <ImportSongCard
+            key={song.id}
+            song={song}
+            index={index}
+            onAccept={() => acceptSong(song.id)}
+            onDiscard={() => discardSong(song.id)}
+            onRestore={() => restoreSong(song.id)}
+            onUpdate={(updates) => updateSong(song.id, updates)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Import Song Card ──────────────────────────────────────────────────────
+
+function ImportSongCard({ song, index, onAccept, onDiscard, onRestore, onUpdate }) {
+  const [expanded, setExpanded] = useState(index < 3) // first 3 expanded by default
+  const [editing, setEditing] = useState(false)
+
+  const isAccepted = song.status === 'accepted' || song.status === 'edited'
+  const isDiscarded = song.status === 'discarded'
+
+  return (
+    <div className={`
+      border rounded-lg overflow-hidden transition-all duration-150
+      ${isDiscarded
+        ? 'border-[var(--color-border)] opacity-50'
+        : isAccepted
+          ? 'border-green-400 dark:border-green-700'
+          : 'border-[var(--color-border)]'
+      }
+    `}>
+      {/* Card header */}
+      <div className={`
+        flex items-center gap-3 px-4 py-3
+        ${isAccepted ? 'bg-green-50 dark:bg-green-950' : 'bg-[var(--color-bg-warm)]'}
+      `}>
+        {/* Status icon */}
+        <div className="shrink-0">
+          {isAccepted
+            ? <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+            : isDiscarded
+              ? <XCircle size={16} className="text-[var(--color-ink-muted)]" />
+              : <div className="w-4 h-4 rounded-full border-2 border-[var(--color-border)]" />
+          }
+        </div>
+
+        {/* Title + key */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-[var(--color-ink)] truncate">
+              {song.title}
+            </span>
+            {song.original_key && (
+              <Badge variant="key">{song.original_key}</Badge>
+            )}
+            {song.artist && (
+              <span className="text-xs text-[var(--color-ink-muted)]">{song.artist}</span>
+            )}
+            {song.has_warnings && (
+              <Badge variant="warning">
+                <AlertTriangle size={9} className="mr-0.5" />
+                {song.uncertain_line_count} uncertain
+              </Badge>
+            )}
+            {song.chord_count === 0 && (
+              <Badge variant="warning">No chords detected</Badge>
+            )}
+          </div>
+          <div className="text-[10px] text-[var(--color-ink-muted)] mt-0.5">
+            {song.chord_count} chords · {song.parsed_content?.length || 0} lines
+            {song.title_key && (
+              <span className="ml-1">· key from title</span>
+            )}
+            {!song.title_key && song.detected_key && (
+              <span className="ml-1">· key detected ({Math.round(song.detected_key.confidence * 100)}% confidence)</span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          {isDiscarded ? (
+            <Button variant="ghost" size="xs" onClick={onRestore}>
+              <RotateCcw size={11} /> Restore
+            </Button>
+          ) : isAccepted ? (
+            <>
+              <Button variant="ghost" size="xs" onClick={() => { setEditing(true); setExpanded(true) }}>
+                <Edit3 size={11} /> Edit
+              </Button>
+              <Button variant="ghost" size="xs" onClick={onDiscard} className="text-red-400">
+                <X size={11} />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="xs" onClick={() => { setEditing(true); setExpanded(true) }}>
+                <Edit3 size={11} /> Edit
+              </Button>
+              <Button variant="danger" size="xs" onClick={onDiscard}>
+                <X size={11} /> Discard
+              </Button>
+              <Button variant="accent" size="xs" onClick={onAccept}>
+                <Check size={11} /> Accept
+              </Button>
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setExpanded(e => !e)}
+            className="ml-1"
+          >
+            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </Button>
+        </div>
+      </div>
+
+      {/* Expanded: edit form or preview */}
+      {expanded && !isDiscarded && (
+        <div className="border-t border-[var(--color-border)]">
+          {editing ? (
+            <EditForm
+              song={song}
+              onSave={(updates) => {
+                // Re-parse if raw content changed
+                let finalUpdates = { ...updates, status: 'edited' }
+                if (updates.rawContent && updates.rawContent !== song.rawContent) {
+                  const result = ingest(updates.rawContent, updates.title || song.title)
+                  finalUpdates.parsed_content = result.parsed_content
+                  finalUpdates.original_key = updates.original_key || result.original_key
+                }
+                onUpdate(finalUpdates)
+                setEditing(false)
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <div className="p-4 bg-[var(--color-bg)] max-h-80 overflow-y-auto">
+              <SongRenderer
+                parsedContent={song.parsed_content}
+                semitones={0}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Edit Form ─────────────────────────────────────────────────────────────
+
+function EditForm({ song, onSave, onCancel }) {
+  const [title, setTitle] = useState(song.title || '')
+  const [artist, setArtist] = useState(song.artist || '')
+  const [originalKey, setOriginalKey] = useState(song.original_key || '')
+  const [rawContent, setRawContent] = useState(song.rawContent || '')
+  const [tags, setTags] = useState(song.tags || [])
+
+  // Live preview
+  const liveResult = rawContent.trim() ? ingest(rawContent, title) : null
+
+  return (
+    <div className="p-4 bg-[var(--color-bg-warm)] space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Input
+          label="Title *"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          containerClassName="sm:col-span-2"
+        />
+        <Input
+          label="Artist"
+          value={artist}
+          onChange={e => setArtist(e.target.value)}
+        />
+        <Input
+          label="Key"
+          value={originalKey}
+          onChange={e => setOriginalKey(e.target.value)}
+          placeholder="e.g. G"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">Tags</label>
+        <TagInput tags={tags} onChange={setTags} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Textarea
+          label="Chord sheet"
+          value={rawContent}
+          onChange={e => setRawContent(e.target.value)}
+          className="h-52"
+          spellCheck={false}
+        />
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">Preview</label>
+          <div className="border border-[var(--color-border)] rounded p-3 h-52 overflow-y-auto bg-[var(--color-bg)]">
+            {liveResult
+              ? <SongRenderer parsedContent={liveResult.parsed_content} />
+              : <span className="text-xs text-[var(--color-ink-muted)] italic">Edit content to preview</span>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 justify-end pt-1">
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          <X size={13} /> Cancel
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => onSave({ title, artist, originalKey, rawContent, tags })}
+          disabled={!title.trim()}
+        >
+          <Check size={13} /> Save changes
+        </Button>
+      </div>
+    </div>
+  )
+}
