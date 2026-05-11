@@ -166,11 +166,11 @@ export function useSong(id) {
     try {
       setLoading(true)
       setError(null)
-      const data = await songOps.getById(Number(id))
+      const data = await songOps.getById(id)
       if (!data) throw new Error('Song not found')
       setSong(data)
       // Mark as played
-      await songOps.markPlayed(Number(id))
+      await songOps.markPlayed(id)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -189,7 +189,7 @@ export function useSong(id) {
         finalUpdates.original_key = result.original_key
       }
     }
-    const updated = await songOps.update(Number(id), finalUpdates)
+    const updated = await songOps.update(id, finalUpdates)
     setSong(updated)
     return updated
   }, [id, song])
@@ -243,7 +243,7 @@ export function useSetlist(id) {
     try {
       setLoading(true)
       setError(null)
-      const data = await setlistOps.getWithSongs(Number(id))
+      const data = await setlistOps.getWithSongs(id)
       if (!data) throw new Error('Setlist not found')
       setSetlist(data)
     } catch (e) {
@@ -256,7 +256,7 @@ export function useSetlist(id) {
   useEffect(() => { load() }, [load])
 
   const addSong = useCallback(async (songId, chosenKey, capo) => {
-    await setlistOps.addSong(Number(id), songId, chosenKey, capo)
+    await setlistOps.addSong(id, songId, chosenKey, capo)
     await load()
   }, [id, load])
 
@@ -271,12 +271,12 @@ export function useSetlist(id) {
   }, [load])
 
   const reorder = useCallback(async (orderedSlotIds) => {
-    await setlistOps.reorderSongs(Number(id), orderedSlotIds)
+    await setlistOps.reorderSongs(id, orderedSlotIds)
     await load()
   }, [id, load])
 
   const rename = useCallback(async (name) => {
-    await setlistOps.update(Number(id), { name })
+    await setlistOps.update(id, { name })
     await load()
   }, [id, load])
 
