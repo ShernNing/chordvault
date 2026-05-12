@@ -14,8 +14,10 @@ import {
   RefreshCw,
   Copy,
   Search,
+  Type,
+  KeyRound,
 } from "lucide-react";
-import { useSong, useLocalStorage } from "../lib/hooks";
+import { useSong, useLocalStorage, useDisplaySettings, FONT_OPTIONS } from "../lib/hooks";
 import { supabaseSongOps } from "../lib/supabaseOps";
 import { transposeKey, getCapoDisplay, getCapoShapeKey } from "../lib/transposition";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
@@ -33,6 +35,7 @@ import {
   ErrorState,
   SongViewSkeleton,
   Tooltip,
+  Select,
 } from "../components/ui";
 import SongRenderer, {
   PrintableSongSheet,
@@ -46,6 +49,7 @@ export default function SongView() {
   if (!id) return <ErrorState message='Invalid song ID' />;
 
   const { song, loading, error, reload, update } = useSong(id);
+  const { fontSize, setFontSize, fontFamily, setFontFamily } = useDisplaySettings();
 
   // Per-song transpose state stored in localStorage
   const [transpose, setTranspose] = useLocalStorage(`cv-transpose-${id}`, {
@@ -59,6 +63,8 @@ export default function SongView() {
   const [exporting, setExporting] = useState(false);
   const [exportingDocx, setExportingDocx] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+  const [showFontPanel, setShowFontPanel] = useState(false);
 
   const printRef = useRef(null);
 
@@ -76,6 +82,17 @@ export default function SongView() {
 
   const handleTransposeChange = (semitones, capo) => {
     setTranspose({ semitones, capo });
+  };
+
+  const handleSaveKey = async () => {
+    if (!displayKey) return;
+    setSavingKey(true);
+    try {
+      await update({ original_key: displayKey });
+      setTranspose({ semitones: 0, capo: transpose.capo });
+    } finally {
+      setSavingKey(false);
+    }
   };
 
   const handleCopy = async () => {
@@ -238,6 +255,17 @@ export default function SongView() {
               <Columns2 size={14} />
             </Button>
           </Tooltip>
+          <Tooltip content='Font & size'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setShowFontPanel(p => !p)}
+              className={showFontPanel ? 'text-[var(--color-accent)]' : ''}
+              title='Font & size'
+            >
+              <Type size={14} />
+            </Button>
+          </Tooltip>
           <Tooltip content='Edit song'>
             <Button
               variant='ghost'
@@ -288,6 +316,48 @@ export default function SongView() {
         />
       </div>
 
+      {/* ── Save Key Banner ───────────────────────────────────────── */}
+      {transpose.semitones !== 0 && song.original_key && (
+        <div className='no-print flex items-center justify-between gap-3 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg'>
+          <span className='text-xs text-[var(--color-ink-soft)]'>
+            Save <strong className='font-mono'>{displayKey}</strong> as this song's key?
+          </span>
+          <Button variant='secondary' size='sm' loading={savingKey} onClick={handleSaveKey}>
+            <KeyRound size={12} /> Save key
+          </Button>
+        </div>
+      )}
+
+      {/* ── Font & Size Panel ─────────────────────────────────────── */}
+      {showFontPanel && (
+        <div className='no-print flex flex-wrap items-center gap-4 px-3 py-2.5 bg-[var(--color-bg-warm)] border border-[var(--color-border)] rounded-lg'>
+          <div className='flex items-center gap-2'>
+            <span className='text-xs text-[var(--color-ink-muted)] uppercase tracking-wide'>Font</span>
+            <Select
+              className='w-44 h-7 text-xs'
+              value={fontFamily}
+              onChange={e => setFontFamily(e.target.value)}
+            >
+              {FONT_OPTIONS.map(f => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </Select>
+          </div>
+          <div className='flex items-center gap-2'>
+            <span className='text-xs text-[var(--color-ink-muted)] uppercase tracking-wide'>Size</span>
+            <div className='flex items-center gap-1'>
+              <Button variant='secondary' size='icon-sm' onClick={() => setFontSize(s => Math.max(10, s - 1))} disabled={fontSize <= 10}>
+                <span className='text-xs leading-none'>−</span>
+              </Button>
+              <span className='w-10 text-center font-mono text-xs'>{fontSize}px</span>
+              <Button variant='secondary' size='icon-sm' onClick={() => setFontSize(s => Math.min(16, s + 1))} disabled={fontSize >= 16}>
+                <span className='text-xs leading-none'>+</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Chord Sheet ───────────────────────────────────────────── */}
       <ChordSheetPage
         song={song}
@@ -296,6 +366,8 @@ export default function SongView() {
         twoColumn={twoColumn}
         onTwoColumnChange={setTwoColumn}
         printRef={printRef}
+        fontSize={fontSize}
+        onReload={reload}
       />
 
       {/* ── Edit Modal ────────────────────────────────────────────── */}
@@ -508,6 +580,8 @@ function ChordSheetPage({
   twoColumn,
   onTwoColumnChange,
   printRef,
+  fontSize = 12,
+  onReload,
 }) {
   const measureRef = React.useRef(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -520,7 +594,7 @@ function ChordSheetPage({
     if (!measureRef.current) return;
     const h = measureRef.current.scrollHeight || 0;
     setIsOverflowing(h > A4_CONTENT_HEIGHT);
-  }, [song.parsed_content, semitones]);
+  }, [song.parsed_content, semitones, fontSize]);
 
   const effectiveTwoCol =
     twoColumn === true || (twoColumn === "auto" && isOverflowing);
@@ -537,12 +611,15 @@ function ChordSheetPage({
           {twoColumn === "auto" && (
             <span className='ml-1 opacity-60'>· auto</span>
           )}
+          {isOverflowing && twoColumn === "auto" && (
+            <span className='ml-2 opacity-60 normal-case tracking-normal'>exceeds one page</span>
+          )}
         </span>
-        {isOverflowing && twoColumn === "auto" && (
-          <span className='text-[10px] text-[var(--color-ink-muted)]'>
-            Switched to 2-col (content exceeds one page)
-          </span>
-        )}
+        <Tooltip content='Force reload from server'>
+          <Button variant='ghost' size='icon-sm' onClick={onReload} title='Force reload'>
+            <RefreshCw size={11} />
+          </Button>
+        </Tooltip>
       </div>
 
       {/* A4-proportioned content area */}
@@ -557,6 +634,7 @@ function ChordSheetPage({
           semitones={semitones}
           targetKey={targetKey}
           twoColumn={effectiveTwoCol}
+          fontSize={fontSize}
         />
       </div>
 
@@ -579,6 +657,7 @@ function ChordSheetPage({
             semitones={semitones}
             targetKey={targetKey}
             twoColumn={false}
+            fontSize={fontSize}
           />
         </div>
       </div>

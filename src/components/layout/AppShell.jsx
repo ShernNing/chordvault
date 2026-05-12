@@ -5,7 +5,7 @@ import {
   Zap, Wifi, WifiOff, Menu, X, FileUp,
   CloudOff, LogIn, LogOut, User
 } from 'lucide-react'
-import { useOnlineStatus, useTheme } from '../../lib/hooks'
+import { useOnlineStatus, useTheme, useDisplaySettings } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Button, Tooltip } from '../ui'
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
 export default function AppShell({ children }) {
   const isOnline = useOnlineStatus()
   const { isDark, isStage, toggleDark, toggleStage } = useTheme()
+  useDisplaySettings()
   const { isLoggedIn, email } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)

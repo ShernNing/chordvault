@@ -139,6 +139,7 @@ export default function SongRenderer({
   twoColumn = false,
   printMode = false,
   onLineTypeOverride = null,
+  fontSize = 12,
 }) {
   const [overrides, setOverrides] = useState({})
 
@@ -242,7 +243,7 @@ export default function SongRenderer({
 
   // 2-column: group by section, split left-first, render as flex columns
   const sections = _groupIntoSections(groups)
-  const { left, right } = _splitSections(sections, SCREEN_COLUMN_HEIGHT)
+  const { left, right } = _splitSections(sections, SCREEN_COLUMN_HEIGHT * (12 / Math.max(fontSize, 10)))
 
   const renderCol = (colSections) =>
     colSections.flatMap(section =>

@@ -52,6 +52,30 @@ export function useTheme() {
   return { isDark, isStage, toggleDark, toggleStage }
 }
 
+// ─── Display Settings ──────────────────────────────────────────────────────
+export const FONT_OPTIONS = [
+  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
+  { value: 'Arial, sans-serif', label: 'Arial' },
+  { value: 'Georgia, serif', label: 'Georgia' },
+  { value: 'Verdana, sans-serif', label: 'Verdana' },
+  { value: "'Times New Roman', Times, serif", label: 'Times New Roman' },
+]
+
+export function useDisplaySettings() {
+  const [fontSize, setFontSize] = useLocalStorage('cv-font-size', 12)
+  const [fontFamily, setFontFamily] = useLocalStorage('cv-font-family', "'Courier New', Courier, monospace")
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--chord-font', fontFamily)
+    root.style.setProperty('--lyric-font', fontFamily)
+    root.style.setProperty('--chord-size', `${fontSize}px`)
+    root.style.setProperty('--lyric-size', `${fontSize}px`)
+  }, [fontSize, fontFamily])
+
+  return { fontSize, setFontSize, fontFamily, setFontFamily }
+}
+
 // ─── Songs ─────────────────────────────────────────────────────────────────
 export function useSongs(sortBy = 'title') {
   const [songs, setSongs] = useState([])
@@ -125,18 +149,29 @@ export function useSongs(sortBy = 'title') {
 
 // ─── Single Song ───────────────────────────────────────────────────────────
 export function useSong(id) {
-  const [song, setSong] = useState(null)
+  const [song, setSong] = useState(() => {
+    if (!id) return null
+    try {
+      const raw = localStorage.getItem(`cv-song-cache-${id}`)
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!id) return
+    if (force) {
+      setSong(null)
+      try { localStorage.removeItem(`cv-song-cache-${id}`) } catch {}
+    }
     try {
       setLoading(true)
       setError(null)
       const data = await supabaseSongOps.getById(id)
       if (!data) throw new Error('Song not found')
       setSong(data)
+      try { localStorage.setItem(`cv-song-cache-${id}`, JSON.stringify(data)) } catch {}
       await supabaseSongOps.markPlayed(id)
     } catch (e) {
       setError(e.message)
@@ -157,10 +192,11 @@ export function useSong(id) {
     }
     const updated = await supabaseSongOps.update(id, finalUpdates)
     setSong(updated)
+    try { localStorage.setItem(`cv-song-cache-${id}`, JSON.stringify(updated)) } catch {}
     return updated
   }, [id, song])
 
-  return { song, loading, error, reload: load, update }
+  return { song, loading: loading && !song, error, reload: () => load(true), update }
 }
 
 // ─── Setlists ──────────────────────────────────────────────────────────────
