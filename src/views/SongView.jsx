@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useSong, useLocalStorage, useDisplaySettings, FONT_OPTIONS } from "../lib/hooks";
 import { supabaseSongOps } from "../lib/supabaseOps";
-import { transposeKey, getCapoDisplay, getCapoShapeKey } from "../lib/transposition";
+import { transposeKey, getCapoDisplay, getCapoShapeKey, transposeParsedContent } from "../lib/transposition";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
 import { ingest } from "../lib/ingestion";
@@ -85,10 +85,19 @@ export default function SongView() {
   };
 
   const handleSaveKey = async () => {
-    if (!displayKey) return;
+    if (!displayKey || !transpose.semitones) return;
     setSavingKey(true);
     try {
-      await update({ original_key: displayKey });
+      // Transpose parsed_content to new key so stored chords match new original_key
+      const transposed = transposeParsedContent(song.parsed_content, transpose.semitones, displayKey);
+      // Rebuild raw_content from transposed tokens so re-ingestion stays consistent
+      const rebuiltRaw = transposed.map(line => {
+        if (line.type === 'chord_line')
+          return line.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('');
+        if (line.type === 'blank') return '';
+        return line.text ?? '';
+      }).join('\n');
+      await update({ original_key: displayKey, raw_content: rebuiltRaw });
       setTranspose({ semitones: 0, capo: transpose.capo });
     } finally {
       setSavingKey(false);
@@ -350,7 +359,7 @@ export default function SongView() {
                 <span className='text-xs leading-none'>−</span>
               </Button>
               <span className='w-10 text-center font-mono text-xs'>{fontSize}px</span>
-              <Button variant='secondary' size='icon-sm' onClick={() => setFontSize(s => Math.min(16, s + 1))} disabled={fontSize >= 16}>
+              <Button variant='secondary' size='icon-sm' onClick={() => setFontSize(s => Math.min(20, s + 1))} disabled={fontSize >= 20}>
                 <span className='text-xs leading-none'>+</span>
               </Button>
             </div>

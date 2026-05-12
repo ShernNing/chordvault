@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Plus, Music2, Trash2, ListMusic, X } from 'lucide-react'
+import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw } from 'lucide-react'
 import { useSongs, useSearch, useSetlists } from '../lib/hooks'
 import { supabaseSetlistOps } from '../lib/supabaseOps'
-import { Button, Input, Select, EmptyState, ErrorState, SongCardSkeleton, Modal } from '../components/ui'
+import { Button, Input, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
 import SongCard from '../components/song/SongCard'
 
 const SORT_OPTIONS = [
@@ -92,11 +92,18 @@ export default function Dashboard() {
             </p>
           )}
         </div>
-        <Link to="/songs/new">
-          <Button variant="primary" size="sm">
-            <Plus size={14} /> Add song
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Tooltip content="Force reload all songs">
+            <Button variant="ghost" size="icon-sm" onClick={reload} title="Reload">
+              <RefreshCw size={14} />
+            </Button>
+          </Tooltip>
+          <Link to="/songs/new">
+            <Button variant="primary" size="sm">
+              <Plus size={14} /> Add song
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* ── Search + Sort ────────────────────────────────────────── */}

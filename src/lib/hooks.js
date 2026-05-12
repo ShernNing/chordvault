@@ -35,27 +35,48 @@ export function useLocalStorage(key, defaultValue) {
 }
 
 // ─── Theme ─────────────────────────────────────────────────────────────────
+export const STAGE_COLORS = [
+  { id: 'gold',  label: 'Gold',  chord: '#FFD700', lyric: '#ffffff' },
+  { id: 'green', label: 'Green', chord: '#00ff88', lyric: '#ffffff' },
+  { id: 'cyan',  label: 'Cyan',  chord: '#00d4ff', lyric: '#ffffff' },
+  { id: 'white', label: 'White', chord: '#ffffff', lyric: '#dddddd' },
+  { id: 'pink',  label: 'Pink',  chord: '#ff6eb4', lyric: '#ffffff' },
+]
+
 export function useTheme() {
   const [isDark, setIsDark] = useLocalStorage('chordvault-dark-mode', false)
   const [isStage, setIsStage] = useLocalStorage('chordvault-stage-mode', false)
+  const [stageColorId, setStageColorId] = useLocalStorage('chordvault-stage-color', 'gold')
 
   useEffect(() => {
     const root = document.documentElement
-    if (isStage) { root.classList.add('dark', 'stage-mode') }
-    else if (isDark) { root.classList.add('dark'); root.classList.remove('stage-mode') }
-    else { root.classList.remove('dark', 'stage-mode') }
-  }, [isDark, isStage])
+    if (isStage) {
+      root.classList.add('dark', 'stage-mode')
+      const col = STAGE_COLORS.find(c => c.id === stageColorId) || STAGE_COLORS[0]
+      root.style.setProperty('--chord-color', col.chord)
+      root.style.setProperty('--lyric-color', col.lyric)
+      root.style.setProperty('--section-header-color', col.chord)
+      root.style.setProperty('--color-accent', col.chord)
+    } else {
+      if (isDark) { root.classList.add('dark'); root.classList.remove('stage-mode') }
+      else { root.classList.remove('dark', 'stage-mode') }
+      root.style.removeProperty('--chord-color')
+      root.style.removeProperty('--lyric-color')
+      root.style.removeProperty('--section-header-color')
+      root.style.removeProperty('--color-accent')
+    }
+  }, [isDark, isStage, stageColorId])
 
   const toggleDark = () => { setIsDark(d => !d); if (isStage) setIsStage(false) }
   const toggleStage = () => { setIsStage(s => !s); if (!isStage) setIsDark(true) }
 
-  return { isDark, isStage, toggleDark, toggleStage }
+  return { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId }
 }
 
 // ─── Display Settings ──────────────────────────────────────────────────────
 export const FONT_OPTIONS = [
-  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
   { value: 'Arial, sans-serif', label: 'Arial' },
+  { value: "'Courier New', Courier, monospace", label: 'Courier New' },
   { value: 'Georgia, serif', label: 'Georgia' },
   { value: 'Verdana, sans-serif', label: 'Verdana' },
   { value: "'Times New Roman', Times, serif", label: 'Times New Roman' },
@@ -63,7 +84,7 @@ export const FONT_OPTIONS = [
 
 export function useDisplaySettings() {
   const [fontSize, setFontSize] = useLocalStorage('cv-font-size', 12)
-  const [fontFamily, setFontFamily] = useLocalStorage('cv-font-family', "'Courier New', Courier, monospace")
+  const [fontFamily, setFontFamily] = useLocalStorage('cv-font-family', 'Arial, sans-serif')
 
   useEffect(() => {
     const root = document.documentElement
@@ -77,33 +98,45 @@ export function useDisplaySettings() {
 }
 
 // ─── Songs ─────────────────────────────────────────────────────────────────
+const SONGS_CACHE_KEY = 'cv-songs-cache'
+
+function _sortSongs(data, sortBy) {
+  const d = [...data]
+  switch (sortBy) {
+    case 'artist': return d.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''))
+    case 'key': return d.sort((a, b) => (a.original_key || '').localeCompare(b.original_key || '') || (a.title || '').localeCompare(b.title || ''))
+    case 'recent': return d.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    case 'played': return d.sort((a, b) => {
+      if (!a.last_played_at && !b.last_played_at) return 0
+      if (!a.last_played_at) return 1
+      if (!b.last_played_at) return -1
+      return new Date(b.last_played_at) - new Date(a.last_played_at)
+    })
+    default: return d.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+  }
+}
+
 export function useSongs(sortBy = 'title') {
-  const [songs, setSongs] = useState([])
+  const [songs, setSongs] = useState(() => {
+    try {
+      const raw = localStorage.getItem(SONGS_CACHE_KEY)
+      return raw ? _sortSongs(JSON.parse(raw), sortBy) : []
+    } catch { return [] }
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
+    if (force) {
+      setSongs([])
+      try { localStorage.removeItem(SONGS_CACHE_KEY) } catch {}
+    }
     try {
       setLoading(true)
       setError(null)
-      let data = await supabaseSongOps.getAll()
-
-      switch (sortBy) {
-        case 'artist': data = data.sort((a, b) => (a.artist || '').localeCompare(b.artist || '')); break
-        case 'key': data = data.sort((a, b) => (a.original_key || '').localeCompare(b.original_key || '') || (a.title || '').localeCompare(b.title || '')); break
-        case 'recent': data = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); break
-        case 'played':
-          data = data.sort((a, b) => {
-            if (!a.last_played_at && !b.last_played_at) return 0
-            if (!a.last_played_at) return 1
-            if (!b.last_played_at) return -1
-            return new Date(b.last_played_at) - new Date(a.last_played_at)
-          })
-          break
-        default: data = data.sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-      }
-
+      const data = _sortSongs(await supabaseSongOps.getAll(), sortBy)
       setSongs(data)
+      try { localStorage.setItem(SONGS_CACHE_KEY, JSON.stringify(data)) } catch {}
     } catch (e) {
       setError(e.message)
     } finally {
@@ -144,7 +177,7 @@ export function useSongs(sortBy = 'title') {
     await load()
   }, [load])
 
-  return { songs, loading, error, reload: load, createSong, updateSong, deleteSong, bulkDeleteSongs }
+  return { songs, loading: loading && songs.length === 0, error, reload: () => load(true), createSong, updateSong, deleteSong, bulkDeleteSongs }
 }
 
 // ─── Single Song ───────────────────────────────────────────────────────────

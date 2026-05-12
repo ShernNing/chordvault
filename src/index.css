@@ -34,36 +34,31 @@
   --section-gap: 16px;
 }
 
-/* ─── Stage / Dark Mode ───────────────────────────────────────────────── */
+/* ─── Dark Mode ───────────────────────────────────────────────────────── */
 .dark {
-  --color-bg: #0a0a0a;
-  --color-bg-warm: #111111;
-  --color-border: #2a2a2a;
-  --color-ink: #f0f0f0;
-  --color-ink-soft: #aaaaaa;
-  --color-ink-muted: #666666;
-  --color-accent: #FFD700;
-  --color-accent-soft: #2a2200;
+  --color-bg: #0f172a;
+  --color-bg-warm: #1e293b;
+  --color-border: #334155;
+  --color-ink: #f1f5f9;
+  --color-ink-soft: #94a3b8;
+  --color-ink-muted: #64748b;
+  --color-accent: #f59e0b;
+  --color-accent-soft: #1c1405;
 
-  --chord-color: #FFD700;
-  --lyric-color: #ffffff;
-  --section-header-color: #FFD700;
+  --chord-color: #fcd34d;
+  --lyric-color: #e2e8f0;
+  --section-header-color: #fcd34d;
 }
 
-/* Stage mode — pure black, maximum contrast */
+/* Stage mode — pure black, maximum contrast, chord/lyric colors set via JS */
 .stage-mode {
   --color-bg: #000000;
-  --color-bg-warm: #000000;
-  --color-border: #222222;
+  --color-bg-warm: #0a0a0a;
+  --color-border: #1e1e1e;
   --color-ink: #ffffff;
   --color-ink-soft: #cccccc;
   --color-ink-muted: #888888;
-  --color-accent: #FFD700;
-  --color-accent-soft: #1a1400;
-
-  --chord-color: #FFD700;
-  --lyric-color: #ffffff;
-  --section-header-color: #FFD700;
+  --color-accent-soft: #111111;
 }
 
 /* ─── Base Styles ─────────────────────────────────────────────────────── */

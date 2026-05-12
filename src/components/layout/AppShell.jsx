@@ -5,7 +5,7 @@ import {
   Zap, Wifi, WifiOff, Menu, X, FileUp,
   CloudOff, LogIn, LogOut, User
 } from 'lucide-react'
-import { useOnlineStatus, useTheme, useDisplaySettings } from '../../lib/hooks'
+import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Button, Tooltip } from '../ui'
@@ -20,7 +20,7 @@ const NAV_ITEMS = [
 
 export default function AppShell({ children }) {
   const isOnline = useOnlineStatus()
-  const { isDark, isStage, toggleDark, toggleStage } = useTheme()
+  const { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId } = useTheme()
   useDisplaySettings()
   const { isLoggedIn, email } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -65,6 +65,15 @@ export default function AppShell({ children }) {
                 <Zap size={14} />
               </Button>
             </Tooltip>
+            {isStage && STAGE_COLORS.map(c => (
+              <button
+                key={c.id}
+                onClick={() => setStageColorId(c.id)}
+                title={c.label}
+                className={`w-3.5 h-3.5 rounded-full border-2 transition-all shrink-0 ${stageColorId === c.id ? 'border-white scale-125' : 'border-transparent opacity-50 hover:opacity-80'}`}
+                style={{ backgroundColor: c.chord }}
+              />
+            ))}
 
             <Tooltip content={isDark ? 'Light mode' : 'Dark mode'}>
               <Button variant="ghost" size="icon-sm" onClick={toggleDark}>
