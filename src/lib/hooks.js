@@ -35,6 +35,39 @@ export function useLocalStorage(key, defaultValue) {
 }
 
 // ─── Theme ─────────────────────────────────────────────────────────────────
+export const DARK_THEMES = [
+  { id: 'slate', label: 'Slate', swatch: '#0f172a', vars: null },
+  {
+    id: 'black', label: 'Black', swatch: '#000000',
+    vars: {
+      '--color-bg': '#000000', '--color-bg-warm': '#111111', '--color-border': '#222222',
+      '--color-ink': '#f0f0f0', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#666666',
+      '--color-accent': '#f59e0b', '--color-accent-soft': '#1a1200',
+      '--chord-color': '#fbbf24', '--lyric-color': '#f0f0f0', '--section-header-color': '#fbbf24',
+    },
+  },
+  {
+    id: 'gray', label: 'Gray', swatch: '#252525',
+    vars: {
+      '--color-bg': '#1a1a1a', '--color-bg-warm': '#252525', '--color-border': '#383838',
+      '--color-ink': '#eeeeee', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#666666',
+      '--color-accent': '#f59e0b', '--color-accent-soft': '#1c1405',
+      '--chord-color': '#fbbf24', '--lyric-color': '#eeeeee', '--section-header-color': '#fbbf24',
+    },
+  },
+  {
+    id: 'cream', label: 'Cream', swatch: '#2a2318',
+    vars: {
+      '--color-bg': '#1e1a14', '--color-bg-warm': '#2a2318', '--color-border': '#3d3426',
+      '--color-ink': '#f0e6d0', '--color-ink-soft': '#b8a88a', '--color-ink-muted': '#7a6a52',
+      '--color-accent': '#e8a020', '--color-accent-soft': '#2a1e08',
+      '--chord-color': '#e8a020', '--lyric-color': '#f0e6d0', '--section-header-color': '#e8a020',
+    },
+  },
+]
+
+const ALL_DARK_VARS = [...new Set(DARK_THEMES.flatMap(t => t.vars ? Object.keys(t.vars) : []))]
+
 export const STAGE_COLORS = [
   { id: 'gold',  label: 'Gold',  chord: '#FFD700', lyric: '#ffffff' },
   { id: 'green', label: 'Green', chord: '#00ff88', lyric: '#ffffff' },
@@ -47,30 +80,43 @@ export function useTheme() {
   const [isDark, setIsDark] = useLocalStorage('chordvault-dark-mode', false)
   const [isStage, setIsStage] = useLocalStorage('chordvault-stage-mode', false)
   const [stageColorId, setStageColorId] = useLocalStorage('chordvault-stage-color', 'gold')
+  const [darkThemeId, setDarkThemeId] = useLocalStorage('chordvault-dark-theme', 'slate')
 
   useEffect(() => {
     const root = document.documentElement
     if (isStage) {
       root.classList.add('dark', 'stage-mode')
+      ALL_DARK_VARS.forEach(k => root.style.removeProperty(k))
       const col = STAGE_COLORS.find(c => c.id === stageColorId) || STAGE_COLORS[0]
       root.style.setProperty('--chord-color', col.chord)
       root.style.setProperty('--lyric-color', col.lyric)
       root.style.setProperty('--section-header-color', col.chord)
       root.style.setProperty('--color-accent', col.chord)
     } else {
-      if (isDark) { root.classList.add('dark'); root.classList.remove('stage-mode') }
-      else { root.classList.remove('dark', 'stage-mode') }
+      root.classList.remove('stage-mode')
       root.style.removeProperty('--chord-color')
       root.style.removeProperty('--lyric-color')
       root.style.removeProperty('--section-header-color')
       root.style.removeProperty('--color-accent')
+      if (isDark) {
+        root.classList.add('dark')
+        const theme = DARK_THEMES.find(t => t.id === darkThemeId)
+        if (theme?.vars) {
+          Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v))
+        } else {
+          ALL_DARK_VARS.forEach(k => root.style.removeProperty(k))
+        }
+      } else {
+        root.classList.remove('dark')
+        ALL_DARK_VARS.forEach(k => root.style.removeProperty(k))
+      }
     }
-  }, [isDark, isStage, stageColorId])
+  }, [isDark, isStage, stageColorId, darkThemeId])
 
   const toggleDark = () => { setIsDark(d => !d); if (isStage) setIsStage(false) }
   const toggleStage = () => { setIsStage(s => !s); if (!isStage) setIsDark(true) }
 
-  return { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId }
+  return { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId, darkThemeId, setDarkThemeId }
 }
 
 // ─── Display Settings ──────────────────────────────────────────────────────

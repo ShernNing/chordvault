@@ -22,7 +22,7 @@ import { supabaseSongOps } from "../lib/supabaseOps";
 import { transposeKey, getCapoDisplay, getCapoShapeKey, transposeParsedContent } from "../lib/transposition";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
-import { ingest } from "../lib/ingestion";
+import { ingest, tokenizeChordLine } from "../lib/ingestion";
 import { lookupArtist } from "../lib/musicbrainz";
 import {
   Button,
@@ -103,6 +103,32 @@ export default function SongView() {
       setSavingKey(false);
     }
   };
+
+  const handleLineTypeOverride = async (index, newType) => {
+    const line = song.parsed_content[index];
+    if (!line) return;
+    let updatedLine;
+    if (line.type === 'chord_line' && newType === 'lyric_line') {
+      const text = line.tokens
+        ? line.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('')
+        : (line.raw || '');
+      updatedLine = { type: 'lyric_line', text, uncertain: false };
+    } else if (line.type === 'lyric_line' && newType === 'chord_line') {
+      const tokens = tokenizeChordLine(line.text || '');
+      updatedLine = { type: 'chord_line', tokens, raw: line.text || '', uncertain: false };
+    } else {
+      updatedLine = { ...line, type: newType, uncertain: false };
+    }
+    const newContent = song.parsed_content.map((l, i) => i === index ? updatedLine : l);
+    await update({ parsed_content: newContent });
+  };
+
+  const handleAcceptAllWarnings = async () => {
+    const newContent = song.parsed_content.map(l => l.uncertain ? { ...l, uncertain: false } : l);
+    await update({ parsed_content: newContent });
+  };
+
+  const hasUncertain = song.parsed_content?.some(l => l.uncertain);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(song.raw_content || "");
@@ -367,6 +393,19 @@ export default function SongView() {
         </div>
       )}
 
+      {/* ── Uncertain Lines Banner ───────────────────────────────── */}
+      {hasUncertain && (
+        <div className='no-print flex items-center justify-between gap-3 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg'>
+          <span className='text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5'>
+            <AlertTriangle size={12} />
+            Some lines have uncertain classification — hover to fix each, or accept all.
+          </span>
+          <Button variant='secondary' size='sm' onClick={handleAcceptAllWarnings}>
+            Accept all
+          </Button>
+        </div>
+      )}
+
       {/* ── Chord Sheet ───────────────────────────────────────────── */}
       <ChordSheetPage
         song={song}
@@ -377,6 +416,7 @@ export default function SongView() {
         printRef={printRef}
         fontSize={fontSize}
         onReload={reload}
+        onLineTypeOverride={handleLineTypeOverride}
       />
 
       {/* ── Edit Modal ────────────────────────────────────────────── */}
@@ -591,6 +631,7 @@ function ChordSheetPage({
   printRef,
   fontSize = 12,
   onReload,
+  onLineTypeOverride,
 }) {
   const measureRef = React.useRef(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -644,6 +685,7 @@ function ChordSheetPage({
           targetKey={targetKey}
           twoColumn={effectiveTwoCol}
           fontSize={fontSize}
+          onLineTypeOverride={onLineTypeOverride}
         />
       </div>
 

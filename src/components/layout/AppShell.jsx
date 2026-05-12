@@ -5,7 +5,7 @@ import {
   Zap, Wifi, WifiOff, Menu, X, FileUp,
   CloudOff, LogIn, LogOut, User
 } from 'lucide-react'
-import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS } from '../../lib/hooks'
+import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Button, Tooltip } from '../ui'
@@ -20,7 +20,7 @@ const NAV_ITEMS = [
 
 export default function AppShell({ children }) {
   const isOnline = useOnlineStatus()
-  const { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId } = useTheme()
+  const { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId, darkThemeId, setDarkThemeId } = useTheme()
   useDisplaySettings()
   const { isLoggedIn, email } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -80,6 +80,15 @@ export default function AppShell({ children }) {
                 {isDark ? <Sun size={14} /> : <Moon size={14} />}
               </Button>
             </Tooltip>
+            {isDark && !isStage && DARK_THEMES.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setDarkThemeId(t.id)}
+                title={t.label}
+                className={`w-3.5 h-3.5 rounded-sm border transition-all shrink-0 ${darkThemeId === t.id ? 'ring-1 ring-[var(--color-ink)] ring-offset-1 ring-offset-[var(--color-bg)] opacity-100' : 'opacity-50 hover:opacity-80'}`}
+                style={{ backgroundColor: t.swatch, borderColor: '#555' }}
+              />
+            ))}
 
             {/* Auth (desktop) */}
             <div className="hidden sm:flex items-center ml-1">
