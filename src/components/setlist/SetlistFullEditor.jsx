@@ -144,7 +144,7 @@ async function computePageLayout(editedSlots) {
   }
 
   for (const d of measured) {
-    if (!d.fitsHalfPage) {
+    if (!d.fitsHalfPage || d.estimatedH > PAGE_COL_HEIGHT) {
       flushPage()
       pages.push({ type: 'single', slotId: d.slotId, globalIdx: d.globalIdx })
     } else {

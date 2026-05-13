@@ -219,7 +219,7 @@ export default function SetlistView() {
       let useRight = false;
 
       for (const d of slotData) {
-        if (!d.fitsHalfPage) {
+        if (!d.fitsHalfPage || d.estimatedH > PAGE_COL_HEIGHT) {
           flushMultiPage();
           useRight = false;
           packedPages.push({ type: "single", data: d });
