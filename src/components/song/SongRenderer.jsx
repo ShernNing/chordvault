@@ -61,10 +61,10 @@ function _splitSections(sections, colHeight) {
 
 function _estimatePrintLineHeight(line) {
   switch (line.type) {
-    case 'chord_line': return 17  // 14px × 1.2 lineHeight = 16.8 → 17
-    case 'lyric_line': return 19  // 16.8 + 2px margin-bottom = 18.8 → 19
+    case 'chord_line': return 23  // 19px × 1.2 lineHeight = 22.8 → 23
+    case 'lyric_line': return 25  // 22.8 + 2px margin-bottom = 24.8 → 25
     case 'blank':      return 8
-    default:           return 19
+    default:           return 25
   }
 }
 
@@ -109,9 +109,9 @@ function _groupPrintSections(lines) {
 }
 
 function _estimatePrintSectionHeight(section, isFirst) {
-  // first header: 14px × 1.2 + 2px margin-bottom = 18.8 → 19
-  // non-first header: 16.8 + 8px margin-top + 2px margin-bottom = 26.8 → 27
-  let h = section.header ? (isFirst ? 19 : 27) : 0
+  // first header: 19px × 1.2 + 2px margin-bottom = 24.8 → 25
+  // non-first header: 22.8 + 8px margin-top + 2px margin-bottom = 32.8 → 33
+  let h = section.header ? (isFirst ? 25 : 33) : 0
   for (const l of section.lines) h += _estimatePrintLineHeight(l)
   return h
 }
@@ -133,12 +133,12 @@ function _splitPrintSections(sections) {
 }
 
 // Estimate total print height of a song at half-page column width.
-// Title: 16px × 1.2 lineHeight + 8px margin-bottom = 27px
+// Title: 22px × 1.2 lineHeight + 8px margin-bottom = 34.4 → 35px
 export function estimateSongPrintHeight(parsedContent) {
   const content = _stripIntraPairBlanks(parsedContent || [])
   const sections = _groupPrintSections(content)
   const bodyH = sections.reduce((h, s, i) => h + _estimatePrintSectionHeight(s, i === 0), 0)
-  return 27 + bodyH
+  return 35 + bodyH
 }
 
 // ─── SongRenderer ────────────────────────────────────────────────────────────
@@ -389,13 +389,13 @@ const PRINT_WRAPPER_STYLE = {
   backgroundColor: '#ffffff',
   color: '#000000',
   fontFamily: 'Arial, sans-serif',
-  fontSize: '14px',
+  fontSize: '19px',
 }
 
 function PrintSongHeader({ song, keyLabel, songNumber }) {
   return (
     <div style={{ marginBottom: '8px' }}>
-      <span style={{ fontSize: '16px', fontWeight: '700', color: '#000000', display: 'block', wordBreak: 'break-word' }}>
+      <span style={{ fontSize: '22px', fontWeight: '700', color: '#000000', display: 'block', wordBreak: 'break-word' }}>
         {[songNumber != null ? `${songNumber}.` : null, cleanSongTitle(song.title), song.artist ? `- ${song.artist}` : null, keyLabel ? `(${keyLabel})` : null].filter(Boolean).join(' ')}
       </span>
     </div>
@@ -509,7 +509,7 @@ export function MultiSongPage({ leftColumn, rightColumn }) {
 function PrintLine({ line }) {
   const sectionStyle = {
     fontFamily: 'Arial, sans-serif',
-    fontSize: '14px',
+    fontSize: '19px',
     fontWeight: '700',
     color: '#000000',
     lineHeight: '1.2',
@@ -520,7 +520,7 @@ function PrintLine({ line }) {
 
   const chordStyle = {
     fontFamily: 'Arial, sans-serif',
-    fontSize: '14px',
+    fontSize: '19px',
     fontWeight: '700',
     color: '#000000',
     whiteSpace: 'pre',
@@ -531,7 +531,7 @@ function PrintLine({ line }) {
 
   const lyricStyle = {
     fontFamily: 'Arial, sans-serif',
-    fontSize: '14px',
+    fontSize: '19px',
     fontWeight: '400',
     color: '#000000',
     whiteSpace: 'pre-wrap',
