@@ -606,6 +606,7 @@ function SortableSlot({ slot, index, onRemove, onUpdateSlot }) {
     slot.chosen_key || slot.song?.original_key || "",
   );
   const [localCapo, setLocalCapo] = useState(slot.capo || 0);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const displayKey = localKey || slot.song?.original_key;
   const capoHint =
@@ -664,15 +665,39 @@ function SortableSlot({ slot, index, onRemove, onUpdateSlot }) {
               </span>
             )}
           </div>
-          <Button
-            variant='ghost'
-            size='icon-sm'
-            onClick={onRemove}
-            className='text-[var(--color-ink-muted)] hover:text-red-500 shrink-0'
-            title='Remove from setlist'
-          >
-            <X size={13} />
-          </Button>
+          {confirmRemove ? (
+            <div className='flex items-center gap-1 shrink-0'>
+              <span className='text-[10px] text-red-500'>Remove?</span>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={onRemove}
+                className='text-red-500 hover:text-red-600'
+                title='Confirm remove'
+              >
+                <Check size={12} />
+              </Button>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={() => setConfirmRemove(false)}
+                className='text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
+                title='Cancel'
+              >
+                <X size={12} />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setConfirmRemove(true)}
+              className='text-[var(--color-ink-muted)] hover:text-red-500 shrink-0'
+              title='Remove from setlist'
+            >
+              <X size={13} />
+            </Button>
+          )}
         </div>
 
         {/* Key + Capo controls */}
