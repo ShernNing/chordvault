@@ -148,7 +148,7 @@ export default function SongRenderer({
   twoColumn = false,
   printMode = false,
   onLineTypeOverride = null,
-  fontSize = 12,
+  fontSize = 14,
 }) {
   const [overrides, setOverrides] = useState({})
 
@@ -386,14 +386,14 @@ const PRINT_WRAPPER_STYLE = {
   padding: '24px',
   backgroundColor: '#ffffff',
   color: '#000000',
-  fontFamily: "'Courier New', Courier, monospace",
-  fontSize: '12px',
+  fontFamily: 'Arial, sans-serif',
+  fontSize: '14px',
 }
 
 function PrintSongHeader({ song, keyLabel, songNumber }) {
   return (
     <div style={{ marginBottom: '8px' }}>
-      <span style={{ fontSize: '14px', fontWeight: '700', color: '#000000' }}>
+      <span style={{ fontSize: '16px', fontWeight: '700', color: '#000000', display: 'block', wordBreak: 'break-word' }}>
         {[songNumber != null ? `${songNumber}.` : null, cleanSongTitle(song.title), song.artist ? `- ${song.artist}` : null, keyLabel ? `(${keyLabel})` : null].filter(Boolean).join(' ')}
       </span>
     </div>
@@ -506,8 +506,8 @@ export function MultiSongPage({ leftColumn, rightColumn }) {
 
 function PrintLine({ line }) {
   const sectionStyle = {
-    fontFamily: "'Courier New', Courier, monospace",
-    fontSize: '12px',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '14px',
     fontWeight: '700',
     color: '#000000',
     lineHeight: '1.2',
@@ -517,8 +517,8 @@ function PrintLine({ line }) {
   }
 
   const chordStyle = {
-    fontFamily: "'Courier New', Courier, monospace",
-    fontSize: '12px',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '14px',
     fontWeight: '700',
     color: '#000000',
     whiteSpace: 'pre',
@@ -528,8 +528,8 @@ function PrintLine({ line }) {
   }
 
   const lyricStyle = {
-    fontFamily: "'Courier New', Courier, monospace",
-    fontSize: '12px',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '14px',
     fontWeight: '400',
     color: '#000000',
     whiteSpace: 'pre-wrap',
