@@ -175,29 +175,47 @@ export default function SetlistView() {
       let leftCol = [], rightCol = [], leftH = 0, rightH = 0;
 
       const flushMultiPage = () => {
-        if (leftCol.length > 0) {
+        if (leftCol.length === 0) return;
+        if (leftCol.length === 1 && rightCol.length === 0) {
+          // Single compact song alone — render full-width
+          packedPages.push({ type: "single", data: leftCol[0] });
+        } else {
           packedPages.push({ type: "multi", left: [...leftCol], right: [...rightCol] });
-          leftCol = []; rightCol = []; leftH = 0; rightH = 0;
         }
+        leftCol = []; rightCol = []; leftH = 0; rightH = 0;
       };
+
+      // Waterfall: fill left until full, then right until full, then flush.
+      // Never go back to left once right has started — preserves song order.
+      let useRight = false;
 
       for (const d of slotData) {
         if (!d.fitsHalfPage) {
           flushMultiPage();
+          useRight = false;
           packedPages.push({ type: "single", data: d });
         } else {
           const h = d.estimatedH;
-          const newLeftH = leftH + (leftH > 0 ? SONG_GAP : 0) + h;
-          if (newLeftH <= PAGE_COL_HEIGHT) {
-            leftCol.push(d);
-            leftH = newLeftH;
+          if (!useRight) {
+            const newLeftH = leftH + (leftH > 0 ? SONG_GAP : 0) + h;
+            if (newLeftH <= PAGE_COL_HEIGHT) {
+              leftCol.push(d);
+              leftH = newLeftH;
+            } else {
+              // Left full — switch to right column
+              useRight = true;
+              rightCol.push(d);
+              rightH = h;
+            }
           } else {
             const newRightH = rightH + (rightH > 0 ? SONG_GAP : 0) + h;
             if (newRightH <= PAGE_COL_HEIGHT) {
               rightCol.push(d);
               rightH = newRightH;
             } else {
+              // Both columns full — flush, start new page
               flushMultiPage();
+              useRight = false;
               leftCol.push(d);
               leftH = h;
             }
