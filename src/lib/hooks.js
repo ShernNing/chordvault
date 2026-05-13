@@ -129,10 +129,12 @@ export const FONT_OPTIONS = [
 ]
 
 export function useDisplaySettings() {
-  const [fontSize, setFontSize] = useLocalStorage('cv-font-size', 12)
+  const [fontSize, setFontSize] = useLocalStorage('cv-font-size', 14)
   const [fontFamily, setFontFamily] = useLocalStorage('cv-font-family', 'Arial, sans-serif')
 
   useEffect(() => {
+    // Migrate old default of 12 to new default of 14
+    if (fontSize === 12) { setFontSize(14); return }
     const root = document.documentElement
     root.style.setProperty('--chord-font', fontFamily)
     root.style.setProperty('--lyric-font', fontFamily)

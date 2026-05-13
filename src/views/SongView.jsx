@@ -713,7 +713,7 @@ function ChordSheetPage({
   twoColumn,
   onTwoColumnChange,
   printRef,
-  fontSize = 12,
+  fontSize = 14,
   onReload,
   onLineTypeOverride,
 }) {

@@ -20,13 +20,13 @@ export async function exportSongToPDF(songTitle, key, renderElement) {
 
   const canvas = await html2canvas(renderElement, {
     width: A4_WIDTH_PX,
-    scale: 2,
+    scale: 1.5,
     useCORS: true,
     backgroundColor: '#ffffff',
     logging: false,
   })
 
-  const imgData = canvas.toDataURL('image/png')
+  const imgData = canvas.toDataURL('image/jpeg', 0.85)
   const pdfWidth = pdf.internal.pageSize.getWidth()
   const pdfHeight = pdf.internal.pageSize.getHeight()
   const imgWidth = pdfWidth
@@ -67,13 +67,13 @@ export async function exportSetlistToPDF(setlistName, songElements) {
 
     const canvas = await html2canvas(el, {
       width: A4_WIDTH_PX,
-      scale: 2,
+      scale: 1.5,
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
     })
 
-    const imgData = canvas.toDataURL('image/png')
+    const imgData = canvas.toDataURL('image/jpeg', 0.85)
     const imgWidth = pdfWidth
     const imgHeight = (canvas.height * pdfWidth) / canvas.width
 
@@ -111,8 +111,8 @@ export function createPrintContainer() {
     background: white;
     color: black;
     padding: ${MARGIN_PX}px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
   `
   document.body.appendChild(container)
   return container
