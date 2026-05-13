@@ -46,17 +46,17 @@ function songToParagraphs(song, semitones, targetKey, keyLabel, songNumber) {
       paragraphs.push(new Paragraph({ children: [new TextRun({ text: '' })], spacing: { after: 0 } }))
     } else if (line.type === 'section_header') {
       paragraphs.push(new Paragraph({
-        children: [new TextRun({ text: normalizeSectionHeader(line.text), bold: true, size: 28, font: 'Arial' })],
+        children: [new TextRun({ text: normalizeSectionHeader(line.text), bold: true, size: 24, font: 'Arial' })],
         spacing: { before: 120, after: 40 },
       }))
     } else if (line.type === 'chord_line') {
       paragraphs.push(new Paragraph({
-        children: [new TextRun({ text: chordLineToText(line), bold: true, font: 'Arial', size: 28 })],
+        children: [new TextRun({ text: chordLineToText(line), bold: true, font: 'Arial', size: 24 })],
         spacing: { before: 40, after: 0 },
       }))
     } else {
       paragraphs.push(new Paragraph({
-        children: [new TextRun({ text: line.text || '', font: 'Arial', size: 28 })],
+        children: [new TextRun({ text: line.text || '', font: 'Arial', size: 24 })],
         spacing: { after: 0 },
       }))
     }
