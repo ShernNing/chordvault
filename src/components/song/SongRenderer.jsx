@@ -130,6 +130,15 @@ function _splitPrintSections(sections) {
   return { left, right }
 }
 
+// Estimate total print height of a song at half-page column width.
+// 22px = song title header (14px text + 8px margin-bottom).
+export function estimateSongPrintHeight(parsedContent) {
+  const content = _stripIntraPairBlanks(parsedContent || [])
+  const sections = _groupPrintSections(content)
+  const bodyH = sections.reduce((h, s, i) => h + _estimatePrintSectionHeight(s, i === 0), 0)
+  return 22 + bodyH
+}
+
 // ─── SongRenderer ────────────────────────────────────────────────────────────
 
 export default function SongRenderer({
@@ -454,6 +463,42 @@ export function TwoPrintableSongSheets({ song1, semitones1, targetKey1, keyLabel
       <div style={{ display: 'flex', gap: '32px' }}>
         {renderSong(song1, semitones1, targetKey1, keyLabel1, songNumber1)}
         {renderSong(song2, semitones2, targetKey2, keyLabel2, songNumber2)}
+      </div>
+    </div>
+  )
+}
+
+// Song rendered inside a column — no page wrapper, no internal 2-col split
+function SingleSongForColumn({ song, semitones, targetKey, keyLabel, songNumber }) {
+  const content = semitones !== 0
+    ? transposeParsedContent(song.parsed_content, semitones, targetKey)
+    : song.parsed_content
+  const sections = _groupPrintSections(_stripIntraPairBlanks(content || []))
+  return (
+    <div>
+      <PrintSongHeader song={song} keyLabel={keyLabel} songNumber={songNumber} />
+      {sections.map((s, si) => <PrintSection key={si} section={s} sectionKey={si} />)}
+    </div>
+  )
+}
+
+// Page with bin-packed songs in up to 2 columns, left filled first
+export function MultiSongPage({ leftColumn, rightColumn }) {
+  const hasTwoColumns = rightColumn && rightColumn.length > 0
+  return (
+    <div style={PRINT_WRAPPER_STYLE}>
+      <div style={hasTwoColumns ? { display: 'flex', gap: '32px' } : {}}>
+        <div style={{
+          ...(hasTwoColumns ? { flex: 1, minWidth: 0 } : {}),
+          display: 'flex', flexDirection: 'column', gap: '16px',
+        }}>
+          {leftColumn.map((item, i) => <SingleSongForColumn key={i} {...item} />)}
+        </div>
+        {hasTwoColumns && (
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {rightColumn.map((item, i) => <SingleSongForColumn key={i} {...item} />)}
+          </div>
+        )}
       </div>
     </div>
   )

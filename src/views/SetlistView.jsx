@@ -33,7 +33,7 @@ import { useSetlist, useSongs } from "../lib/hooks";
 import { transposeKey, getCapoDisplay, ALL_KEYS } from "../lib/transposition";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSetlistToDocx } from "../lib/docxExport";
-import { PrintableSongSheet, TwoPrintableSongSheets } from "../components/song/SongRenderer";
+import { PrintableSongSheet, MultiSongPage, estimateSongPrintHeight } from "../components/song/SongRenderer";
 import {
   Button,
   Input,
@@ -144,10 +144,13 @@ export default function SetlistView() {
       const containers = [];
       const roots = [];
 
-      // Pre-compute per-slot data
+      // Pre-compute per-slot data with height estimates for bin-packing
+      const PAGE_COL_HEIGHT = 1075; // A4 (1123px) minus 2×24px padding
+      const SONG_GAP = 16;          // vertical gap between songs in same column
+
       const slotData = slots
         .filter((slot) => slot.song)
-        .map((slot) => {
+        .map((slot, globalIdx) => {
           const semitones =
             slot.chosen_key && slot.song.original_key
               ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
@@ -162,44 +165,78 @@ export default function SetlistView() {
             (l) => l.type !== "blank",
           ).length;
           const maxChars = getMaxLineChars(slot.song.parsed_content);
-          return { slot, shapeSemitones, shapeKey, keyLabel, fitsHalfPage: nonBlankLines <= 45 && maxChars <= MAX_HALF_COL_CHARS };
+          const fitsHalfPage = nonBlankLines <= 45 && maxChars <= MAX_HALF_COL_CHARS;
+          const estimatedH = fitsHalfPage ? estimateSongPrintHeight(slot.song.parsed_content) : null;
+          return { slot, shapeSemitones, shapeKey, keyLabel, fitsHalfPage, estimatedH, globalIdx };
         });
 
-      let i = 0;
-      while (i < slotData.length) {
-        const curr = slotData[i];
-        const next = slotData[i + 1];
+      // Bin-pack compact songs left-column-first; full-width songs break packing
+      const packedPages = [];
+      let leftCol = [], rightCol = [], leftH = 0, rightH = 0;
+
+      const flushMultiPage = () => {
+        if (leftCol.length > 0) {
+          packedPages.push({ type: "multi", left: [...leftCol], right: [...rightCol] });
+          leftCol = []; rightCol = []; leftH = 0; rightH = 0;
+        }
+      };
+
+      for (const d of slotData) {
+        if (!d.fitsHalfPage) {
+          flushMultiPage();
+          packedPages.push({ type: "single", data: d });
+        } else {
+          const h = d.estimatedH;
+          const newLeftH = leftH + (leftH > 0 ? SONG_GAP : 0) + h;
+          if (newLeftH <= PAGE_COL_HEIGHT) {
+            leftCol.push(d);
+            leftH = newLeftH;
+          } else {
+            const newRightH = rightH + (rightH > 0 ? SONG_GAP : 0) + h;
+            if (newRightH <= PAGE_COL_HEIGHT) {
+              rightCol.push(d);
+              rightH = newRightH;
+            } else {
+              flushMultiPage();
+              leftCol.push(d);
+              leftH = h;
+            }
+          }
+        }
+      }
+      flushMultiPage();
+
+      // Render each packed page
+      for (const page of packedPages) {
         const container = createPrintContainer();
         const root = createRoot(container);
 
-        if (curr.fitsHalfPage && next?.fitsHalfPage) {
-          // Both songs are short — combine onto one page
-          root.render(
-            <TwoPrintableSongSheets
-              song1={curr.slot.song}
-              semitones1={curr.shapeSemitones}
-              targetKey1={curr.shapeKey}
-              keyLabel1={curr.keyLabel}
-              songNumber1={i + 1}
-              song2={next.slot.song}
-              semitones2={next.shapeSemitones}
-              targetKey2={next.shapeKey}
-              keyLabel2={next.keyLabel}
-              songNumber2={i + 2}
-            />,
-          );
-          i += 2;
-        } else {
+        if (page.type === "single") {
+          const d = page.data;
           root.render(
             <PrintableSongSheet
-              song={curr.slot.song}
-              semitones={curr.shapeSemitones}
-              targetKey={curr.shapeKey}
-              keyLabel={curr.keyLabel}
-              songNumber={i + 1}
+              song={d.slot.song}
+              semitones={d.shapeSemitones}
+              targetKey={d.shapeKey}
+              keyLabel={d.keyLabel}
+              songNumber={d.globalIdx + 1}
             />,
           );
-          i += 1;
+        } else {
+          const makeItems = (col) =>
+            col.map((d) => ({
+              song: d.slot.song,
+              semitones: d.shapeSemitones,
+              targetKey: d.shapeKey,
+              keyLabel: d.keyLabel,
+              songNumber: d.globalIdx + 1,
+            }));
+          root.render(
+            <MultiSongPage
+              leftColumn={makeItems(page.left)}
+              rightColumn={makeItems(page.right)}
+            />,
+          );
         }
 
         containers.push(container);
