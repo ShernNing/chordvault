@@ -94,7 +94,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <Tooltip content="Force reload all songs">
-            <Button variant="ghost" size="icon-sm" onClick={reload} title="Reload">
+            <Button variant="ghost" size="icon-sm" onClick={() => window.location.reload()} title="Reload">
               <RefreshCw size={14} />
             </Button>
           </Tooltip>

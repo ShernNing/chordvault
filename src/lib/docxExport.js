@@ -79,7 +79,7 @@ export async function exportSongToDocx(song, semitones, targetKey, keyLabel) {
   const doc = new Document({
     sections: [{ properties: {}, children: songToParagraphs(song, semitones, targetKey, keyLabel, null) }],
   })
-  const safeTitle = (song.title || 'song').replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  const safeTitle = (song.title || 'song').replace(/[/\\:*?"<>|]/g, '_')
   await triggerDownload(doc, `${safeTitle}.docx`)
 }
 
@@ -98,6 +98,6 @@ export async function exportSetlistToDocx(setlistName, slots, getSongData) {
   const doc = new Document({
     sections: [{ properties: {}, children: allParagraphs }],
   })
-  const safeName = (setlistName || 'setlist').replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  const safeName = (setlistName || 'setlist').replace(/[/\\:*?"<>|]/g, '_')
   await triggerDownload(doc, `${safeName}.docx`)
 }

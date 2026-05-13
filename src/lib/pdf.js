@@ -45,7 +45,7 @@ export async function exportSongToPDF(songTitle, key, renderElement) {
     heightLeft -= pdfHeight
   }
 
-  const safeTitle = (songTitle || 'song').replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  const safeTitle = (songTitle || 'song').replace(/[/\\:*?"<>|]/g, '_')
   const safeKey = (key || 'unknown').replace(/[^a-z0-9#b]/gi, '')
   pdf.save(`${safeTitle}-${safeKey}.pdf`)
 }
@@ -93,7 +93,7 @@ export async function exportSetlistToPDF(setlistName, songElements) {
     }
   }
 
-  const safeName = (setlistName || 'setlist').replace(/[^a-z0-9]/gi, '_').toLowerCase()
+  const safeName = (setlistName || 'setlist').replace(/[/\\:*?"<>|]/g, '_')
   pdf.save(`${safeName}.pdf`)
 }
 
