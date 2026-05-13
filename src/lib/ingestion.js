@@ -47,6 +47,14 @@ export function normalizeSectionHeader(text) {
     inner = `${ordinalMatch[2]} ${ordinalMatch[1]}`
   }
 
+  // "1 Verse" → "Verse 1", "2 Chorus" → "Chorus 2"
+  if (!ordinalMatch) {
+    const cardinalMatch = inner.match(/^(\d+)\s+(.+)$/)
+    if (cardinalMatch && SECTION_NAME_MAP[cardinalMatch[2].toLowerCase()]) {
+      inner = `${cardinalMatch[2]} ${cardinalMatch[1]}`
+    }
+  }
+
   const lower = inner.toLowerCase()
   const numMatch = lower.match(/^(.+?)\s*(\d+)$/)
   const baseName = numMatch ? numMatch[1].trim() : lower
@@ -57,16 +65,24 @@ export function normalizeSectionHeader(text) {
     return `[${num ? `${canonical} ${num}` : canonical}]`
   }
 
-  // Unknown section: title-case each word
-  const titleCased = inner.replace(/\b\w/g, c => c.toUpperCase())
+  // Unknown section: proper title-case (upper first char, lower rest)
+  const titleCased = inner.replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
   return `[${titleCased}]`
 }
 
 export const CHORD_REGEX = /^[A-G][#b]?(maj|min|m|M|dim|aug|add)?[0-9]*(sus[0-9]*)?(\/[A-G][#b]?)?$/
 
+function normalizeChordChars(s) {
+  return s
+    .replace(/♭/g, 'b')           // musical flat sign → b
+    .replace(/♯/g, '#')           // musical sharp sign → #
+    .replace(/а/g, 'a')      // Cyrillic а (looks like Latin a)
+    .replace(/е/g, 'e')      // Cyrillic е (looks like Latin e)
+}
+
 export function isChord(token) {
   if (!token || token.length === 0) return false
-  const clean = token.replace(/[()]/g, '').trim()
+  const clean = normalizeChordChars(token.replace(/[()]/g, '').trim())
   return CHORD_REGEX.test(clean)
 }
 
@@ -75,6 +91,7 @@ function isSectionHeader(line) {
   if (/^\[.+\]$/.test(trimmed)) return true
   if (/^(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda)\s*\d*:?\s*$/i.test(trimmed)) return true
   if (/^\d+(?:st|nd|rd|th)\s+(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda):?\s*$/i.test(trimmed)) return true
+  if (/^\d+\s+(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda):?\s*$/i.test(trimmed)) return true
   return false
 }
 
@@ -102,7 +119,8 @@ export function tokenizeChordLine(line) {
   const regex = /(\s*)(\S+)/g
   let match
   while ((match = regex.exec(line)) !== null) {
-    tokens.push({ text: match[2], isChord: isChord(match[2]), leadingSpaces: match[1].length })
+    const text = normalizeChordChars(match[2])
+    tokens.push({ text, isChord: isChord(text), leadingSpaces: match[1].length })
   }
   return tokens
 }

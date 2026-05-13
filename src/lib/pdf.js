@@ -93,9 +93,8 @@ export async function exportSetlistToPDF(setlistName, songElements) {
     }
   }
 
-  const date = new Date().toISOString().split('T')[0]
   const safeName = (setlistName || 'setlist').replace(/[^a-z0-9]/gi, '_').toLowerCase()
-  pdf.save(`${safeName}-${date}.pdf`)
+  pdf.save(`${safeName}.pdf`)
 }
 
 /**

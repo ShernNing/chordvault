@@ -98,7 +98,6 @@ export async function exportSetlistToDocx(setlistName, slots, getSongData) {
   const doc = new Document({
     sections: [{ properties: {}, children: allParagraphs }],
   })
-  const date = new Date().toISOString().split('T')[0]
   const safeName = (setlistName || 'setlist').replace(/[^a-z0-9]/gi, '_').toLowerCase()
-  await triggerDownload(doc, `${safeName}-${date}.docx`)
+  await triggerDownload(doc, `${safeName}.docx`)
 }
