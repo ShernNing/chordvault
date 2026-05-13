@@ -161,12 +161,9 @@ export default function SetlistView() {
           const shapeKey =
             capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
           const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
-          const nonBlankLines = (slot.song.parsed_content || []).filter(
-            (l) => l.type !== "blank",
-          ).length;
           const maxChars = getMaxLineChars(slot.song.parsed_content);
-          const fitsHalfPage = nonBlankLines <= 45 && maxChars <= MAX_HALF_COL_CHARS;
-          const estimatedH = fitsHalfPage ? estimateSongPrintHeight(slot.song.parsed_content) : null;
+          const estimatedH = estimateSongPrintHeight(slot.song.parsed_content);
+          const fitsHalfPage = estimatedH <= PAGE_COL_HEIGHT && maxChars <= MAX_HALF_COL_CHARS;
           return { slot, shapeSemitones, shapeKey, keyLabel, fitsHalfPage, estimatedH, globalIdx };
         });
 
