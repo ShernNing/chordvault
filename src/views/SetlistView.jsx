@@ -147,7 +147,7 @@ export default function SetlistView() {
       const { semitonesFromKeyToKey } = await import("../lib/transposition");
       const containers = [];
       const roots = [];
-      const exportSlots = slotsOverride || slots;
+      const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
 
       const PAGE_COL_HEIGHT = 1087; // A4 (1123px) minus 12px top + 24px bottom padding
       const SONG_GAP = 16;          // vertical gap between songs in same column
@@ -329,7 +329,7 @@ export default function SetlistView() {
     setExportingDocx(true);
     try {
       const { semitonesFromKeyToKey } = await import("../lib/transposition");
-      const exportSlots = slotsOverride || slots;
+      const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
       await exportSetlistToDocx(setlist.name, exportSlots.filter(s => s.song), (slot) => {
         const semitones = slot.chosen_key && slot.song.original_key
           ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
