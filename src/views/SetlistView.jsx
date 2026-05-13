@@ -33,7 +33,7 @@ import { useSetlist, useSongs } from "../lib/hooks";
 import { transposeKey, getCapoDisplay, ALL_KEYS } from "../lib/transposition";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSetlistToDocx } from "../lib/docxExport";
-import { PrintableSongSheet, MultiSongPage, estimateSongPrintHeight } from "../components/song/SongRenderer";
+import { PrintableSongSheet, MultiSongPage, SingleSongForColumn } from "../components/song/SongRenderer";
 import {
   Button,
   Input,
@@ -140,15 +140,16 @@ export default function SetlistView() {
     setExporting(true);
     try {
       const { createRoot } = await import("react-dom/client");
+      const { flushSync } = await import("react-dom");
       const { semitonesFromKeyToKey } = await import("../lib/transposition");
       const containers = [];
       const roots = [];
 
-      // Pre-compute per-slot data with height estimates for bin-packing
       const PAGE_COL_HEIGHT = 1075; // A4 (1123px) minus 2×24px padding
       const SONG_GAP = 16;          // vertical gap between songs in same column
 
-      const slotData = slots
+      // Step 1: compute key/semitone data
+      const rawSlotData = slots
         .filter((slot) => slot.song)
         .map((slot, globalIdx) => {
           const semitones =
@@ -162,10 +163,38 @@ export default function SetlistView() {
             capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
           const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
           const maxChars = getMaxLineChars(slot.song.parsed_content);
-          const estimatedH = estimateSongPrintHeight(slot.song.parsed_content);
-          const fitsHalfPage = estimatedH <= PAGE_COL_HEIGHT && maxChars <= MAX_HALF_COL_CHARS;
-          return { slot, shapeSemitones, shapeKey, keyLabel, fitsHalfPage, estimatedH, globalIdx };
+          return { slot, shapeSemitones, shapeKey, keyLabel, maxChars, globalIdx };
         });
+
+      // Step 2: DOM measurement — render each song at exact half-column width and
+      // read scrollHeight. The browser layout engine handles font metrics and text
+      // wrapping exactly, matching how the final PDF will be rendered.
+      // Half-column: (794px - 2×24px wrapper padding - 32px column gap) / 2 = 357px
+      const measureEl = document.createElement("div");
+      measureEl.style.cssText =
+        "position:absolute;top:-9999px;left:-9999px;width:357px;visibility:hidden;pointer-events:none;";
+      document.body.appendChild(measureEl);
+      const measureRoot = createRoot(measureEl);
+
+      const slotData = rawSlotData.map((d) => {
+        flushSync(() => {
+          measureRoot.render(
+            <SingleSongForColumn
+              song={d.slot.song}
+              semitones={d.shapeSemitones}
+              targetKey={d.shapeKey}
+              keyLabel={d.keyLabel}
+              songNumber={d.globalIdx + 1}
+            />
+          );
+        });
+        const measuredH = measureEl.scrollHeight;
+        const fitsHalfPage = measuredH <= PAGE_COL_HEIGHT && d.maxChars <= MAX_HALF_COL_CHARS;
+        return { ...d, estimatedH: measuredH, fitsHalfPage };
+      });
+
+      measureRoot.unmount();
+      document.body.removeChild(measureEl);
 
       // Bin-pack compact songs left-column-first; full-width songs break packing
       const packedPages = [];

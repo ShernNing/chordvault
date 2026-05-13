@@ -61,10 +61,10 @@ function _splitSections(sections, colHeight) {
 
 function _estimatePrintLineHeight(line) {
   switch (line.type) {
-    case 'chord_line': return 15
-    case 'lyric_line': return 16  // text(14) + margin-bottom(2)
+    case 'chord_line': return 17  // 14px × 1.2 lineHeight = 16.8 → 17
+    case 'lyric_line': return 19  // 16.8 + 2px margin-bottom = 18.8 → 19
     case 'blank':      return 8
-    default:           return 16
+    default:           return 19
   }
 }
 
@@ -109,7 +109,9 @@ function _groupPrintSections(lines) {
 }
 
 function _estimatePrintSectionHeight(section, isFirst) {
-  let h = section.header ? (isFirst ? 16 : 24) : 0
+  // first header: 14px × 1.2 + 2px margin-bottom = 18.8 → 19
+  // non-first header: 16.8 + 8px margin-top + 2px margin-bottom = 26.8 → 27
+  let h = section.header ? (isFirst ? 19 : 27) : 0
   for (const l of section.lines) h += _estimatePrintLineHeight(l)
   return h
 }
@@ -131,12 +133,12 @@ function _splitPrintSections(sections) {
 }
 
 // Estimate total print height of a song at half-page column width.
-// 22px = song title header (14px text + 8px margin-bottom).
+// Title: 16px × 1.2 lineHeight + 8px margin-bottom = 27px
 export function estimateSongPrintHeight(parsedContent) {
   const content = _stripIntraPairBlanks(parsedContent || [])
   const sections = _groupPrintSections(content)
   const bodyH = sections.reduce((h, s, i) => h + _estimatePrintSectionHeight(s, i === 0), 0)
-  return 22 + bodyH
+  return 27 + bodyH
 }
 
 // ─── SongRenderer ────────────────────────────────────────────────────────────
@@ -469,7 +471,7 @@ export function TwoPrintableSongSheets({ song1, semitones1, targetKey1, keyLabel
 }
 
 // Song rendered inside a column — no page wrapper, no internal 2-col split
-function SingleSongForColumn({ song, semitones, targetKey, keyLabel, songNumber }) {
+export function SingleSongForColumn({ song, semitones, targetKey, keyLabel, songNumber }) {
   const content = semitones !== 0
     ? transposeParsedContent(song.parsed_content, semitones, targetKey)
     : song.parsed_content

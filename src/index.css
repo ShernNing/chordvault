@@ -15,14 +15,14 @@
   --color-accent-soft: #FEF3C7;
 
   /* Chord sheet specific */
-  --chord-font: 'Courier New', Courier, monospace;
-  --chord-size: 12px;
+  --chord-font: Arial, sans-serif;
+  --chord-size: 14px;
   --chord-weight: 700;
   --chord-color: #111111;
   --chord-line-height: 1.2;
 
-  --lyric-font: 'Courier New', Courier, monospace;
-  --lyric-size: 12px;
+  --lyric-font: Arial, sans-serif;
+  --lyric-size: 14px;
   --lyric-weight: 400;
   --lyric-color: #111111;
   --lyric-line-height: 1.4;
