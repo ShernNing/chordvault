@@ -16,9 +16,10 @@ import {
   Search,
   Type,
   KeyRound,
+  ListMusic,
 } from "lucide-react";
-import { useSong, useLocalStorage, useDisplaySettings, FONT_OPTIONS } from "../lib/hooks";
-import { supabaseSongOps } from "../lib/supabaseOps";
+import { useSong, useLocalStorage, useDisplaySettings, useSetlists, FONT_OPTIONS } from "../lib/hooks";
+import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
 import { transposeKey, getCapoDisplay, getCapoShapeKey, transposeParsedContent } from "../lib/transposition";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
@@ -50,6 +51,7 @@ export default function SongView() {
 
   const { song, loading, error, reload, update } = useSong(id);
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useDisplaySettings();
+  const { setlists } = useSetlists();
 
   // Per-song transpose state stored in localStorage
   const [transpose, setTranspose] = useLocalStorage(`cv-transpose-${id}`, {
@@ -60,6 +62,9 @@ export default function SongView() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
+  const [addToSetlistOpen, setAddToSetlistOpen] = useState(false);
+  const [chosenSetlistId, setChosenSetlistId] = useState('');
+  const [addingToSetlist, setAddingToSetlist] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingDocx, setExportingDocx] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -185,6 +190,18 @@ export default function SongView() {
     }
   };
 
+  const handleAddToSetlist = async () => {
+    if (!chosenSetlistId) return;
+    setAddingToSetlist(true);
+    try {
+      await supabaseSetlistOps.addSong(chosenSetlistId, song.id, song.original_key || null, 0);
+      setAddToSetlistOpen(false);
+      setChosenSetlistId('');
+    } finally {
+      setAddingToSetlist(false);
+    }
+  };
+
   return (
     <div className='max-w-4xl mx-auto space-y-4'>
       {/* ── Breadcrumb ────────────────────────────────────────────── */}
@@ -299,6 +316,16 @@ export default function SongView() {
               title='Font & size'
             >
               <Type size={14} />
+            </Button>
+          </Tooltip>
+          <Tooltip content='Add to setlist'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setAddToSetlistOpen(true)}
+              title='Add to setlist'
+            >
+              <ListMusic size={14} />
             </Button>
           </Tooltip>
           <Tooltip content='Edit song'>
@@ -418,6 +445,63 @@ export default function SongView() {
         onReload={reload}
         onLineTypeOverride={handleLineTypeOverride}
       />
+
+      {/* ── Add to Setlist Modal ──────────────────────────────────── */}
+      <Modal
+        isOpen={addToSetlistOpen}
+        onClose={() => { setAddToSetlistOpen(false); setChosenSetlistId(''); }}
+        title='Add to setlist'
+      >
+        {setlists.length === 0 ? (
+          <>
+            <p className='text-sm text-[var(--color-ink-soft)] mb-4'>
+              No setlists yet. Create one first.
+            </p>
+            <div className='flex gap-2 justify-end'>
+              <Button variant='secondary' size='sm' onClick={() => { setAddToSetlistOpen(false); setChosenSetlistId(''); }}>
+                Cancel
+              </Button>
+              <Button variant='primary' size='sm' onClick={() => { setAddToSetlistOpen(false); navigate('/setlists'); }}>
+                <ListMusic size={13} /> Go to Setlists
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className='text-sm text-[var(--color-ink-soft)] mb-4'>
+              Add <strong>"{song.title}"</strong> to:
+            </p>
+            <Select
+              value={chosenSetlistId}
+              onChange={e => setChosenSetlistId(e.target.value)}
+              className='w-full'
+            >
+              <option value=''>Choose a setlist…</option>
+              {setlists.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </Select>
+            <div className='flex gap-2 justify-end mt-5'>
+              <Button
+                variant='secondary'
+                size='sm'
+                onClick={() => { setAddToSetlistOpen(false); setChosenSetlistId(''); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant='primary'
+                size='sm'
+                loading={addingToSetlist}
+                disabled={!chosenSetlistId}
+                onClick={handleAddToSetlist}
+              >
+                <ListMusic size={13} /> Add to setlist
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
 
       {/* ── Edit Modal ────────────────────────────────────────────── */}
       {isEditing && (
