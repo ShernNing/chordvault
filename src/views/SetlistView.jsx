@@ -147,7 +147,7 @@ export default function SetlistView() {
       const containers = [];
       const roots = [];
 
-      const PAGE_COL_HEIGHT = 1075; // A4 (1123px) minus 2×24px padding
+      const PAGE_COL_HEIGHT = 1087; // A4 (1123px) minus 12px top + 24px bottom padding
       const SONG_GAP = 16;          // vertical gap between songs in same column
 
       // Step 1: compute key/semitone data

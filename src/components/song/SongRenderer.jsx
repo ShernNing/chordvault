@@ -385,7 +385,7 @@ function UncertainOverlay({ label, onConfirm, onReject }) {
 
 const PRINT_WRAPPER_STYLE = {
   width: '794px',
-  padding: '24px',
+  padding: '12px 24px 24px',
   backgroundColor: '#ffffff',
   color: '#000000',
   fontFamily: 'Arial, sans-serif',
