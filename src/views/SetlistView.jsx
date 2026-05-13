@@ -189,30 +189,29 @@ export default function SetlistView() {
           );
         });
         const measuredH = measureEl.scrollHeight;
-        const fitsHalfPage = measuredH <= PAGE_COL_HEIGHT && d.maxChars <= MAX_HALF_COL_CHARS;
+        // Width is a hard constraint (long lines can't wrap cleanly in half column).
+        // Height is soft — a song slightly over PAGE_COL_HEIGHT still looks fine in a
+        // half column and is far better than wasting a full page on a short companion.
+        const fitsHalfPage = d.maxChars <= MAX_HALF_COL_CHARS;
         return { ...d, estimatedH: measuredH, fitsHalfPage };
       });
 
       measureRoot.unmount();
       document.body.removeChild(measureEl);
 
-      // Bin-pack compact songs left-column-first; full-width songs break packing
+      // Bin-pack songs left-column-first; wide-line songs break packing to full width.
       const packedPages = [];
       let leftCol = [], rightCol = [], leftH = 0, rightH = 0;
 
       const flushMultiPage = () => {
         if (leftCol.length === 0) return;
-        if (leftCol.length === 1 && rightCol.length === 0) {
-          // Single compact song alone — render full-width
-          packedPages.push({ type: "single", data: leftCol[0] });
-        } else {
-          packedPages.push({ type: "multi", left: [...leftCol], right: [...rightCol] });
-        }
+        packedPages.push({ type: "multi", left: [...leftCol], right: [...rightCol] });
         leftCol = []; rightCol = []; leftH = 0; rightH = 0;
       };
 
       // Waterfall: fill left until full, then right until full, then flush.
       // Never go back to left once right has started — preserves song order.
+      // First song always lands in left even if it overflows column height.
       let useRight = false;
 
       for (const d of slotData) {
@@ -224,20 +223,20 @@ export default function SetlistView() {
           const h = d.estimatedH;
           if (!useRight) {
             const newLeftH = leftH + (leftH > 0 ? SONG_GAP : 0) + h;
-            if (newLeftH <= PAGE_COL_HEIGHT) {
+            if (leftH === 0 || newLeftH <= PAGE_COL_HEIGHT) {
               leftCol.push(d);
-              leftH = newLeftH;
+              leftH = leftH === 0 ? h : newLeftH;
             } else {
-              // Left full — switch to right column
+              // Left has content and this doesn't fit — switch to right column
               useRight = true;
               rightCol.push(d);
               rightH = h;
             }
           } else {
             const newRightH = rightH + (rightH > 0 ? SONG_GAP : 0) + h;
-            if (newRightH <= PAGE_COL_HEIGHT) {
+            if (rightH === 0 || newRightH <= PAGE_COL_HEIGHT) {
               rightCol.push(d);
-              rightH = newRightH;
+              rightH = rightH === 0 ? h : newRightH;
             } else {
               // Both columns full — flush, start new page
               flushMultiPage();
@@ -255,7 +254,17 @@ export default function SetlistView() {
         const container = createPrintContainer();
         const root = createRoot(container);
 
+        const makeItems = (col) =>
+          col.map((d) => ({
+            song: d.slot.song,
+            semitones: d.shapeSemitones,
+            targetKey: d.shapeKey,
+            keyLabel: d.keyLabel,
+            songNumber: d.globalIdx + 1,
+          }));
+
         if (page.type === "single") {
+          // Wide-line songs always render full-width with internal 2-col if needed
           const d = page.data;
           root.render(
             <PrintableSongSheet
@@ -266,15 +275,20 @@ export default function SetlistView() {
               songNumber={d.globalIdx + 1}
             />,
           );
+        } else if (page.left.length === 1 && page.right.length === 0) {
+          // Single narrow song alone on page — use PrintableSongSheet for internal
+          // 2-col splitting if song is very long (> 45 non-blank lines)
+          const d = page.left[0];
+          root.render(
+            <PrintableSongSheet
+              song={d.slot.song}
+              semitones={d.shapeSemitones}
+              targetKey={d.shapeKey}
+              keyLabel={d.keyLabel}
+              songNumber={d.globalIdx + 1}
+            />,
+          );
         } else {
-          const makeItems = (col) =>
-            col.map((d) => ({
-              song: d.slot.song,
-              semitones: d.shapeSemitones,
-              targetKey: d.shapeKey,
-              keyLabel: d.keyLabel,
-              songNumber: d.globalIdx + 1,
-            }));
           root.render(
             <MultiSongPage
               leftColumn={makeItems(page.left)}
