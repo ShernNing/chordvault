@@ -37,9 +37,15 @@ export function cleanSongTitle(title) {
 
 export function normalizeSectionHeader(text) {
   const trimmed = text.trim()
-  const inner = trimmed.startsWith('[') && trimmed.endsWith(']')
+  let inner = trimmed.startsWith('[') && trimmed.endsWith(']')
     ? trimmed.slice(1, -1).trim()
     : trimmed.replace(/:$/, '').trim()
+
+  // "1st Verse" → "Verse 1", "2nd Chorus" → "Chorus 2"
+  const ordinalMatch = inner.match(/^(\d+)(?:st|nd|rd|th)\s+(.+)$/i)
+  if (ordinalMatch) {
+    inner = `${ordinalMatch[2]} ${ordinalMatch[1]}`
+  }
 
   const lower = inner.toLowerCase()
   const numMatch = lower.match(/^(.+?)\s*(\d+)$/)
@@ -68,6 +74,7 @@ function isSectionHeader(line) {
   const trimmed = line.trim()
   if (/^\[.+\]$/.test(trimmed)) return true
   if (/^(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda)\s*\d*:?\s*$/i.test(trimmed)) return true
+  if (/^\d+(?:st|nd|rd|th)\s+(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda):?\s*$/i.test(trimmed)) return true
   return false
 }
 
