@@ -34,7 +34,8 @@ import { useSetlist, useSongs } from "../lib/hooks";
 import { transposeKey, getCapoDisplay, ALL_KEYS, semitonesFromKeyToKey } from "../lib/transposition";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSetlistToDocx } from "../lib/docxExport";
-import SongRenderer, { PrintableSongSheet, MultiSongPage, SingleSongForColumn } from "../components/song/SongRenderer";
+import { PrintableSongSheet, MultiSongPage, SingleSongForColumn } from "../components/song/SongRenderer";
+import SetlistFullEditor from "../components/setlist/SetlistFullEditor";
 import {
   Button,
   Input,
@@ -138,7 +139,7 @@ export default function SetlistView() {
     (song) => !slots.some((slot) => slot.song_id === song.id),
   );
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = async (slotsOverride) => {
     setExporting(true);
     try {
       const { createRoot } = await import("react-dom/client");
@@ -146,12 +147,13 @@ export default function SetlistView() {
       const { semitonesFromKeyToKey } = await import("../lib/transposition");
       const containers = [];
       const roots = [];
+      const exportSlots = slotsOverride || slots;
 
       const PAGE_COL_HEIGHT = 1087; // A4 (1123px) minus 12px top + 24px bottom padding
       const SONG_GAP = 16;          // vertical gap between songs in same column
 
       // Step 1: compute key/semitone data
-      const rawSlotData = slots
+      const rawSlotData = exportSlots
         .filter((slot) => slot.song)
         .map((slot, globalIdx) => {
           const semitones =
@@ -323,11 +325,12 @@ export default function SetlistView() {
     }
   };
 
-  const handleExportDocx = async () => {
+  const handleExportDocx = async (slotsOverride) => {
     setExportingDocx(true);
     try {
       const { semitonesFromKeyToKey } = await import("../lib/transposition");
-      await exportSetlistToDocx(setlist.name, slots.filter(s => s.song), (slot) => {
+      const exportSlots = slotsOverride || slots;
+      await exportSetlistToDocx(setlist.name, exportSlots.filter(s => s.song), (slot) => {
         const semitones = slot.chosen_key && slot.song.original_key
           ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
           : 0;
@@ -565,7 +568,7 @@ export default function SetlistView() {
       </div>
 
       {previewOpen && (
-        <SetlistPreviewModal
+        <SetlistFullEditor
           setlist={setlist}
           slots={slots}
           onClose={() => setPreviewOpen(false)}
@@ -738,173 +741,3 @@ function SortableSlot({ slot, index, onRemove, onUpdateSlot }) {
   );
 }
 
-// ─── Setlist Preview Modal ──────────────────────────────────────────────────
-
-function SetlistPreviewModal({
-  setlist,
-  slots,
-  onClose,
-  onReorder,
-  handleExportPDF,
-  handleExportDocx,
-  exporting,
-  exportingDocx,
-}) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const slotIds = slots.map((s) => s.id);
-
-  const handleDragEnd = async (event) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = slots.findIndex((s) => s.id === active.id);
-    const newIndex = slots.findIndex((s) => s.id === over.id);
-    const newOrder = arrayMove(slots, oldIndex, newIndex);
-    await onReorder(newOrder.map((s) => s.id));
-  };
-
-  return (
-    <div className='fixed inset-0 z-50 flex flex-col bg-[var(--color-bg)]'>
-      {/* Top bar */}
-      <div className='flex items-center justify-between gap-4 px-5 py-3 border-b border-[var(--color-border)] shrink-0 bg-[var(--color-bg-warm)]'>
-        <div className='flex items-center gap-3'>
-          <Button variant='ghost' size='icon-sm' onClick={onClose} title='Close preview'>
-            <X size={15} />
-          </Button>
-          <h2 className='font-display text-lg text-[var(--color-ink)] truncate'>
-            {setlist.name}
-          </h2>
-          <span className='text-xs text-[var(--color-ink-muted)]'>
-            {slots.length} {slots.length === 1 ? "song" : "songs"}
-          </span>
-        </div>
-        <div className='flex items-center gap-2 shrink-0'>
-          <span className='text-xs text-[var(--color-ink-muted)] hidden sm:inline'>
-            Drag to reorder, then export
-          </span>
-          <Button
-            variant='secondary'
-            size='sm'
-            onClick={handleExportPDF}
-            loading={exporting}
-          >
-            <FileDown size={13} /> Export PDF
-          </Button>
-          <Button
-            variant='secondary'
-            size='sm'
-            onClick={handleExportDocx}
-            loading={exportingDocx}
-          >
-            <FileDown size={13} /> Export Word
-          </Button>
-        </div>
-      </div>
-
-      {/* Song list */}
-      <div className='flex-1 overflow-y-auto'>
-        <div className='max-w-3xl mx-auto py-6 px-4 space-y-4'>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={slotIds} strategy={verticalListSortingStrategy}>
-              {slots.map((slot, index) => (
-                <PreviewSongCard key={slot.id} slot={slot} index={index} />
-              ))}
-            </SortableContext>
-          </DndContext>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Preview Song Card ──────────────────────────────────────────────────────
-
-function PreviewSongCard({ slot, index }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: slot.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 50 : undefined,
-  };
-
-  const displayKey = slot.chosen_key || slot.song?.original_key;
-  const semitones =
-    slot.chosen_key && slot.song?.original_key
-      ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
-      : 0;
-  const capo = slot.capo || 0;
-  const shapeSemitones = semitones - capo;
-  const shapeKey = capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
-  const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`
-        border border-[var(--color-border)] rounded-lg bg-[var(--color-bg)] overflow-hidden
-        transition-shadow
-        ${isDragging ? "shadow-xl opacity-90" : "hover:border-[var(--color-ink-muted)]"}
-      `}
-    >
-      {/* Card header */}
-      <div className='flex items-center gap-3 px-4 py-3 bg-[var(--color-bg-warm)] border-b border-[var(--color-border)]'>
-        <span className='text-xs font-mono text-[var(--color-ink-muted)] w-5 text-center shrink-0'>
-          {index + 1}
-        </span>
-        <button
-          className='text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] cursor-grab active:cursor-grabbing touch-none shrink-0'
-          title='Drag to reorder'
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical size={15} />
-        </button>
-        <div className='flex-1 min-w-0'>
-          <span className='text-sm font-semibold text-[var(--color-ink)] truncate block'>
-            {slot.song?.title || "Unknown song"}
-          </span>
-          {slot.song?.artist && (
-            <span className='text-[10px] text-[var(--color-ink-muted)]'>
-              {slot.song.artist}
-            </span>
-          )}
-        </div>
-        {keyLabel && (
-          <Badge variant='key' className='shrink-0'>{keyLabel}</Badge>
-        )}
-      </div>
-
-      {/* Song content */}
-      {slot.song?.parsed_content ? (
-        <div className='px-6 py-4'>
-          <SongRenderer
-            parsedContent={slot.song.parsed_content}
-            semitones={shapeSemitones}
-            targetKey={shapeKey}
-            twoColumn={false}
-          />
-        </div>
-      ) : (
-        <div className='px-6 py-4 text-xs text-[var(--color-ink-muted)] italic'>
-          No content available.
-        </div>
-      )}
-    </div>
-  );
-}
