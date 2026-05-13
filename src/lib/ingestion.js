@@ -130,8 +130,11 @@ export function parseRawContent(rawText) {
   const rawLines = rawText.split('\n')
   const parsedLines = []
   for (let i = 0; i < rawLines.length; i++) {
-    // Strip bar separators: "E | B | A | D" → "E  B  A  D"
-    const line = rawLines[i].includes('|') ? rawLines[i].replace(/\s*\|\s*/g, '  ') : rawLines[i]
+    // Strip bar separators and beat-divider slashes: "| Eb / / / | Eb / / / |" → "Eb Eb"
+    // Lookahead for trailing space so consecutive " / / /" all get matched; preserves G/B slash chords
+    const line = rawLines[i].includes('|')
+      ? rawLines[i].replace(/\s*\|\s*/g, '  ').replace(/(^|\s)\/(?=\s|$)/g, '$1').trim()
+      : rawLines[i]
 
     // Detect inline section+chord: "Intro A", "intro - a", "Verse 1: C G Am"
     const inlineSec = INLINE_SECTION_RE.exec(line)
