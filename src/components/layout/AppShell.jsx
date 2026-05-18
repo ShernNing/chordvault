@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   Music2, ListMusic, LayoutGrid, Plus, Moon, Sun,
   Zap, Wifi, WifiOff, Menu, X, FileUp,
-  CloudOff, LogIn, LogOut, User
+  CloudOff, LogIn, LogOut, User, ExternalLink
 } from 'lucide-react'
 import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
@@ -156,7 +156,29 @@ export default function AppShell({ children }) {
       {/* ── Footer ────────────────────────────────────────────────── */}
       <footer className="border-t border-[var(--color-border)] py-3 px-4 no-print">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <span className="text-xs text-[var(--color-ink-muted)] font-mono">ChordVault</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-[var(--color-ink-muted)] font-mono">ChordVault</span>
+            <div className="hidden sm:flex items-center gap-3">
+              <span className="text-[var(--color-border)] text-xs">·</span>
+              {[
+                { label: 'Workout Tracker', href: 'https://workouttracker-xi.vercel.app' },
+                { label: 'Transpose Me', href: 'https://transposeme.vercel.app/' },
+              ].map(({ label, href }) => (
+                <a
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors"
+                >
+                  {label}
+                  <ExternalLink size={9} className="opacity-50" />
+                </a>
+              ))}
+              <span className="text-[var(--color-border)] text-xs">·</span>
+              <span className="text-xs text-[var(--color-ink-muted)]">© {new Date().getFullYear()} Shern Ning</span>
+            </div>
+          </div>
           <span className={`flex items-center gap-1 text-xs ${
             !isLoggedIn ? 'text-[var(--color-ink-muted)]'
             : isOnline ? 'text-green-600 dark:text-green-400'
