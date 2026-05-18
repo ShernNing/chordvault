@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Music2, ListMusic, LayoutGrid, Plus, Moon, Sun,
   Zap, Wifi, WifiOff, Menu, X, FileUp,
-  CloudOff, LogIn, LogOut, User, ExternalLink
+  CloudOff, LogIn, LogOut, User, ExternalLink, ArrowUp
 } from 'lucide-react'
 import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
@@ -25,6 +25,13 @@ export default function AppShell({ children }) {
   const { isLoggedIn, email } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
+  const [showScrollTop, setShowScrollTop] = useState(false)
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 400)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const handleLogout = async () => {
     await supabase?.auth.signOut()
@@ -196,6 +203,25 @@ export default function AppShell({ children }) {
 
       {/* ── Auth Modal ────────────────────────────────────────────── */}
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+
+      {/* ── Scroll To Top ─────────────────────────────────────────── */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        title="Back to top"
+        className={`
+          fixed bottom-6 right-6 z-50 no-print
+          h-9 w-9 rounded-full
+          bg-[var(--color-ink)] text-[var(--color-bg)]
+          border border-[var(--color-border)]
+          flex items-center justify-center
+          shadow-md hover:opacity-80 active:scale-95
+          transition-all duration-200
+          ${showScrollTop ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'}
+        `}
+        aria-hidden={!showScrollTop}
+      >
+        <ArrowUp size={15} />
+      </button>
     </div>
   )
 }
