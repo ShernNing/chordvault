@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useCallback, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X, Search } from 'lucide-react'
 import { useSongs } from '../lib/hooks'
 import { supabaseSongOps } from '../lib/supabaseOps'
@@ -11,16 +11,18 @@ import ConflictCard from '../components/song/ConflictCard'
 
 export default function NewSong() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { createSong } = useSongs()
 
-  const [title, setTitle] = useState('')
-  const [artist, setArtist] = useState('')
+  const [title, setTitle] = useState(searchParams.get('title') || '')
+  const [artist, setArtist] = useState(searchParams.get('artist') || '')
   const [tags, setTags] = useState([])
-  const [rawContent, setRawContent] = useState('')
+  const [rawContent, setRawContent] = useState(searchParams.get('content') || '')
   const [showPreview, setShowPreview] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [conflict, setConflict] = useState(null) // { importedSong, existingSong, resolution, newTitle, incomingEdits, existingEdits }
+  const fromTransposeMe = !!(searchParams.get('title') || searchParams.get('content'))
   const [titleAutoDetected, setTitleAutoDetected] = useState(false)
   const [artistAutoDetected, setArtistAutoDetected] = useState(false)
   const [lookingUpArtist, setLookingUpArtist] = useState(false)
@@ -216,6 +218,13 @@ export default function NewSong() {
           <Save size={14} /> Save song
         </Button>
       </div>
+
+      {fromTransposeMe && (
+        <div className="flex items-center gap-2 p-3 border border-blue-200 bg-blue-50 rounded text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300">
+          <CheckCircle size={14} />
+          Pre-filled from TransposeMe — review and save.
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 p-3 border border-red-200 bg-red-50 rounded text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
