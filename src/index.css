@@ -144,6 +144,27 @@ body {
   line-height: var(--lyric-line-height);
 }
 
+/* Inline chord-name button — click to open voicings drawer */
+.chord-token-btn {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0 1px;
+  margin: 0;
+  cursor: pointer;
+  line-height: inherit;
+  border-radius: 2px;
+  transition: background-color 0.12s, outline-color 0.12s;
+  vertical-align: baseline;
+}
+.chord-token-btn:hover,
+.chord-token-btn:focus-visible {
+  background-color: var(--color-accent-soft);
+  outline: 1px solid var(--color-accent);
+  outline-offset: 0;
+}
+
 /* Uncertain classification highlight */
 .chord-sheet .uncertain-line {
   background-color: #FEF3C7;

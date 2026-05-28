@@ -143,6 +143,27 @@ export function estimateSongPrintHeight(parsedContent) {
 
 // ─── SongRenderer ────────────────────────────────────────────────────────────
 
+// Render chord-line text. When `onChordClick` is supplied, each chord token is
+// rendered as a clickable button — used to open the voicings drawer.
+function renderChordTextInline(line, onChordClick) {
+  if (!line) return ''
+  if (!line.tokens || !onChordClick) {
+    return line.tokens
+      ? line.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('')
+      : (line.raw || '')
+  }
+  return line.tokens.map((t, i) => (
+    <React.Fragment key={i}>
+      {' '.repeat(t.leadingSpaces || 0)}
+      <button
+        type="button"
+        className="chord-token-btn"
+        onClick={() => onChordClick(t.text)}
+      >{t.text}</button>
+    </React.Fragment>
+  ))
+}
+
 export default function SongRenderer({
   parsedContent,
   semitones = 0,
@@ -150,6 +171,7 @@ export default function SongRenderer({
   twoColumn = false,
   printMode = false,
   onLineTypeOverride = null,
+  onChordClick = null,
   fontSize = 14,
 }) {
   const [overrides, setOverrides] = useState({})
@@ -216,12 +238,10 @@ export default function SongRenderer({
   const renderGroup = (group) => {
     if (group.type === 'pair') {
       const { chord, lyric, chordIndex } = group
-      const chordText = chord.tokens
-        ? chord.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('')
-        : (chord.raw || '')
+      const chordContent = renderChordTextInline(chord, !printMode ? onChordClick : null)
       return (
         <div key={getKey(group)} className={`chord-lyric-pair ${chord.uncertain ? 'uncertain-line' : ''}`}>
-          <span className="chord-line">{chordText}</span>
+          <span className="chord-line">{chordContent}</span>
           <span className="lyric-line">{lyric.text}</span>
           {chord.uncertain && !printMode && onLineTypeOverride && (
             <UncertainOverlay
@@ -240,6 +260,7 @@ export default function SongRenderer({
         index={group.index}
         printMode={printMode}
         onOverride={onLineTypeOverride ? handleOverride : null}
+        onChordClick={!printMode ? onChordClick : null}
       />
     )
   }
@@ -273,7 +294,7 @@ export default function SongRenderer({
   )
 }
 
-function RenderLine({ line, index, printMode, onOverride }) {
+function RenderLine({ line, index, printMode, onOverride, onChordClick }) {
   switch (line.type) {
     case 'section_header':
       return (
@@ -290,6 +311,7 @@ function RenderLine({ line, index, printMode, onOverride }) {
           index={index}
           printMode={printMode}
           onOverride={onOverride}
+          onChordClick={onChordClick}
         />
       )
 
@@ -323,17 +345,12 @@ function RenderLine({ line, index, printMode, onOverride }) {
   }
 }
 
-function ChordLineRender({ line, index, printMode, onOverride }) {
-  const chordText = line.tokens
-    ? line.tokens.map(t => {
-        const spaces = ' '.repeat(t.leadingSpaces || 0)
-        return spaces + t.text
-      }).join('')
-    : (line.raw || '')
+function ChordLineRender({ line, index, printMode, onOverride, onChordClick }) {
+  const chordContent = renderChordTextInline(line, !printMode ? onChordClick : null)
 
   return (
     <div className={`chord-lyric-pair ${line.uncertain ? 'uncertain-line' : ''}`}>
-      <span className="chord-line">{chordText}</span>
+      <span className="chord-line">{chordContent}</span>
       {line.uncertain && !printMode && onOverride && (
         <UncertainOverlay
           label="Chord line?"

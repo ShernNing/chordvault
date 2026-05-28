@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   Music2, ListMusic, LayoutGrid, Plus, Moon, Sun,
   Zap, Wifi, WifiOff, Menu, X, FileUp,
-  CloudOff, LogIn, LogOut, User, ExternalLink, ArrowUp
+  CloudOff, LogIn, LogOut, User, ExternalLink, ArrowUp, Guitar
 } from 'lucide-react'
 import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: '/songs/new', label: 'Add Song', icon: Plus },
   { to: '/import', label: 'Import', icon: FileUp },
   { to: '/setlists', label: 'Setlists', icon: ListMusic },
+  { to: '/voicings', label: 'Chord Voicings', icon: Guitar },
 ]
 
 export default function AppShell({ children }) {

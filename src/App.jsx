@@ -8,6 +8,7 @@ import SongView from './views/SongView'
 import Setlists from './views/Setlists'
 import SetlistView from './views/SetlistView'
 import ImportView from './views/ImportView'
+import ChordVoicings from './views/ChordVoicings'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/setlists" element={<Setlists />} />
           <Route path="/setlists/:id" element={<SetlistView />} />
           <Route path="/import" element={<ImportView />} />
+          <Route path="/voicings" element={<ChordVoicings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>

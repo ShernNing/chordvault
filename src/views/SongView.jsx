@@ -17,6 +17,7 @@ import {
   Type,
   KeyRound,
   ListMusic,
+  Guitar,
 } from "lucide-react";
 import { useSong, useLocalStorage, useDisplaySettings, useSetlists, FONT_OPTIONS } from "../lib/hooks";
 import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
@@ -42,6 +43,8 @@ import SongRenderer, {
   PrintableSongSheet,
 } from "../components/song/SongRenderer";
 import TransposeControls from "../components/song/TransposeControls";
+import VoicingDrawer from "../components/voicings/VoicingDrawer";
+import SongVoicingsPanel from "../components/voicings/SongVoicingsPanel";
 
 export default function SongView() {
   const { id } = useParams();
@@ -70,6 +73,8 @@ export default function SongView() {
   const [copied, setCopied] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
   const [showFontPanel, setShowFontPanel] = useState(false);
+  const [activeVoicingChord, setActiveVoicingChord] = useState(null);
+  const [showVoicingsPanel, setShowVoicingsPanel] = useState(false);
 
   const printRef = useRef(null);
 
@@ -328,6 +333,16 @@ export default function SongView() {
               <ListMusic size={14} />
             </Button>
           </Tooltip>
+          <Tooltip content='Show chord voicings for this song'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setShowVoicingsPanel(true)}
+              title='Chord voicings'
+            >
+              <Guitar size={14} />
+            </Button>
+          </Tooltip>
           <Tooltip content='Edit song'>
             <Button
               variant='ghost'
@@ -444,7 +459,21 @@ export default function SongView() {
         fontSize={fontSize}
         onReload={reload}
         onLineTypeOverride={handleLineTypeOverride}
+        onChordClick={setActiveVoicingChord}
       />
+
+      <VoicingDrawer
+        chord={activeVoicingChord}
+        onClose={() => setActiveVoicingChord(null)}
+      />
+      {showVoicingsPanel && (
+        <SongVoicingsPanel
+          song={song}
+          semitones={shapeSemitones}
+          targetKey={shapeKey}
+          onClose={() => setShowVoicingsPanel(false)}
+        />
+      )}
 
       {/* ── Add to Setlist Modal ──────────────────────────────────── */}
       <Modal
@@ -716,6 +745,7 @@ function ChordSheetPage({
   fontSize = 14,
   onReload,
   onLineTypeOverride,
+  onChordClick,
 }) {
   const measureRef = React.useRef(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -770,6 +800,7 @@ function ChordSheetPage({
           twoColumn={effectiveTwoCol}
           fontSize={fontSize}
           onLineTypeOverride={onLineTypeOverride}
+          onChordClick={onChordClick}
         />
       </div>
 
