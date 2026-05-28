@@ -178,7 +178,7 @@ export default function ElectricGuitarNotesPanel({ song, semitones = 0, displayK
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40 no-print" onClick={onClose} />
+      <div className="fixed inset-0 z-[45] bg-black/40 no-print" onClick={onClose} />
       <aside className="fixed top-0 right-0 bottom-0 z-50 w-full sm:w-[460px] bg-[var(--color-bg)] border-l border-[var(--color-border)] shadow-2xl no-print flex flex-col">
         <header className="flex items-center justify-between gap-3 px-4 h-12 border-b border-[var(--color-border)] shrink-0">
           <div className="flex items-center gap-2 min-w-0">

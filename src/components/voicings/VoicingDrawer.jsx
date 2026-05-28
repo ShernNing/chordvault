@@ -55,7 +55,7 @@ export default function VoicingDrawer({ chord, onClose, displayMode = 'both', pr
     <>
       <div
         className={`
-          fixed inset-0 z-40 bg-black/30 transition-opacity duration-200 no-print
+          fixed inset-0 z-[45] bg-black/30 transition-opacity duration-200 no-print
           ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
         `}
         onClick={onClose}

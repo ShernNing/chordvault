@@ -102,7 +102,7 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40 no-print" onClick={onClose} />
+      <div className="fixed inset-0 z-[45] bg-black/40 no-print" onClick={onClose} />
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-bg)] border-t border-[var(--color-border)] shadow-2xl no-print max-h-[85vh] flex flex-col">
         <header className="flex items-center justify-between gap-3 px-4 h-12 border-b border-[var(--color-border)] shrink-0">
           <div className="flex items-center gap-2 min-w-0">
