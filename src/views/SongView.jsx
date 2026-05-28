@@ -18,10 +18,12 @@ import {
   KeyRound,
   ListMusic,
   Guitar,
+  Zap,
 } from "lucide-react";
 import { useSong, useLocalStorage, useDisplaySettings, useSetlists, FONT_OPTIONS } from "../lib/hooks";
 import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
-import { transposeKey, getCapoDisplay, getCapoShapeKey, transposeParsedContent } from "../lib/transposition";
+import { transposeKey, getCapoDisplay, getCapoShapeKey, transposeParsedContent, transposeChord } from "../lib/transposition";
+import { bestTransposeFrets } from "../lib/voicings/transpose";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
 import { ingest, tokenizeChordLine } from "../lib/ingestion";
@@ -45,6 +47,7 @@ import SongRenderer, {
 import TransposeControls from "../components/song/TransposeControls";
 import VoicingDrawer from "../components/voicings/VoicingDrawer";
 import SongVoicingsPanel from "../components/voicings/SongVoicingsPanel";
+import ElectricGuitarNotesPanel from "../components/song/ElectricGuitarNotesPanel";
 
 export default function SongView() {
   const { id } = useParams();
@@ -75,6 +78,7 @@ export default function SongView() {
   const [showFontPanel, setShowFontPanel] = useState(false);
   const [activeVoicingChord, setActiveVoicingChord] = useState(null);
   const [showVoicingsPanel, setShowVoicingsPanel] = useState(false);
+  const [showElectricPanel, setShowElectricPanel] = useState(false);
 
   const printRef = useRef(null);
 
@@ -107,7 +111,28 @@ export default function SongView() {
         if (line.type === 'blank') return '';
         return line.text ?? '';
       }).join('\n');
-      await update({ original_key: displayKey, raw_content: rebuiltRaw });
+      const updates = { original_key: displayKey, raw_content: rebuiltRaw };
+      if (song.electric_guitar_notes?.length) {
+        updates.electric_guitar_notes = song.electric_guitar_notes.map(e => {
+          if (e.type === 'lick') {
+            return {
+              ...e,
+              notes: (e.notes || []).map(n => {
+                let f = n.fret + transpose.semitones;
+                while (f < 0) f += 12;
+                while (f > 24) f -= 12;
+                return { string: n.string, fret: f };
+              }),
+            };
+          }
+          return {
+            ...e,
+            chord: transposeChord(e.chord, transpose.semitones, displayKey),
+            frets: bestTransposeFrets(e.frets, transpose.semitones) || e.frets,
+          };
+        });
+      }
+      await update(updates);
       setTranspose({ semitones: 0, capo: transpose.capo });
     } finally {
       setSavingKey(false);
@@ -343,6 +368,16 @@ export default function SongView() {
               <Guitar size={14} />
             </Button>
           </Tooltip>
+          <Tooltip content='Electric guitar voicing notes'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setShowElectricPanel(true)}
+              title='Electric guitar voicings'
+            >
+              <Zap size={14} />
+            </Button>
+          </Tooltip>
           <Tooltip content='Edit song'>
             <Button
               variant='ghost'
@@ -472,6 +507,23 @@ export default function SongView() {
           semitones={shapeSemitones}
           targetKey={shapeKey}
           onClose={() => setShowVoicingsPanel(false)}
+        />
+      )}
+      {showElectricPanel && (
+        <ElectricGuitarNotesPanel
+          song={song}
+          semitones={transpose.semitones}
+          displayKey={displayKey}
+          onSave={async (entries) => {
+            try {
+              await update({ electric_guitar_notes: entries });
+            } catch (e) {
+              console.error('Failed to save electric guitar notes:', e);
+              alert(`Save failed: ${e.message || e}\n\nIf this mentions "electric_guitar_notes" column, run this SQL in Supabase:\n\nALTER TABLE songs ADD COLUMN electric_guitar_notes jsonb DEFAULT '[]'::jsonb;`);
+              throw e;
+            }
+          }}
+          onClose={() => setShowElectricPanel(false)}
         />
       )}
 
