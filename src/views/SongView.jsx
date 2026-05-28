@@ -115,13 +115,19 @@ export default function SongView() {
       if (song.electric_guitar_notes?.length) {
         updates.electric_guitar_notes = song.electric_guitar_notes.map(e => {
           if (e.type === 'lick') {
+            const shift = (f) => {
+              let r = f + transpose.semitones;
+              while (r < 0) r += 12;
+              while (r > 24) r -= 12;
+              return r;
+            };
             return {
               ...e,
               notes: (e.notes || []).map(n => {
-                let f = n.fret + transpose.semitones;
-                while (f < 0) f += 12;
-                while (f > 24) f -= 12;
-                return { string: n.string, fret: f };
+                const out = { string: n.string, fret: shift(n.fret) };
+                if (n.slideTo != null) out.slideTo = shift(n.slideTo);
+                if (n.bend != null) out.bend = n.bend;
+                return out;
               }),
             };
           }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { X, Plus, Trash2, Edit3, Check, Zap } from 'lucide-react'
 import FretboardDiagram from '../voicings/FretboardDiagram'
 import { voicingsForChord } from '../../lib/voicings/lookup'
@@ -9,7 +9,9 @@ import { Button, Input } from '../ui'
 // Entries stored in song.original_key reference frame.
 // Two entry types:
 //   chord: { id, type:'chord', chord, frets:[6], label }
-//   lick:  { id, type:'lick', notes:[{string,fret}], label } — string 0=low E, 5=high e
+//   lick:  { id, type:'lick', notes:[{string,fret,slideTo?,bend?}], label } — string 0=low E, 5=high e
+//     slideTo: target fret (slide from fret → slideTo on same string)
+//     bend:    semitones bent up (1 = half, 2 = full, 3 = 1½)
 // `semitones` shifts both for live display only.
 
 const STRING_LABELS = ['E', 'A', 'D', 'G', 'B', 'e']
@@ -58,14 +60,21 @@ function transposeChordEntry(e, semitones, displayKey) {
   }
 }
 
+function shiftFret(f, semitones) {
+  let r = f + semitones
+  while (r < 0) r += 12
+  while (r > MAX_FRET_INPUT) r -= 12
+  return r
+}
+
 function transposeLickEntry(e, semitones) {
   return {
     ...e,
     notes: (e.notes || []).map(n => {
-      let f = n.fret + semitones
-      while (f < 0) f += 12
-      while (f > MAX_FRET_INPUT) f -= 12
-      return { string: n.string, fret: f }
+      const out = { string: n.string, fret: shiftFret(n.fret, semitones) }
+      if (n.slideTo != null) out.slideTo = shiftFret(n.slideTo, semitones)
+      if (n.bend != null) out.bend = n.bend
+      return out
     }),
   }
 }
@@ -411,48 +420,77 @@ function ChordEditor({ draft, setDraft }) {
 // ─── Click-grid voicing builder ───────────────────────────────────────────
 
 function VoicingGrid({ frets, onSetFret }) {
-  const cellBase = 'border border-[var(--color-border)] rounded flex items-center justify-center cursor-pointer transition-colors text-xs font-mono select-none'
+  const cellH = 18
+  const labelW = 18
+  const cellBase = 'border border-[var(--color-border)] rounded flex items-center justify-center cursor-pointer transition-colors text-[10px] font-mono select-none'
   const activeCell = 'bg-[var(--color-ink)] text-white border-[var(--color-ink)]'
   const idleCell = 'bg-[var(--color-bg)] hover:bg-[var(--color-bg-warm)] text-[var(--color-ink-soft)]'
+  const markerFret = (f) => FRET_MARKER_SINGLE.has(f) || FRET_MARKER_DOUBLE.has(f)
 
-  const Cell = ({ stringIdx, value, children }) => {
+  const Cell = ({ stringIdx, value, label, isMarker }) => {
     const active = frets[stringIdx] === value
     return (
       <button
         type="button"
         onClick={() => onSetFret(stringIdx, active ? null : value)}
-        className={`${cellBase} ${active ? activeCell : idleCell} aspect-square w-full`}
-      >{children}</button>
+        className={`${cellBase} ${active ? activeCell : idleCell} w-full relative`}
+        style={{ height: cellH }}
+      >
+        {isMarker && !active && (
+          <span className="absolute rounded-full bg-[var(--color-ink-soft)] opacity-15 pointer-events-none" style={{ width: 5, height: 5 }} />
+        )}
+        <span className={active ? '' : 'opacity-60'}>{label}</span>
+      </button>
     )
   }
+
+  const RowLabel = ({ children, bold }) => (
+    <div
+      style={{ width: labelW, height: cellH }}
+      className={`flex items-center justify-center text-[10px] font-mono text-[var(--color-ink-muted)] ${bold ? 'font-bold text-[var(--color-ink-soft)]' : ''}`}
+    >{children}</div>
+  )
+
+  const StringRow = ({ value, displayLabel, isMarker }) => (
+    <>
+      <RowLabel>{displayLabel}</RowLabel>
+      {STRING_LABELS.map((_, i) => (
+        <Cell
+          key={`${value}-${i}`}
+          stringIdx={i}
+          value={value}
+          label={frets[i] === value ? (value == null ? '×' : value === 0 ? 'O' : value) : (value == null ? '×' : value === 0 ? 'O' : '')}
+          isMarker={isMarker}
+        />
+      ))}
+    </>
+  )
 
   return (
     <div>
       <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wide block mb-1">
         Build voicing — click cell to set fret per string
       </span>
-      <div className="grid grid-cols-6 gap-1">
+      <div
+        className="grid gap-0.5"
+        style={{ gridTemplateColumns: `${labelW}px repeat(6, minmax(0, 1fr))` }}
+      >
+        {/* header: blank + string labels */}
+        <RowLabel />
+        {STRING_LABELS.map((label, i) => (
+          <div key={`hdr-${i}`} className="text-center text-[10px] font-mono font-bold text-[var(--color-ink-soft)]" style={{ height: cellH, lineHeight: `${cellH}px` }}>{label}</div>
+        ))}
         {/* mute row */}
-        {STRING_LABELS.map((_, i) => (
-          <Cell key={`x-${i}`} stringIdx={i} value={null}>×</Cell>
-        ))}
+        <StringRow value={null} displayLabel="×" />
         {/* open row */}
-        {STRING_LABELS.map((_, i) => (
-          <Cell key={`o-${i}`} stringIdx={i} value={0}>O</Cell>
-        ))}
+        <StringRow value={0} displayLabel="0" />
         {/* fret rows */}
         {Array.from({ length: GRID_FRETS }, (_, fIdx) => {
           const f = fIdx + 1
-          return STRING_LABELS.map((_, i) => (
-            <Cell key={`f${f}-${i}`} stringIdx={i} value={f}>
-              <span className="text-[10px] opacity-60">{frets[i] === f ? f : ''}</span>
-            </Cell>
-          ))
+          return (
+            <StringRow key={`fr-${f}`} value={f} displayLabel={f} isMarker={markerFret(f)} />
+          )
         })}
-        {/* string labels */}
-        {STRING_LABELS.map((label, i) => (
-          <div key={`l-${i}`} className="text-center text-[10px] font-mono text-[var(--color-ink-muted)]">{label}</div>
-        ))}
       </div>
     </div>
   )
@@ -462,33 +500,57 @@ function VoicingGrid({ frets, onSetFret }) {
 
 // Parse free-text lick: letters E/A/D/G/B/e set current string. Numbers add notes.
 // "G 4 6 8 9 B 5 7" → string G frets 4,6,8,9 then string B frets 5,7.
-// Also accepts "G:4 B:5" pair form.
+// Pair form "G:4". Slide "5/7" (up) or "7\5" (down). Bend "5b2" or "5b" (full=2).
+const VALUE_RE = /^(\d+)(?:([/\\])(\d+)|b(\d*))?$/
+
+function parseValuePart(s) {
+  const m = s.match(VALUE_RE)
+  if (!m) return null
+  const fret = parseInt(m[1], 10)
+  if (fret < 0 || fret > MAX_FRET_INPUT) return null
+  if (m[2]) {
+    const to = parseInt(m[3], 10)
+    if (to < 0 || to > MAX_FRET_INPUT || to === fret) return { fret }
+    return { fret, slideTo: to }
+  }
+  if (m[4] !== undefined) {
+    const bend = m[4] === '' ? 2 : parseInt(m[4], 10)
+    if (bend < 1 || bend > 4) return null
+    return { fret, bend }
+  }
+  return { fret }
+}
+
 function parseLickText(text) {
   if (!text) return []
   const notes = []
   let currentString = 5 // default high e
   const tokens = text.replace(/[,;]/g, ' ').split(/\s+/).filter(Boolean)
-  const pairRe = new RegExp(`^(${STRING_LETTER_RE}):?(\\d+)$`)
+  const pairRe = new RegExp(`^(${STRING_LETTER_RE}):?(.+)$`)
   const letterRe = new RegExp(`^${STRING_LETTER_RE}$`)
   for (const tok of tokens) {
-    if (pairRe.test(tok)) {
-      const m = tok.match(pairRe)
-      const s = STRING_INDEX[m[1]]
-      const f = parseInt(m[2], 10)
-      if (s != null && f >= 0 && f <= MAX_FRET_INPUT) notes.push({ string: s, fret: f })
-      continue
-    }
     if (letterRe.test(tok)) {
       currentString = STRING_INDEX[tok]
       continue
     }
-    if (/^\d+$/.test(tok)) {
-      const f = parseInt(tok, 10)
-      if (f >= 0 && f <= MAX_FRET_INPUT) notes.push({ string: currentString, fret: f })
-      continue
+    let s = currentString
+    let val = tok
+    const pm = tok.match(pairRe)
+    if (pm && STRING_INDEX[pm[1]] != null && /^\d/.test(pm[2])) {
+      s = STRING_INDEX[pm[1]]
+      val = pm[2]
+      currentString = s
     }
+    const parsed = parseValuePart(val)
+    if (parsed) notes.push({ string: s, ...parsed })
   }
   return notes
+}
+
+function noteValueText(n) {
+  if (n.slideTo != null) return `${n.fret}${n.slideTo > n.fret ? '/' : '\\'}${n.slideTo}`
+  if (n.bend != null) return `${n.fret}b${n.bend === 2 ? '' : n.bend}`
+  return String(n.fret)
 }
 
 function notesToText(notes) {
@@ -496,11 +558,12 @@ function notesToText(notes) {
   let out = ''
   let prevString = null
   for (const n of notes) {
+    const v = noteValueText(n)
     if (n.string !== prevString) {
-      out += (out ? ' ' : '') + STRING_LABELS[n.string] + ' ' + n.fret
+      out += (out ? ' ' : '') + STRING_LABELS[n.string] + ' ' + v
       prevString = n.string
     } else {
-      out += ' ' + n.fret
+      out += ' ' + v
     }
   }
   return out
@@ -513,6 +576,8 @@ function LickEditor({ draft, setDraft }) {
     setDraft({ ...draft, lickText: notesToText(newNotes) })
   }
   const addNote = (string, fret) => updateNotes([...notes, { string, fret }])
+  const addSlide = (string, fret, slideTo) => updateNotes([...notes, { string, fret, slideTo }])
+  const addBend = (string, fret, bend) => updateNotes([...notes, { string, fret, bend }])
   const removeAt = (idx) => updateNotes(notes.filter((_, i) => i !== idx))
   const undoLast = () => updateNotes(notes.slice(0, -1))
   const clearLick = () => setDraft({ ...draft, lickText: '' })
@@ -522,13 +587,15 @@ function LickEditor({ draft, setDraft }) {
       <FretboardClickGrid
         notes={notes}
         onAdd={addNote}
+        onAddSlide={addSlide}
+        onAddBend={addBend}
         onRemoveAt={removeAt}
         onUndo={undoLast}
       />
 
       <div>
         <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wide block mb-1">
-          Or type — letter (E/A/D/G/B/e) sets string, numbers = frets
+          Or type — letter sets string, numbers = frets. Slide: <code>5/7</code> or <code>7\5</code>. Bend: <code>5b</code> (full) or <code>5b1</code> (half)
         </span>
         <textarea
           value={draft.lickText || ''}
@@ -562,10 +629,16 @@ function LickEditor({ draft, setDraft }) {
 // Click cell = append note to sequence. Hover existing cell → × to remove last occurrence.
 // Undo button removes most recent in sequence.
 
-function FretboardClickGrid({ notes, onAdd, onRemoveAt, onUndo }) {
+const HEADER_H = 16
+const DRAG_PX_THRESHOLD = 6
+
+function FretboardClickGrid({ notes, onAdd, onAddSlide, onAddBend, onRemoveAt, onUndo }) {
   const cellW = 30
   const cellH = 22
   const labelW = 18
+  const gridRef = useRef(null)
+  const dragRef = useRef(null)
+  const [drag, setDrag] = useState(null) // { start:{stringIdx,fret,rowIdx}, current:{...}, kind:'slide'|'bend'|null }
 
   const occurrencesAt = useMemo(() => {
     const m = new Map()
@@ -586,17 +659,100 @@ function FretboardClickGrid({ notes, onAdd, onRemoveAt, onUndo }) {
     }
   }
 
+  function cellFromPointer(clientX, clientY) {
+    const el = gridRef.current
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const x = clientX - r.left - labelW
+    const y = clientY - r.top - HEADER_H
+    const fret = Math.floor(x / cellW)
+    const rowIdx = Math.floor(y / cellH)
+    if (fret < 0 || fret >= TOTAL_FRETS || rowIdx < 0 || rowIdx > 5) return null
+    return { stringIdx: STRING_DISPLAY_ORDER[rowIdx], fret, rowIdx, clientX, clientY }
+  }
+
+  function classifyDrag(start, current) {
+    const dxPx = current.clientX - start.clientX
+    const dyPx = current.clientY - start.clientY
+    if (Math.abs(dxPx) < DRAG_PX_THRESHOLD && Math.abs(dyPx) < DRAG_PX_THRESHOLD) return { kind: null }
+    const dFret = current.fret - start.fret
+    const dRow = current.rowIdx - start.rowIdx
+    // Bend: vertical-dominant upward drag on same start fret
+    if (dyPx < -DRAG_PX_THRESHOLD && Math.abs(dyPx) > Math.abs(dxPx)) {
+      const semi = Math.min(Math.max(-dRow, 1), 3)
+      return { kind: 'bend', semitones: semi }
+    }
+    // Slide: horizontal drag on same string
+    if (dFret !== 0 && dRow === 0) {
+      return { kind: 'slide', from: start.fret, to: current.fret, stringIdx: start.stringIdx }
+    }
+    return { kind: null }
+  }
+
+  function handlePointerDown(e) {
+    if (e.button !== 0) return
+    if (e.target.closest('[data-no-drag]')) return
+    const cell = cellFromPointer(e.clientX, e.clientY)
+    if (!cell) return
+    e.preventDefault()
+    dragRef.current = { start: cell, current: cell }
+    setDrag({ start: cell, current: cell, kind: null })
+    try { gridRef.current.setPointerCapture(e.pointerId) } catch {}
+  }
+
+  function handlePointerMove(e) {
+    if (!dragRef.current) return
+    const cell = cellFromPointer(e.clientX, e.clientY) || {
+      stringIdx: dragRef.current.start.stringIdx,
+      fret: dragRef.current.start.fret,
+      rowIdx: dragRef.current.start.rowIdx,
+      clientX: e.clientX, clientY: e.clientY,
+    }
+    dragRef.current.current = cell
+    setDrag({ ...dragRef.current, kind: classifyDrag(dragRef.current.start, cell).kind })
+  }
+
+  function handlePointerUp(e) {
+    if (!dragRef.current) return
+    const { start, current } = dragRef.current
+    const cls = classifyDrag(start, current)
+    if (cls.kind === 'slide') {
+      onAddSlide(cls.stringIdx, cls.from, cls.to)
+    } else if (cls.kind === 'bend') {
+      onAddBend(start.stringIdx, start.fret, cls.semitones)
+    } else {
+      onAdd(start.stringIdx, start.fret)
+    }
+    dragRef.current = null
+    setDrag(null)
+    try { gridRef.current.releasePointerCapture(e.pointerId) } catch {}
+  }
+
+  function handlePointerCancel() {
+    dragRef.current = null
+    setDrag(null)
+  }
+
+  // Overlay positions
+  const overlayW = TOTAL_FRETS * cellW
+  const overlayH = 6 * cellH
+  const cxOf = (fret) => fret * cellW + cellW / 2
+  const cyOf = (stringIdx) => {
+    const row = STRING_DISPLAY_ORDER.indexOf(stringIdx)
+    return row * cellH + cellH / 2
+  }
+
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wide">
-          Click frets — sequence builds in order
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wide leading-tight">
+          Click = note · drag horizontal = slide · drag up = bend
         </span>
         <button
           type="button"
           onClick={onUndo}
           disabled={notes.length === 0}
-          className="text-[10px] px-2 py-0.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-bg-warm)] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="text-[10px] px-2 py-0.5 rounded border border-[var(--color-border)] hover:bg-[var(--color-bg-warm)] disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
         >Undo last</button>
       </div>
 
@@ -604,9 +760,16 @@ function FretboardClickGrid({ notes, onAdd, onRemoveAt, onUndo }) {
         className="overflow-x-auto border border-[var(--color-border)] rounded bg-[var(--color-bg)]"
         style={{ maxWidth: '100%' }}
       >
-        <div style={{ width: 'max-content' }}>
+        <div
+          ref={gridRef}
+          style={{ width: 'max-content', position: 'relative', touchAction: 'none' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+        >
           {/* Fret number header row */}
-          <div className="flex" style={{ height: 16 }}>
+          <div className="flex" style={{ height: HEADER_H }}>
             <div style={{ width: labelW }} />
             {Array.from({ length: TOTAL_FRETS }, (_, f) => {
               const isMarker = f === 0 || FRET_MARKER_SINGLE.has(f) || FRET_MARKER_DOUBLE.has(f)
@@ -634,31 +797,116 @@ function FretboardClickGrid({ notes, onAdd, onRemoveAt, onUndo }) {
                 >
                   {STRING_LABELS[stringIdx]}
                 </div>
-                {Array.from({ length: TOTAL_FRETS }, (_, f) => (
-                  <FretCell
-                    key={f}
-                    width={cellW}
-                    height={cellH}
-                    fret={f}
-                    stringIdx={stringIdx}
-                    isMiddleRow={rowIdx === 2 || rowIdx === 3}
-                    occurrences={occurrencesAt.get(`${stringIdx}-${f}`) || []}
-                    isTopBorder={isFirstRow}
-                    isBottomBorder={isLastRow}
-                    onClick={() => onAdd(stringIdx, f)}
-                    onRemove={() => removeLastAt(stringIdx, f)}
-                  />
-                ))}
+                {Array.from({ length: TOTAL_FRETS }, (_, f) => {
+                  const occIdxs = occurrencesAt.get(`${stringIdx}-${f}`) || []
+                  const occNotes = occIdxs.map(i => notes[i])
+                  return (
+                    <FretCell
+                      key={f}
+                      width={cellW}
+                      height={cellH}
+                      fret={f}
+                      stringIdx={stringIdx}
+                      isMiddleRow={rowIdx === 2 || rowIdx === 3}
+                      occurrences={occIdxs}
+                      occNotes={occNotes}
+                      isTopBorder={isFirstRow}
+                      isBottomBorder={isLastRow}
+                      onRemove={() => removeLastAt(stringIdx, f)}
+                    />
+                  )
+                })}
               </div>
             )
           })}
+
+          {/* Decoration overlay: slides + bends */}
+          <svg
+            style={{
+              position: 'absolute',
+              top: HEADER_H,
+              left: labelW,
+              width: overlayW,
+              height: overlayH,
+              pointerEvents: 'none',
+            }}
+          >
+            <defs>
+              <marker id="cv-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--color-accent)" />
+              </marker>
+            </defs>
+            {notes.map((n, idx) => {
+              const x1 = cxOf(n.fret)
+              const y = cyOf(n.string)
+              if (n.slideTo != null) {
+                const x2 = cxOf(n.slideTo)
+                return (
+                  <line
+                    key={`sl-${idx}`}
+                    x1={x1} y1={y} x2={x2} y2={y}
+                    stroke="var(--color-accent)"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    markerEnd="url(#cv-arrow)"
+                    opacity={0.85}
+                  />
+                )
+              }
+              if (n.bend != null) {
+                const bx = x1
+                const by = y
+                const top = by - cellH * 0.7
+                const label = n.bend === 1 ? '½' : n.bend === 2 ? 'full' : n.bend === 3 ? '1½' : `${n.bend}`
+                return (
+                  <g key={`bn-${idx}`} opacity={0.9}>
+                    <path
+                      d={`M ${bx} ${by} Q ${bx + 10} ${(by + top) / 2} ${bx + 14} ${top}`}
+                      fill="none"
+                      stroke="var(--color-accent)"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      markerEnd="url(#cv-arrow)"
+                    />
+                    <text x={bx + 16} y={top + 3} fontSize={9} fontFamily="ui-monospace, monospace" fontWeight="700" fill="var(--color-accent)">{label}</text>
+                  </g>
+                )
+              }
+              return null
+            })}
+            {/* Live drag preview */}
+            {drag && drag.kind === 'slide' && (
+              <line
+                x1={cxOf(drag.start.fret)}
+                y1={cyOf(drag.start.stringIdx)}
+                x2={cxOf(drag.current.fret)}
+                y2={cyOf(drag.start.stringIdx)}
+                stroke="var(--color-accent)"
+                strokeWidth={2}
+                strokeDasharray="3 2"
+                opacity={0.6}
+              />
+            )}
+            {drag && drag.kind === 'bend' && (
+              <line
+                x1={cxOf(drag.start.fret)}
+                y1={cyOf(drag.start.stringIdx)}
+                x2={cxOf(drag.start.fret)}
+                y2={cyOf(drag.start.stringIdx) - cellH * 0.7}
+                stroke="var(--color-accent)"
+                strokeWidth={2}
+                strokeDasharray="3 2"
+                opacity={0.6}
+              />
+            )}
+          </svg>
         </div>
       </div>
     </div>
   )
 }
 
-function FretCell({ width, height, fret, stringIdx, isMiddleRow, occurrences, isTopBorder, isBottomBorder, onClick, onRemove }) {
+function FretCell({ width, height, fret, stringIdx, isMiddleRow, occurrences, occNotes, isTopBorder, isBottomBorder, onRemove }) {
   const [hover, setHover] = useState(false)
   const hasNote = occurrences.length > 0
   const isOpenCol = fret === 0
@@ -670,15 +918,13 @@ function FretCell({ width, height, fret, stringIdx, isMiddleRow, occurrences, is
   const seqText = seqLabels.length > 2
     ? `${seqLabels[0]}+${seqLabels.length - 1}`
     : seqLabels.join(',')
+  const anySlide = occNotes?.some(n => n?.slideTo != null)
+  const anyBend = occNotes?.some(n => n?.bend != null)
 
   return (
     <div
-      role="button"
-      tabIndex={0}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       style={{
         width,
         height,
@@ -700,8 +946,9 @@ function FretCell({ width, height, fret, stringIdx, isMiddleRow, occurrences, is
 
       {hasNote && (
         <span
-          className="bg-[var(--color-accent)] text-white text-[9px] font-mono font-bold rounded-full px-1 leading-none flex items-center justify-center"
-          style={{ minWidth: 16, height: 16 }}
+          className={`text-white text-[9px] font-mono font-bold rounded-full px-1 leading-none flex items-center justify-center ${anyBend ? 'ring-1 ring-amber-300' : ''}`}
+          style={{ minWidth: 16, height: 16, background: anySlide || anyBend ? 'var(--color-accent)' : 'var(--color-accent)' }}
+          title={anySlide ? 'slide' : anyBend ? 'bend' : ''}
         >
           {seqText}
         </span>
@@ -710,8 +957,10 @@ function FretCell({ width, height, fret, stringIdx, isMiddleRow, occurrences, is
       {hasNote && hover && (
         <button
           type="button"
+          data-no-drag
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onRemove() }}
-          className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full text-[10px] leading-none flex items-center justify-center shadow"
+          className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full text-[10px] leading-none flex items-center justify-center shadow z-10"
           style={{ width: 14, height: 14 }}
           title="Remove last note at this fret"
         >×</button>
@@ -725,16 +974,22 @@ function LickTabStrip({ notes }) {
   if (!notes || notes.length === 0) {
     return <div className="text-xs text-[var(--color-ink-muted)] italic">No notes</div>
   }
-  const width = Math.max(220, notes.length * 28)
+  const labelText = (n) => {
+    if (n.slideTo != null) return `${n.fret}${n.slideTo > n.fret ? '/' : '\\'}${n.slideTo}`
+    if (n.bend != null) return `${n.fret}b${n.bend === 1 ? '½' : n.bend === 2 ? '' : n.bend}`
+    return String(n.fret)
+  }
+  const widths = notes.map(n => Math.max(16, labelText(n).length * 6 + 6))
+  const slot = Math.max(28, ...widths.map(w => w + 6))
+  const width = Math.max(220, notes.length * slot + 24)
   const padX = 18
-  const padY = 6
+  const padY = 8
   const stringSpacing = 14
   const noteSpacing = (width - padX * 2) / Math.max(notes.length - 1, 1)
   const height = padY * 2 + stringSpacing * 5
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: width, display: 'block' }}>
-      {/* string lines — index 0 = low E at bottom (line y=padY + 5*spacing), index 5 = high e at top */}
       {STRING_LABELS.map((label, i) => {
         const y = padY + (5 - i) * stringSpacing
         return (
@@ -744,13 +999,21 @@ function LickTabStrip({ notes }) {
           </g>
         )
       })}
-      {/* notes */}
       {notes.map((n, idx) => {
         const x = padX + (notes.length === 1 ? (width - padX * 2) / 2 : idx * noteSpacing)
         const y = padY + (5 - n.string) * stringSpacing
+        const text = labelText(n)
+        const w = Math.max(16, text.length * 6 + 6)
+        const isBend = n.bend != null
         return (
           <g key={`n-${idx}`}>
-            <rect x={x - 8} y={y - 6} width={16} height={12} rx={2} fill="var(--color-bg)" stroke="var(--color-accent)" strokeWidth={1} />
+            <rect
+              x={x - w / 2} y={y - 6}
+              width={w} height={12} rx={2}
+              fill="var(--color-bg)"
+              stroke={isBend ? '#d97706' : 'var(--color-accent)'}
+              strokeWidth={1}
+            />
             <text
               x={x} y={y + 3.5}
               textAnchor="middle"
@@ -758,7 +1021,10 @@ function LickTabStrip({ notes }) {
               fontFamily="ui-monospace, monospace"
               fill="var(--color-ink)"
               fontWeight="700"
-            >{n.fret}</text>
+            >{text}</text>
+            {isBend && (
+              <text x={x + w / 2 + 2} y={y - 3} fontSize={7} fill="#d97706" fontFamily="ui-monospace, monospace">↑</text>
+            )}
           </g>
         )
       })}
