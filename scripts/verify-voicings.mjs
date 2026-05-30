@@ -1,10 +1,6 @@
-// Standalone verifier. Reads catalog.js as text, extracts mk(...) calls, computes notes
-// from frets, compares against the chord label, prints mismatches.
-import fs from 'node:fs'
-import path from 'node:path'
-
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
-const txt = fs.readFileSync(path.join(ROOT, 'src/lib/voicings/catalog.js'), 'utf8')
+// Standalone verifier. Imports the generated catalog, computes notes from each
+// voicing's frets, and compares against its chord label. Prints mismatches.
+import { VOICINGS } from '../src/lib/voicings/catalog.js'
 
 const OPEN_MIDI = [40, 45, 50, 55, 59, 64]   // E2 A2 D3 G3 B3 E4
 const PCNAME = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
@@ -52,22 +48,10 @@ function expectedPCs(displayName) {
   return set
 }
 
-// Extract mk(...) calls naively
-const RE = /mk\('([^']+)',\s*'([^']+)',\s*\[([^\]]+)\]/g
-let m, count = 0, mismatches = 0
-const allEntries = []
-while ((m = RE.exec(txt)) != null) {
-  count++
-  const rootChord = m[1]
-  const displayName = m[2]
-  const fretsRaw = m[3].split(',').map(s => s.trim())
-  const frets = fretsRaw.map(s => s === 'null' ? null : Number(s))
-  allEntries.push({ rootChord, displayName, frets })
-}
+let mismatches = 0
+console.log(`checking ${VOICINGS.length} voicings\n`)
 
-console.log(`extracted ${count} voicings\n`)
-
-for (const v of allEntries) {
+for (const v of VOICINGS) {
   const expected = expectedPCs(v.displayName)
   if (!expected) { console.log('UNPARSEABLE LABEL:', v.displayName); continue }
   if (expected.unknownQuality !== undefined) {
@@ -90,4 +74,4 @@ for (const v of allEntries) {
   }
 }
 
-console.log(`\ntotal mismatches: ${mismatches} / ${allEntries.length}`)
+console.log(`\ntotal mismatches: ${mismatches} / ${VOICINGS.length}`)

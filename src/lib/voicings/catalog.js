@@ -1,335 +1,236 @@
-// Voicing catalog. Every entry is verified by scripts/verify-voicings.mjs to ensure
-// its frets actually produce the notes implied by `displayName` (the verifier checks
-// that the played pitch-classes match the chord's interval set).
+// Electric-guitar voicing catalog. Focus: the top four strings (D, G, B, high-E)
+// played up and down the neck — compact triads (all three inversions) and 4-string
+// drop-2 seventh chords. NO open "campfire" chords, full six-string barres, power
+// chords, or slash voicings — those live in muscle memory already; this catalog is
+// the movable, position-shifting shapes electric players reach for.
 //
-// frets: [lowE, A, D, G, B, highE] — null = muted string, 0 = open, N = fret N.
-// All voicings declared in their natural root (no abstract "key" — transposition is
-// per-voicing via lookup.js / transpose.js).
+// frets: [lowE, A, D, G, B, highE] — null = muted string, N = fret N.
+// Every voicing is movable (no open strings) so it auto-transposes to all 12 keys.
 //
-// Movable voicings (no open strings) auto-transpose to all 12 keys.
-// Open-string voicings stay in their declared root.
+// Voicings are GENERATED from a small set of C-rooted shape templates (verified by
+// scripts/verify-voicings.mjs), then transposed to each chord root and laddered into
+// every playable neck position. Pitch-class correctness is guaranteed by construction.
 
-import { isMovable, voicingPosition } from './notes'
+import { isMovable, voicingPosition } from './notes.js'
 
-// All chord families covered (used to render the chord-chip rail).
-// Major roots first, then minor, then dim/half-dim, then slash chords.
+const X = null
+const OPEN_MIDI = [40, 45, 50, 55, 59, 64]   // E2 A2 D3 G3 B3 E4
+const PCIDX = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 }
+
+// Chord families shown on the chip rail (major, then minor, then dim / half-dim).
 export const CHORD_ROOTS_IN_G = [
   'G', 'C', 'D', 'A', 'E', 'F', 'B',
   'Am', 'Em', 'Dm', 'Bm', 'Fm', 'Cm', 'Gm', 'F#m',
   'F#dim', 'Bdim', 'Bm7b5',
-  'G/B', 'D/F#', 'C/E', 'C/G', 'E/G#', 'A/C#',
 ]
 
-let _idCounter = 0
-const mk = (rootChord, displayName, frets, opts = {}) => ({
-  id: opts.id || `v${++_idCounter}-${rootChord.replace(/[^A-Za-z0-9]/g, '')}-${frets.map(f => f == null ? 'x' : f).join('-')}`,
-  rootChord,
-  displayName,
-  frets,
-  sourceKey: 'G',   // catalog reference key — used by ChordVoicings page only
-  movable: isMovable(frets),
-  position: voicingPosition(frets),
-  shape: opts.shape || null,
-  inversion: opts.inversion || null,
-  tags: opts.tags || [],
-  description: opts.description || '',
-})
+// ─── Shape templates (C-rooted, low→high). ─────────────────────────────────
+// Each template's frets spell the chord with root note C; the generator shifts
+// them by the target root's pitch class and ladders octaves into the playable
+// window. `strings` is purely descriptive for the label.
+const TEMPLATES = {
+  // Major triad — top-3 strings (G,B,e) in all inversions + D,G,B set.
+  majTriad: [
+    { frets: [X,X,X,5,5,3],    inv: 'root', strings: 'G-B-e' },
+    { frets: [X,X,X,9,8,8],    inv: '1st',  strings: 'G-B-e' },
+    { frets: [X,X,X,12,13,12], inv: '2nd',  strings: 'G-B-e' },
+    { frets: [X,X,10,9,8,X],   inv: 'root', strings: 'D-G-B' },
+    { frets: [X,X,10,9,8,8],   inv: 'root', strings: 'D-G-B-e' },
+  ],
+  // Minor triad.
+  minTriad: [
+    { frets: [X,X,X,5,4,3],    inv: 'root', strings: 'G-B-e' },
+    { frets: [X,X,X,8,8,8],    inv: '1st',  strings: 'G-B-e' },
+    { frets: [X,X,X,12,13,11], inv: '2nd',  strings: 'G-B-e' },
+    { frets: [X,X,10,8,8,X],   inv: 'root', strings: 'D-G-B' },
+    { frets: [X,X,10,8,8,8],   inv: 'root', strings: 'D-G-B-e' },
+  ],
+  // Diminished triad.
+  dimTriad: [
+    { frets: [X,X,X,5,4,2],    inv: 'root', strings: 'G-B-e' },
+    { frets: [X,X,10,8,7,X],   inv: 'root', strings: 'D-G-B' },
+  ],
+  // Drop-2 sevenths on the top four strings (D,G,B,e).
+  maj7: [
+    { frets: [X,X,10,9,8,7],   inv: 'root', strings: 'D-G-B-e' },
+  ],
+  m7: [
+    { frets: [X,X,10,8,8,6],   inv: 'root', strings: 'D-G-B-e' },
+  ],
+  dom7: [
+    { frets: [X,X,10,9,8,6],   inv: 'root', strings: 'D-G-B-e' },
+  ],
+  m7b5: [
+    { frets: [X,X,10,8,7,6],   inv: 'root', strings: 'D-G-B-e' },
+  ],
+  // dim7 is symmetric — repeats every 3 frets; two positions a minor 3rd apart.
+  dim7: [
+    { frets: [X,X,1,2,1,2],    inv: 'root', strings: 'D-G-B-e' },
+    { frets: [X,X,4,5,4,5],    inv: 'inv',  strings: 'D-G-B-e' },
+  ],
+}
 
-// ═════════════════════════════════════════════════════════════════════════
-//   G family
-// ═════════════════════════════════════════════════════════════════════════
-const G_VOICINGS = [
-  // open
-  mk('G',  'G',     [3, 2, 0, 0, 0, 3],         { shape: 'open', tags: ['open', 'caged'], description: 'Standard open G — the classic.' }),
-  mk('G',  'G',     [3, 2, 0, 0, 3, 3],         { shape: 'open', tags: ['open', 'big'], description: 'Open G with high D for full sound (the "Hendrix" G).' }),
-  mk('G',  'G',     [3, 5, 5, 4, 3, 3],         { shape: 'E-shape', tags: ['barre', 'movable'], description: 'E-shape barre at the 3rd fret.' }),
-  mk('G',  'G',     [null, 10, 12, 12, 12, 10], { shape: 'A-shape', tags: ['barre', 'movable', 'high-fret'], description: 'A-shape barre at the 10th fret.' }),
-  // triads — D/G/B strings
-  mk('G',  'G',     [null, null, 5, 4, 3, null], { tags: ['triad', 'movable', 'compact'], description: 'Compact G triad on D, G & B strings.' }),
-  mk('G',  'G',     [null, null, 9, 7, 8, null], { inversion: '2nd', tags: ['triad', 'movable', 'inversion'], description: 'G triad, 2nd inversion (D, G, B → bass D).' }),
-  // triads — G/B/E strings
-  mk('G',  'G',     [null, null, null, 7, 8, 7], { shape: 'D-shape', tags: ['triad', 'top-strings', 'movable'], description: 'D-shape G triad on top three strings.' }),
-  mk('G',  'G',     [null, null, null, 12, 12, 10], { inversion: '1st', tags: ['triad', 'top-strings', 'movable', 'high-fret'], description: 'High G triad, 1st inversion (B in bass).' }),
-  // 7ths & extensions
-  mk('G',  'G7',    [3, 2, 0, 0, 0, 1],         { shape: 'open', tags: ['dom7', 'open'], description: 'Standard open G7.' }),
-  mk('G',  'Gmaj7', [3, 2, 0, 0, 0, 2],         { shape: 'open', tags: ['maj7', 'open'], description: 'Open Gmaj7 — bright and dreamy.' }),
-  mk('G',  'Gmaj7', [3, null, 4, 4, 3, null],   { tags: ['maj7', 'movable', 'compact'], description: 'Compact Gmaj7 with root in bass.' }),
-  mk('G',  'Gsus4', [3, 3, 0, 0, 1, 3],         { shape: 'open', tags: ['sus4', 'open', 'tension'], description: 'Open Gsus4 — adds a 4th (C) over G.' }),
-  mk('G',  'Gadd9', [3, 0, 0, 2, 0, 3],         { shape: 'open', tags: ['add9', 'open'], description: 'Open Gadd9 — adds the 9th (A).' }),
-  mk('G',  'G5',    [3, 5, 5, null, null, null],{ tags: ['power-chord', 'movable'], description: 'G power chord — root + 5th only.' }),
-]
+// Family → { suffix appended to the root note for displayName, template key, base tag }.
+const FAMILIES = {
+  majTriad: { suffix: '',      key: 'majTriad', tag: 'triad' },
+  minTriad: { suffix: 'm',     key: 'minTriad', tag: 'triad' },
+  dimTriad: { suffix: 'dim',   key: 'dimTriad', tag: 'triad' },
+  maj7:     { suffix: 'maj7',  key: 'maj7',     tag: 'maj7'  },
+  m7:       { suffix: 'm7',    key: 'm7',       tag: 'm7'    },
+  dom7:     { suffix: '7',     key: 'dom7',     tag: 'dom7'  },
+  m7b5:     { suffix: 'm7b5',  key: 'm7b5',     tag: 'm7b5'  },
+  dim7:     { suffix: 'dim7',  key: 'dim7',     tag: 'dim7'  },
+}
 
-// ═════════════════════════════════════════════════════════════════════════
-//   C family
-// ═════════════════════════════════════════════════════════════════════════
-const C_VOICINGS = [
-  // open
-  mk('C',  'C',     [null, 3, 2, 0, 1, 0],      { shape: 'open', tags: ['open', 'caged'], description: 'Standard open C — caged C-shape.' }),
-  mk('C',  'C',     [null, 3, 2, 0, 1, 3],      { shape: 'open', tags: ['open', 'big'], description: 'Open C with high G for fuller sound.' }),
-  mk('C',  'C',     [null, 3, 5, 5, 5, 3],      { shape: 'A-shape', tags: ['barre', 'movable'], description: 'A-shape barre at the 3rd fret.' }),
-  mk('C',  'C',     [8, 10, 10, 9, 8, 8],       { shape: 'E-shape', tags: ['barre', 'movable', 'high-fret'], description: 'E-shape barre at the 8th fret.' }),
-  // triads
-  mk('C',  'C',     [null, null, 10, 9, 8, null], { tags: ['triad', 'movable'], description: 'C triad on D, G & B strings.' }),
-  mk('C',  'C',     [null, null, null, 9, 8, 8], { inversion: '1st', tags: ['triad', 'top-strings', 'movable'], description: 'C triad, 1st inversion on top strings (E in bass).' }),
-  mk('C',  'C',     [null, null, null, 5, 5, 3], { tags: ['triad', 'top-strings', 'movable'], description: 'C triad on top three strings — low position.' }),
-  mk('C',  'C',     [null, null, null, 12, 13, 12],{ inversion: '2nd', tags: ['triad', 'top-strings', 'movable', 'high-fret'], description: 'High C triad, 2nd inversion (G in bass).' }),
-  // 7ths & extensions
-  mk('C',  'Cmaj7', [null, 3, 2, 0, 0, 0],      { shape: 'open', tags: ['maj7', 'open'], description: 'Open Cmaj7 — warm and lush.' }),
-  mk('C',  'Cmaj7', [null, 3, 5, 4, 5, 3],      { shape: 'C-shape', tags: ['maj7', 'movable'], description: 'Movable C-shape Cmaj7.' }),
-  mk('C',  'Cmaj7', [null, null, 10, 9, 8, 7],  { tags: ['maj7', 'movable', 'drop2'], description: 'Drop-2 Cmaj7 (R, 3, 5, 7) on inner strings.' }),
-  mk('C',  'C7',    [null, 3, 2, 3, 1, 3],      { shape: 'open', tags: ['dom7', 'open'], description: 'Open C7 with G on top (full root-3-5-♭7).' }),
-  mk('C',  'C7',    [null, 3, 5, 3, 5, 3],      { shape: 'A-shape', tags: ['dom7', 'movable'], description: 'A-shape barre C7.' }),
-  mk('C',  'Csus4', [null, 3, 3, 0, 1, 1],      { shape: 'open', tags: ['sus4', 'open'], description: 'Open Csus4.' }),
-  mk('C',  'Cadd9', [null, 3, 2, 0, 3, 0],      { shape: 'open', tags: ['add9', 'open'], description: 'Open Cadd9 — adds the 9th (D).' }),
-  mk('C',  'Cadd9', [null, 3, 2, 0, 3, 3],      { shape: 'open', tags: ['add9', 'open'], description: 'Cadd9 with high G — rich and chimey.' }),
-  mk('C',  'C5',    [null, 3, 5, 5, null, null],{ tags: ['power-chord', 'movable'], description: 'C power chord.' }),
-]
+// Which families each chord root carries.
+const CHORD_FAMILIES = {}
+for (const r of ['G','C','D','A','E','F','B'])         CHORD_FAMILIES[r] = ['majTriad', 'maj7', 'dom7']
+for (const r of ['Am','Em','Dm','Bm','Fm','Cm','Gm','F#m']) CHORD_FAMILIES[r] = ['minTriad', 'm7']
+CHORD_FAMILIES['F#dim'] = ['dimTriad', 'dim7']
+CHORD_FAMILIES['Bdim']  = ['dimTriad', 'dim7']
+CHORD_FAMILIES['Bm7b5'] = ['m7b5']
 
-// ═════════════════════════════════════════════════════════════════════════
-//   D family
-// ═════════════════════════════════════════════════════════════════════════
-const D_VOICINGS = [
-  // open
-  mk('D',  'D',     [null, null, 0, 2, 3, 2],   { shape: 'open', tags: ['open', 'caged'], description: 'Standard open D.' }),
-  mk('D',  'D',     [null, 5, 7, 7, 7, 5],      { shape: 'A-shape', tags: ['barre', 'movable'], description: 'A-shape barre at the 5th fret.' }),
-  mk('D',  'D',     [10, 12, 12, 11, 10, 10],   { shape: 'E-shape', tags: ['barre', 'movable', 'high-fret'], description: 'E-shape barre at the 10th fret.' }),
-  // triads
-  mk('D',  'D',     [null, null, 12, 11, 10, null], { tags: ['triad', 'movable', 'high-fret'], description: 'D triad on D, G & B strings.' }),
-  mk('D',  'D',     [null, null, null, 7, 7, 5], { tags: ['triad', 'top-strings', 'movable'], description: 'D triad on top three strings.' }),
-  mk('D',  'D',     [null, null, null, 11, 10, 10], { inversion: '1st', tags: ['triad', 'top-strings', 'movable', 'high-fret'], description: 'D triad, 1st inversion (F# in bass).' }),
-  // 7ths & extensions
-  mk('D',  'D7',    [null, null, 0, 2, 1, 2],   { shape: 'open', tags: ['dom7', 'open'], description: 'Open D7.' }),
-  mk('D',  'Dmaj7', [null, null, 0, 2, 2, 2],   { shape: 'open', tags: ['maj7', 'open'], description: 'Open Dmaj7.' }),
-  mk('D',  'Dsus2', [null, null, 0, 2, 3, 0],   { shape: 'open', tags: ['sus2', 'open'], description: 'Open Dsus2 — adds a 2nd (E).' }),
-  mk('D',  'Dsus4', [null, null, 0, 2, 3, 3],   { shape: 'open', tags: ['sus4', 'open'], description: 'Open Dsus4 — adds a 4th (G).' }),
-  mk('D',  'Dadd9', [null, 5, 4, 2, 3, 0],      { tags: ['add9'], description: 'Dadd9 with root in bass — D, F#, A & E (9th) all present.' }),
-  mk('D',  'D5',    [null, 5, 7, 7, null, null],{ tags: ['power-chord', 'movable'], description: 'D power chord.' }),
-]
+// ─── Fret math ─────────────────────────────────────────────────────────────
+const NECK_LO = 1
+const NECK_HI = 15
 
-// ═════════════════════════════════════════════════════════════════════════
-//   E family
-// ═════════════════════════════════════════════════════════════════════════
-const E_VOICINGS = [
-  mk('E',  'E',     [0, 2, 2, 1, 0, 0],         { shape: 'open', tags: ['open', 'caged'], description: 'Standard open E.' }),
-  mk('E',  'E',     [null, 7, 9, 9, 9, 7],      { shape: 'A-shape', tags: ['barre', 'movable'], description: 'A-shape barre at the 7th fret.' }),
-  mk('E',  'E7',    [0, 2, 0, 1, 0, 0],         { shape: 'open', tags: ['dom7', 'open'], description: 'Open E7.' }),
-  mk('E',  'E7',    [0, 2, 2, 1, 3, 0],         { shape: 'open', tags: ['dom7', 'open', 'big'], description: 'Open E7 with high D — fuller voicing.' }),
-  mk('E',  'Emaj7', [0, 2, 1, 1, 0, 0],         { shape: 'open', tags: ['maj7', 'open'], description: 'Open Emaj7.' }),
-  mk('E',  'Esus4', [0, 2, 2, 2, 0, 0],         { shape: 'open', tags: ['sus4', 'open'], description: 'Open Esus4.' }),
-  mk('E',  'E5',    [0, 2, 2, null, null, null],{ shape: 'open', tags: ['power-chord', 'open'], description: 'E power chord.' }),
-]
+const minFret = (f) => Math.min(...f.filter(v => v != null))
+const maxFret = (f) => Math.max(...f.filter(v => v != null))
+const shift = (f, n) => f.map(v => v == null ? null : v + n)
+const inWindow = (f) => f.every(v => v == null || (v >= NECK_LO && v <= NECK_HI))
 
-// ═════════════════════════════════════════════════════════════════════════
-//   A family
-// ═════════════════════════════════════════════════════════════════════════
-const A_VOICINGS = [
-  mk('A',  'A',     [null, 0, 2, 2, 2, 0],      { shape: 'open', tags: ['open', 'caged'], description: 'Standard open A.' }),
-  mk('A',  'A',     [5, 7, 7, 6, 5, 5],         { shape: 'E-shape', tags: ['barre', 'movable'], description: 'E-shape barre at the 5th fret.' }),
-  // triads
-  mk('A',  'A',     [null, null, 7, 6, 5, null], { tags: ['triad', 'movable'], description: 'A triad on D, G & B strings.' }),
-  mk('A',  'A',     [null, null, null, 6, 5, 5], { inversion: '1st', tags: ['triad', 'top-strings', 'movable'], description: 'A triad, 1st inversion (C# in bass).' }),
-  // 7ths & extensions
-  mk('A',  'A7',    [null, 0, 2, 0, 2, 0],      { shape: 'open', tags: ['dom7', 'open'], description: 'Open A7.' }),
-  mk('A',  'Amaj7', [null, 0, 2, 1, 2, 0],      { shape: 'open', tags: ['maj7', 'open'], description: 'Open Amaj7.' }),
-  mk('A',  'Asus2', [null, 0, 2, 2, 0, 0],      { shape: 'open', tags: ['sus2', 'open'], description: 'Open Asus2.' }),
-  mk('A',  'Asus4', [null, 0, 2, 2, 3, 0],      { shape: 'open', tags: ['sus4', 'open'], description: 'Open Asus4.' }),
-  mk('A',  'Aadd9', [null, 0, 2, 4, 2, 0],      { shape: 'open', tags: ['add9', 'open'], description: 'Open Aadd9.' }),
-  mk('A',  'A5',    [null, 0, 2, 2, null, null],{ shape: 'open', tags: ['power-chord', 'open'], description: 'A power chord.' }),
-]
+const fretSig = (f) => f.map(v => v == null ? 'x' : v).join('-')
 
-// ═════════════════════════════════════════════════════════════════════════
-//   F family
-// ═════════════════════════════════════════════════════════════════════════
-const F_VOICINGS = [
-  mk('F',  'F',     [1, 3, 3, 2, 1, 1],         { shape: 'E-shape', tags: ['barre', 'movable'], description: 'F barre chord — E-shape at the 1st fret.' }),
-  mk('F',  'F',     [null, null, 3, 2, 1, 1],   { tags: ['compact', 'beginner'], description: 'Compact F — top four strings only.' }),
-  mk('F',  'Fmaj7', [null, null, 3, 2, 1, 0],   { shape: 'open', tags: ['maj7', 'open'], description: 'Open-style Fmaj7 — easy & beautiful.' }),
-  mk('F',  'Fmaj7', [1, 3, 3, 2, 1, 0],         { tags: ['maj7', 'movable'], description: 'Full Fmaj7 with E on top.' }),
-  mk('F',  'F7',    [1, 3, 1, 2, 1, 1],         { shape: 'E-shape', tags: ['dom7', 'barre', 'movable'], description: 'E-shape barre F7.' }),
-]
+// Bring a shifted shape into the lowest valid neck window.
+function normalize(f) {
+  let cur = f
+  while (maxFret(cur) > NECK_HI) {
+    const down = shift(cur, -12)
+    if (minFret(down) < NECK_LO) break
+    cur = down
+  }
+  while (minFret(cur) < NECK_LO) cur = shift(cur, 12)
+  return cur
+}
 
-// ═════════════════════════════════════════════════════════════════════════
-//   B family
-// ═════════════════════════════════════════════════════════════════════════
-const B_VOICINGS = [
-  mk('B',  'B',     [null, 2, 4, 4, 4, 2],      { shape: 'A-shape', tags: ['barre', 'movable'], description: 'A-shape barre at the 2nd fret.' }),
-  mk('B',  'B',     [7, 9, 9, 8, 7, 7],         { shape: 'E-shape', tags: ['barre', 'movable'], description: 'E-shape barre at the 7th fret.' }),
-  mk('B',  'B7',    [null, 2, 1, 2, 0, 2],      { shape: 'open', tags: ['dom7', 'open'], description: 'Standard open B7.' }),
-  mk('B',  'Bmaj7', [null, 2, 4, 3, 4, 2],      { shape: 'A-shape', tags: ['maj7', 'movable'], description: 'A-shape Bmaj7.' }),
-]
+// Every in-window octave copy of a shape (low→high), for laddering up the neck.
+function octaveCopies(f) {
+  const out = [f]
+  for (let i = 1; i <= 2; i++) {
+    const up = shift(f, 12 * i)
+    if (inWindow(up)) out.push(up); else break
+  }
+  return out
+}
 
-// ═════════════════════════════════════════════════════════════════════════
-//   Minor families
-// ═════════════════════════════════════════════════════════════════════════
+function rootNoteOf(rootChord) {
+  return rootChord.match(/^([A-G][b#]?)/)[1]
+}
 
-// Am
-const AM_VOICINGS = [
-  mk('Am', 'Am',    [null, 0, 2, 2, 1, 0],      { shape: 'open', tags: ['open', 'caged'], description: 'Standard open Am.' }),
-  mk('Am', 'Am',    [5, 7, 7, 5, 5, 5],         { shape: 'Em-shape', tags: ['barre', 'movable'], description: 'Em-shape minor barre at 5th fret.' }),
-  // triads
-  mk('Am', 'Am',    [null, null, 7, 5, 5, null], { tags: ['triad', 'movable'], description: 'Am triad on D, G & B strings.' }),
-  mk('Am', 'Am',    [null, null, 10, 9, 10, null], { inversion: '1st', tags: ['triad', 'movable', 'inversion'], description: 'Am triad, 1st inversion (C in bass).' }),
-  mk('Am', 'Am',    [null, null, null, 9, 10, 8], { tags: ['triad', 'top-strings', 'movable'], description: 'Am triad on top three strings.' }),
-  // 7ths
-  mk('Am', 'Am7',   [null, 0, 2, 0, 1, 0],      { shape: 'open', tags: ['m7', 'open'], description: 'Open Am7.' }),
-  mk('Am', 'Am7',   [5, 7, 5, 5, 5, 5],         { shape: 'Em-shape', tags: ['m7', 'barre', 'movable'], description: 'Em-shape barre Am7.' }),
-  mk('Am', 'Am7',   [null, null, 7, 9, 8, 8],   { tags: ['m7', 'movable'], description: 'Am7 with root in bass (A, G, C, E).' }),
-  mk('Am', 'Am9',   [null, 0, 2, 4, 1, 3],      { shape: 'open', tags: ['m9', 'open', 'jazz'], description: 'Open Am9 — lush minor color.' }),
-]
+// ─── Generation ──────────────────────────────────────────────────────────
+let _id = 0
+function mk(rootChord, displayName, frets, family, tpl) {
+  const tags = [family.tag, 'movable', 'electric', `top-${tpl.strings.split('-').length}`]
+  if (tpl.inv && tpl.inv !== 'root') tags.push('inversion')
+  const invLabel = tpl.inv === 'root' ? 'root position' : tpl.inv === '1st' ? '1st inversion'
+    : tpl.inv === '2nd' ? '2nd inversion' : 'inversion'
+  return {
+    id: `v${++_id}-${rootChord.replace(/[^A-Za-z0-9]/g, '')}-${fretSig(frets)}`,
+    rootChord,
+    displayName,
+    frets,
+    sourceKey: 'G',
+    movable: isMovable(frets),
+    position: voicingPosition(frets),
+    shape: `${tpl.strings} · ${tpl.inv === 'root' ? 'root' : tpl.inv}`,
+    inversion: tpl.inv && tpl.inv !== 'root' ? tpl.inv : null,
+    tags,
+    description: `${displayName} on the ${tpl.strings} strings — ${invLabel} (${minFret(frets)}fr).`,
+  }
+}
 
-// Em
-const EM_VOICINGS = [
-  mk('Em', 'Em',    [0, 2, 2, 0, 0, 0],         { shape: 'open', tags: ['open', 'caged'], description: 'Standard open Em.' }),
-  mk('Em', 'Em',    [null, 7, 9, 9, 8, 7],      { shape: 'Am-shape', tags: ['barre', 'movable'], description: 'Am-shape minor barre at 7th fret.' }),
-  mk('Em', 'Em',    [12, 14, 14, 12, 12, 12],   { shape: 'Em-shape', tags: ['barre', 'movable', 'high-fret'], description: 'Em-shape barre at the 12th fret.' }),
-  // triads
-  mk('Em', 'Em',    [null, null, null, 9, 8, 7], { tags: ['triad', 'top-strings', 'movable'], description: 'Em triad on top three strings.' }),
-  mk('Em', 'Em',    [null, null, 14, 12, 12, null], { inversion: '1st', tags: ['triad', 'movable', 'inversion', 'high-fret'], description: 'Em triad, 1st inversion (G in bass).' }),
-  // 7ths
-  mk('Em', 'Em7',   [0, 2, 0, 0, 0, 0],         { shape: 'open', tags: ['m7', 'open'], description: 'Open Em7.' }),
-  mk('Em', 'Em7',   [null, 7, 9, 7, 8, 7],      { shape: 'Am-shape', tags: ['m7', 'movable'], description: 'Am-shape Em7.' }),
-  mk('Em', 'Em7',   [12, 14, 12, 12, 12, 12],   { shape: 'Em-shape', tags: ['m7', 'barre', 'movable', 'high-fret'], description: 'Em-shape Em7 barre at 12th fret (full six-string voicing).' }),
-]
+function buildVoicings() {
+  const out = []
+  for (const rootChord of Object.keys(CHORD_FAMILIES)) {
+    const rootPC = PCIDX[rootNoteOf(rootChord)]
+    const seen = new Set()
+    for (const famKey of CHORD_FAMILIES[rootChord]) {
+      const fam = FAMILIES[famKey]
+      const displayName = `${rootNoteOf(rootChord)}${fam.suffix}`
+      for (const tpl of TEMPLATES[fam.key]) {
+        const base = normalize(shift(tpl.frets, rootPC))
+        for (const frets of octaveCopies(base)) {
+          const sig = `${famKey}:${fretSig(frets)}`
+          if (seen.has(sig)) continue
+          seen.add(sig)
+          out.push(mk(rootChord, displayName, frets, fam, tpl))
+        }
+      }
+    }
+  }
+  return out
+}
 
-// Dm
-const DM_VOICINGS = [
-  mk('Dm', 'Dm',    [null, null, 0, 2, 3, 1],   { shape: 'open', tags: ['open', 'caged'], description: 'Standard open Dm.' }),
-  mk('Dm', 'Dm',    [null, 5, 7, 7, 6, 5],      { shape: 'Am-shape', tags: ['barre', 'movable'], description: 'Am-shape Dm barre at 5th fret.' }),
-  mk('Dm', 'Dm7',   [null, null, 0, 2, 1, 1],   { shape: 'open', tags: ['m7', 'open'], description: 'Open Dm7.' }),
-  mk('Dm', 'Dm',    [null, null, null, 7, 6, 5], { tags: ['triad', 'top-strings', 'movable'], description: 'Dm triad on top three strings.' }),
-]
-
-// Bm
-const BM_VOICINGS = [
-  mk('Bm', 'Bm',    [null, 2, 4, 4, 3, 2],      { shape: 'Am-shape', tags: ['barre', 'movable'], description: 'Am-shape Bm barre at 2nd fret.' }),
-  mk('Bm', 'Bm',    [7, 9, 9, 7, 7, 7],         { shape: 'Em-shape', tags: ['barre', 'movable'], description: 'Em-shape Bm barre at 7th fret.' }),
-  mk('Bm', 'Bm',    [null, null, 9, 7, 7, null], { tags: ['triad', 'movable'], description: 'Bm triad on D, G & B strings.' }),
-  mk('Bm', 'Bm',    [null, null, null, 4, 3, 2], { tags: ['triad', 'top-strings', 'movable'], description: 'Bm triad on top three strings.' }),
-  mk('Bm', 'Bm7',   [null, 2, 4, 2, 3, 2],      { shape: 'Am-shape', tags: ['m7', 'movable'], description: 'Am-shape Bm7 barre.' }),
-  mk('Bm', 'Bm7',   [7, 9, 7, 7, 7, 7],         { shape: 'Em-shape', tags: ['m7', 'movable'], description: 'Em-shape Bm7 barre.' }),
-  mk('Bm', 'Bm7',   [null, null, 9, 11, 10, 10],{ tags: ['m7', 'movable'], description: 'Bm7 with root on D string (B, A, D, F#).' }),
-]
-
-// Fm
-const FM_VOICINGS = [
-  mk('Fm', 'Fm',    [1, 3, 3, 1, 1, 1],         { shape: 'Em-shape', tags: ['barre', 'movable'], description: 'Em-shape Fm barre at 1st fret.' }),
-  mk('Fm', 'Fm7',   [1, 3, 1, 1, 1, 1],         { shape: 'Em-shape', tags: ['m7', 'movable'], description: 'Em-shape Fm7 barre.' }),
-]
-
-// Cm, Gm, F#m — movable minor shapes (no opens)
-const OTHER_MINOR_VOICINGS = [
-  mk('Cm', 'Cm',    [null, 3, 5, 5, 4, 3],      { shape: 'Am-shape', tags: ['barre', 'movable'], description: 'Am-shape Cm barre.' }),
-  mk('Cm', 'Cm7',   [null, 3, 5, 3, 4, 3],      { shape: 'Am-shape', tags: ['m7', 'movable'], description: 'Am-shape Cm7 barre.' }),
-  mk('Gm', 'Gm',    [3, 5, 5, 3, 3, 3],         { shape: 'Em-shape', tags: ['barre', 'movable'], description: 'Em-shape Gm barre.' }),
-  mk('Gm', 'Gm7',   [3, 5, 3, 3, 3, 3],         { shape: 'Em-shape', tags: ['m7', 'movable'], description: 'Em-shape Gm7 barre.' }),
-  mk('F#m','F#m',   [2, 4, 4, 2, 2, 2],         { shape: 'Em-shape', tags: ['barre', 'movable'], description: 'Em-shape F#m barre.' }),
-  mk('F#m','F#m7',  [2, 4, 2, 2, 2, 2],         { shape: 'Em-shape', tags: ['m7', 'movable'], description: 'Em-shape F#m7 barre.' }),
-]
-
-// ═════════════════════════════════════════════════════════════════════════
-//   Diminished family
-// ═════════════════════════════════════════════════════════════════════════
-const DIM_VOICINGS = [
-  // F#dim7 — symmetric, repeats every 3 frets
-  mk('F#dim', 'F#dim7', [2, null, 1, 2, 1, null],     { tags: ['dim7', 'movable'], description: 'F#dim7 with root in bass.' }),
-  mk('F#dim', 'F#dim7', [null, null, 1, 2, 1, 2],     { tags: ['dim7', 'movable', 'compact'], description: 'Compact F#dim7 on top four strings.' }),
-  mk('F#dim', 'F#dim7', [null, null, 4, 5, 4, 5],     { tags: ['dim7', 'movable'], description: 'F#dim7 inversion (a minor 3rd up).' }),
-  mk('F#dim', 'F#dim7', [null, null, 7, 8, 7, 8],     { tags: ['dim7', 'movable'], description: 'F#dim7 inversion (a tritone up).' }),
-  mk('F#dim', 'F#dim',  [2, null, null, 2, 1, null],  { tags: ['dim', 'movable'], description: 'F#dim triad — F#, A, C (3-string triad with root in bass).', id: 'fsharp-dim-triad' }),
-  // Bdim, also diatonic in many keys
-  mk('Bdim', 'Bdim7',   [null, 2, 0, 1, 0, 1],        { shape: 'open', tags: ['dim7', 'open'], description: 'Open Bdim7.' }),
-  mk('Bdim', 'Bdim',    [null, 2, 3, 4, 3, null],     { tags: ['dim', 'movable'], description: 'Bdim triad.' }),
-  // m7b5 (half-diminished) — commonly used diatonically
-  mk('Bm7b5','Bm7b5',   [null, 2, 3, 2, 3, null],     { tags: ['m7b5', 'movable'], description: 'Bm7♭5 (B half-diminished) — iiø in A minor.' }),
-  mk('Bm7b5','Bm7b5',   [7, null, null, 10, 10, 10],   { tags: ['m7b5', 'movable'], description: 'Bm7♭5 with root in bass and rootless top triad (D, F, A).' }),
-]
-
-// ═════════════════════════════════════════════════════════════════════════
-//   Slash chords (common in folk/pop)
-// ═════════════════════════════════════════════════════════════════════════
-const SLASH_VOICINGS = [
-  mk('D/F#', 'D/F#',  [2, null, 0, 2, 3, 2],   { shape: 'open', tags: ['slash', 'open', 'inversion'], description: 'D over F# — D with F# in bass for smooth voice-leading.' }),
-  mk('D/F#', 'D/F#',  [2, 0, 0, 2, 3, 2],      { shape: 'open', tags: ['slash', 'open'], description: 'D/F# with A on the A string ringing.' }),
-  mk('C/E',  'C/E',   [0, 3, 2, 0, 1, 0],      { shape: 'open', tags: ['slash', 'open', 'inversion'], description: 'C with E in bass (1st inversion).' }),
-  mk('C/G',  'C/G',   [3, 3, 2, 0, 1, 0],      { shape: 'open', tags: ['slash', 'open', 'inversion'], description: 'C with G in bass (2nd inversion).' }),
-  mk('G/B',  'G/B',   [null, 2, 0, 0, 0, 3],   { shape: 'open', tags: ['slash', 'open', 'inversion'], description: 'G with B in bass (1st inversion).' }),
-  mk('E/G#', 'E/G#',  [4, null, 2, 1, 0, 0],   { shape: 'open', tags: ['slash', 'open', 'inversion'], description: 'E with G# in bass (1st inversion).' }),
-  mk('A/C#', 'A/C#',  [null, 4, 2, 2, 2, 0],   { shape: 'open', tags: ['slash', 'open', 'inversion'], description: 'A with C# in bass (1st inversion).' }),
-]
-
-export const VOICINGS = [
-  ...G_VOICINGS,
-  ...C_VOICINGS,
-  ...D_VOICINGS,
-  ...E_VOICINGS,
-  ...A_VOICINGS,
-  ...F_VOICINGS,
-  ...B_VOICINGS,
-  ...AM_VOICINGS,
-  ...EM_VOICINGS,
-  ...DM_VOICINGS,
-  ...BM_VOICINGS,
-  ...FM_VOICINGS,
-  ...OTHER_MINOR_VOICINGS,
-  ...DIM_VOICINGS,
-  ...SLASH_VOICINGS,
-]
+export const VOICINGS = buildVoicings()
 
 export const VOICINGS_BY_CHORD = VOICINGS.reduce((acc, v) => {
   (acc[v.rootChord] = acc[v.rootChord] || []).push(v)
   return acc
 }, {})
 
-// ─── Progression Sets (key of G) ──────────────────────────────────────────
-function findId(rootChord, fretsSig) {
-  const v = VOICINGS.find(v => v.rootChord === rootChord
-    && v.frets.map(f => f == null ? 'x' : f).join('-') === fretsSig)
-  return v?.id
+// ─── Progression sets (key of G — diatonic triads up/down the neck) ────────
+// Pick the triad voicing of `rootChord` whose position is nearest `approxFret`.
+function pickTriad(rootChord, approxFret) {
+  const cands = (VOICINGS_BY_CHORD[rootChord] || []).filter(v => v.tags.includes('triad'))
+  if (cands.length === 0) return undefined
+  const best = cands.reduce((a, b) =>
+    Math.abs(b.position - approxFret) < Math.abs(a.position - approxFret) ? b : a)
+  return best.id
 }
 
 export const PROGRESSION_SETS = [
   {
     id: 'step-up',
     label: 'Step-Up (Ascending)',
-    description: 'Builds forward motion / climax — each chord climbs in position.',
+    description: 'Diatonic triads climbing the neck — builds forward motion.',
     sourceKey: 'G',
     chords: [
-      { rootChord: 'G',     voicingId: findId('G',     'x-x-5-4-3-x') },
-      { rootChord: 'Am',    voicingId: findId('Am',    'x-x-7-5-5-x') },
-      { rootChord: 'Bm',    voicingId: findId('Bm',    'x-x-9-7-7-x') },
-      { rootChord: 'C',     voicingId: findId('C',     'x-x-10-9-8-x') },
-      { rootChord: 'D',     voicingId: findId('D',     'x-x-12-11-10-x') },
-      { rootChord: 'Em',    voicingId: findId('Em',    'x-x-14-12-12-x') },
-      { rootChord: 'F#dim', voicingId: findId('F#dim', 'x-x-4-5-4-5') },
+      { rootChord: 'G',     voicingId: pickTriad('G', 3) },
+      { rootChord: 'Am',    voicingId: pickTriad('Am', 5) },
+      { rootChord: 'Bm',    voicingId: pickTriad('Bm', 7) },
+      { rootChord: 'C',     voicingId: pickTriad('C', 8) },
+      { rootChord: 'D',     voicingId: pickTriad('D', 10) },
+      { rootChord: 'Em',    voicingId: pickTriad('Em', 12) },
+      { rootChord: 'F#dim', voicingId: pickTriad('F#dim', 13) },
     ],
   },
   {
     id: 'step-down',
     label: 'Step-Down (Descending)',
-    description: 'Smooth resolving motion, descending the fretboard.',
+    description: 'Diatonic triads descending the neck — smooth resolving motion.',
     sourceKey: 'G',
     chords: [
-      { rootChord: 'G',     voicingId: findId('G',     'x-x-x-12-12-10') },
-      { rootChord: 'Am',    voicingId: findId('Am',    'x-x-10-9-10-x') },
-      { rootChord: 'Bm',    voicingId: findId('Bm',    'x-x-9-7-7-x') },
-      { rootChord: 'C',     voicingId: findId('C',     'x-x-10-9-8-x') },
-      { rootChord: 'D',     voicingId: findId('D',     'x-x-x-7-7-5') },
-      { rootChord: 'Em',    voicingId: findId('Em',    'x-x-x-9-8-7') },
-      { rootChord: 'F#dim', voicingId: findId('F#dim', 'x-x-4-5-4-5') },
+      { rootChord: 'G',     voicingId: pickTriad('G', 12) },
+      { rootChord: 'Am',    voicingId: pickTriad('Am', 10) },
+      { rootChord: 'Bm',    voicingId: pickTriad('Bm', 9) },
+      { rootChord: 'C',     voicingId: pickTriad('C', 8) },
+      { rootChord: 'D',     voicingId: pickTriad('D', 7) },
+      { rootChord: 'Em',    voicingId: pickTriad('Em', 5) },
+      { rootChord: 'F#dim', voicingId: pickTriad('F#dim', 4) },
     ],
   },
   {
     id: 'top-strings',
     label: 'Top-Strings Set (G major)',
-    description: 'Compact triads on the G, B & high-E strings — clear and articulate.',
+    description: 'Compact triads low on the G, B & high-E strings — clear and articulate.',
     sourceKey: 'G',
     chords: [
-      { rootChord: 'G',     voicingId: findId('G',     'x-x-x-7-8-7') },
-      { rootChord: 'Am',    voicingId: findId('Am',    'x-x-x-9-10-8') },
-      { rootChord: 'Bm',    voicingId: findId('Bm',    'x-x-x-4-3-2') },
-      { rootChord: 'C',     voicingId: findId('C',     'x-x-x-5-5-3') },
-      { rootChord: 'D',     voicingId: findId('D',     'x-x-x-7-7-5') },
-      { rootChord: 'Em',    voicingId: findId('Em',    'x-x-x-9-8-7') },
+      { rootChord: 'G',  voicingId: pickTriad('G', 3) },
+      { rootChord: 'Am', voicingId: pickTriad('Am', 5) },
+      { rootChord: 'Bm', voicingId: pickTriad('Bm', 7) },
+      { rootChord: 'C',  voicingId: pickTriad('C', 5) },
+      { rootChord: 'D',  voicingId: pickTriad('D', 7) },
+      { rootChord: 'Em', voicingId: pickTriad('Em', 9) },
     ],
   },
 ]

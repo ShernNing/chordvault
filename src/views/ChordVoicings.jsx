@@ -101,7 +101,7 @@ export default function ChordVoicings() {
         <div className="flex-1 min-w-0">
           <h1 className="font-display text-2xl text-[var(--color-ink)] leading-tight">Chord Voicings</h1>
           <p className="text-xs text-[var(--color-ink-soft)]">
-            {VOICINGS.length} catalog voicings · {userVoicings.length} custom · 121 verified
+            {VOICINGS.length} electric voicings · {userVoicings.length} custom · top-4 strings
           </p>
         </div>
       </header>
