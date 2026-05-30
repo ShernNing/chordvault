@@ -29,26 +29,23 @@ export const CHORD_ROOTS_IN_G = [
 // them by the target root's pitch class and ladders octaves into the playable
 // window. `strings` is purely descriptive for the label.
 const TEMPLATES = {
-  // Major triad — top-3 strings (G,B,e) in all inversions + D,G,B set.
+  // Major triad — drop-2 on the top four strings (D,G,B,e), all three inversions.
   majTriad: [
-    { frets: [X,X,X,5,5,3],    inv: 'root', strings: 'G-B-e' },
-    { frets: [X,X,X,9,8,8],    inv: '1st',  strings: 'G-B-e' },
-    { frets: [X,X,X,12,13,12], inv: '2nd',  strings: 'G-B-e' },
-    { frets: [X,X,10,9,8,X],   inv: 'root', strings: 'D-G-B' },
     { frets: [X,X,10,9,8,8],   inv: 'root', strings: 'D-G-B-e' },
+    { frets: [X,X,14,12,13,12], inv: '1st', strings: 'D-G-B-e' },
+    { frets: [X,X,5,5,5,3],    inv: '2nd',  strings: 'D-G-B-e' },
   ],
-  // Minor triad.
+  // Minor triad — drop-2 on the top four strings, all three inversions.
   minTriad: [
-    { frets: [X,X,X,5,4,3],    inv: 'root', strings: 'G-B-e' },
-    { frets: [X,X,X,8,8,8],    inv: '1st',  strings: 'G-B-e' },
-    { frets: [X,X,X,12,13,11], inv: '2nd',  strings: 'G-B-e' },
-    { frets: [X,X,10,8,8,X],   inv: 'root', strings: 'D-G-B' },
     { frets: [X,X,10,8,8,8],   inv: 'root', strings: 'D-G-B-e' },
+    { frets: [X,X,13,12,13,11], inv: '1st', strings: 'D-G-B-e' },
+    { frets: [X,X,5,5,4,3],    inv: '2nd',  strings: 'D-G-B-e' },
   ],
-  // Diminished triad.
+  // Diminished triad — drop-2 on the top four strings, all three inversions.
   dimTriad: [
-    { frets: [X,X,X,5,4,2],    inv: 'root', strings: 'G-B-e' },
-    { frets: [X,X,10,8,7,X],   inv: 'root', strings: 'D-G-B' },
+    { frets: [X,X,10,8,7,8],   inv: 'root', strings: 'D-G-B-e' },
+    { frets: [X,X,13,11,13,11], inv: '1st', strings: 'D-G-B-e' },
+    { frets: [X,X,4,5,4,2],    inv: '2nd',  strings: 'D-G-B-e' },
   ],
   // Drop-2 sevenths on the top four strings (D,G,B,e).
   maj7: [
