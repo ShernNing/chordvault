@@ -55,6 +55,7 @@ export default function CompareView() {
               compareFrets={b?.frets}
               showFavorite={false}
               showEnharmonic
+              absolute
             />
           )}
         </div>
@@ -70,6 +71,7 @@ export default function CompareView() {
               compareFrets={a?.frets}
               showFavorite={false}
               showEnharmonic
+              absolute
             />
           )}
         </div>

@@ -46,10 +46,11 @@ export default function ProgressionStrip({ set, displayKey, displayMode = 'both'
                 {i + 1}. {displayedRoot}
               </div>
               <VoicingCard
-                voicing={voicing}
+                voicing={{ ...voicing, displayName: displayedRoot }}
                 displayedFrets={frets}
                 displayKey={displayKey}
                 displayMode={displayMode}
+                absolute
               />
             </div>
           ))}

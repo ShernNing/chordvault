@@ -52,11 +52,12 @@ export default function CapoHelper({ displayMode = 'both' }) {
                 <div className="ml-auto">
                   {v && (
                     <VoicingCard
-                      voicing={v.voicing}
+                      voicing={{ ...v.voicing, displayName: v.displayedName }}
                       displayedFrets={v.frets}
                       displayKey={shape.match(/^([A-G][b#]?)/)?.[1] || 'C'}
                       displayMode={displayMode}
                       showFavorite={false}
+                      absolute
                     />
                   )}
                 </div>

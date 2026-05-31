@@ -27,8 +27,11 @@ export function useLocalStorage(key, defaultValue) {
   })
 
   const setStored = useCallback((newValue) => {
-    setValue(newValue)
-    try { localStorage.setItem(key, JSON.stringify(newValue)) } catch {}
+    setValue(prev => {
+      const resolved = typeof newValue === 'function' ? newValue(prev) : newValue
+      try { localStorage.setItem(key, JSON.stringify(resolved)) } catch {}
+      return resolved
+    })
   }, [key])
 
   return [value, setStored]
@@ -77,7 +80,11 @@ export const STAGE_COLORS = [
 ]
 
 export function useTheme() {
-  const [isDark, setIsDark] = useLocalStorage('chordvault-dark-mode', false)
+  // Default to the OS color-scheme when the user hasn't chosen yet.
+  const prefersDark = typeof window !== 'undefined' && window.matchMedia
+    ? window.matchMedia('(prefers-color-scheme: dark)').matches
+    : false
+  const [isDark, setIsDark] = useLocalStorage('chordvault-dark-mode', prefersDark)
   const [isStage, setIsStage] = useLocalStorage('chordvault-stage-mode', false)
   const [stageColorId, setStageColorId] = useLocalStorage('chordvault-stage-color', 'gold')
   const [darkThemeId, setDarkThemeId] = useLocalStorage('chordvault-dark-theme', 'slate')
@@ -387,6 +394,7 @@ export function useSearch(allSongs) {
     setResults(allSongs.filter(s =>
       s.title?.toLowerCase().includes(q) ||
       s.artist?.toLowerCase().includes(q) ||
+      s.original_key?.toLowerCase().includes(q) ||
       s.tags?.some(t => t.toLowerCase().includes(q))
     ))
   }, [debouncedQuery, allSongs])

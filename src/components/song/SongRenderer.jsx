@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { transposeParsedContent } from '../../lib/transposition'
+import { nashvilleParsedContent } from '../../lib/nashville'
 import { normalizeSectionHeader, cleanSongTitle } from '../../lib/ingestion'
 
 // ─── Column layout helpers ───────────────────────────────────────────────────
@@ -173,12 +174,16 @@ export default function SongRenderer({
   onLineTypeOverride = null,
   onChordClick = null,
   fontSize = 14,
+  nashville = false,
 }) {
   const [overrides, setOverrides] = useState({})
 
-  const content = semitones !== 0
+  const transposed = semitones !== 0
     ? transposeParsedContent(parsedContent, semitones, targetKey)
     : parsedContent
+  const content = nashville && targetKey
+    ? nashvilleParsedContent(transposed, targetKey)
+    : transposed
 
   if (!content || content.length === 0) {
     return (

@@ -9,7 +9,8 @@ import PracticeMode from '../components/voicings/PracticeMode'
 import VoicingEditor from '../components/voicings/VoicingEditor'
 import AudioControls from '../components/voicings/AudioControls'
 import { VOICINGS, VOICINGS_BY_CHORD, PROGRESSION_SETS, CHORD_ROOTS_IN_G } from '../lib/voicings/catalog'
-import { transposeChordName, semitoneDelta, transposeVoicingTo } from '../lib/voicings/transpose'
+import { transposeChordName } from '../lib/voicings/transpose'
+import { diatonicInfo } from '../lib/voicings/diatonic'
 import { keyPrefersFlats } from '../lib/voicings/notes'
 import { useLocalStorage, useTheme } from '../lib/hooks'
 import { useFavorites } from '../lib/voicings/favorites'
@@ -52,7 +53,6 @@ export default function ChordVoicings() {
   const { list: userVoicings } = useUserVoicings()
 
   const preferFlats = keyPrefersFlats(displayKey)
-  const delta = useMemo(() => semitoneDelta('G', displayKey), [displayKey])
 
   // Combine catalog + user voicings, grouped by chord root.
   const allVoicingsByChord = useMemo(() => {
@@ -70,22 +70,29 @@ export default function ChordVoicings() {
     return [...new Set([...fromCatalog, ...fromUser])]
   }, [userVoicings])
 
+  // Library shows chords at their ABSOLUTE names. The selected key only decides
+  // which chords are diatonic (highlighted + ordered first) and sharp/flat spelling.
   const chordChips = useMemo(() => {
     return allChordRoots
       .map((root) => {
         const voicings = allVoicingsByChord[root] || []
-        const displayableCount = voicings.reduce(
-          (acc, v) => acc + (transposeVoicingTo(v, displayKey) != null ? 1 : 0),
-          0,
-        )
+        const dia = diatonicInfo(root, displayKey)
         return {
           rootChord: root,
-          label: transposeChordName(root, delta, preferFlats),
-          count: displayableCount,
+          label: transposeChordName(root, 0, preferFlats),
+          count: voicings.length,
+          roman: dia?.roman ?? null,
+          diatonic: !!dia,
+          degree: dia?.degree ?? 99,
         }
       })
       .filter(c => c.count > 0)
-  }, [delta, preferFlats, displayKey, allChordRoots, allVoicingsByChord])
+      .sort((a, b) => {
+        if (a.diatonic !== b.diatonic) return a.diatonic ? -1 : 1
+        if (a.diatonic) return a.degree - b.degree
+        return 0
+      })
+  }, [preferFlats, displayKey, allChordRoots, allVoicingsByChord])
 
   const visibleChords = activeChord
     ? chordChips.filter(c => c.rootChord === activeChord)
@@ -281,26 +288,34 @@ export default function ChordVoicings() {
                   <button
                     key={c.rootChord}
                     onClick={() => setActiveChord(c.rootChord)}
-                    className={`h-8 px-3 text-xs rounded-full border ${
+                    title={c.roman ? `${c.label} · ${c.roman} of ${displayKey}` : c.label}
+                    className={`h-8 px-3 text-xs rounded-full border inline-flex items-center gap-1 ${
                       activeChord === c.rootChord
                         ? 'bg-[var(--color-ink)] text-[var(--color-bg)] border-[var(--color-ink)]'
-                        : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)] border-[var(--color-border)] hover:border-[var(--color-ink-muted)]'
+                        : c.diatonic
+                          ? 'bg-[var(--color-accent-soft)] text-[var(--color-ink)] border-[var(--color-accent)]'
+                          : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)] border-[var(--color-border)] hover:border-[var(--color-ink-muted)]'
                     }`}
                   >
                     {c.label}
-                    <span className="ml-1 text-[var(--color-ink-muted)]">{c.count}</span>
+                    {c.roman && <span className="text-[10px] opacity-70">{c.roman}</span>}
+                    <span className="text-[var(--color-ink-muted)]">{c.count}</span>
                   </button>
                 ))}
               </div>
+              <p className="-mt-1 text-[11px] text-[var(--color-ink-muted)]">
+                Chords shown at their real names. Highlighted = diatonic to key of {displayKey}.
+              </p>
 
               <div className="flex flex-col gap-8">
-                {visibleChords.map(({ rootChord, label }) => {
+                {visibleChords.map(({ rootChord, label, roman }) => {
                   const voicings = allVoicingsByChord[rootChord] || []
                   if (voicings.length === 0) return null
                   return (
                     <section key={rootChord} className="flex flex-col gap-3">
-                      <h2 className="font-display text-xl text-[var(--color-ink)] border-b border-[var(--color-border)] pb-1">
+                      <h2 className="font-display text-xl text-[var(--color-ink)] border-b border-[var(--color-border)] pb-1 flex items-baseline gap-2">
                         {label}
+                        {roman && <span className="font-sans text-xs text-[var(--color-accent)]">{roman} · key of {displayKey}</span>}
                       </h2>
                       <VoicingGrid
                         voicings={voicings}
@@ -315,6 +330,8 @@ export default function ChordVoicings() {
                         difficulty={difficulty}
                         favoritesOnly={favoritesOnly}
                         favoriteIds={favoriteIds}
+                        absolute
+                        preferFlats={preferFlats}
                       />
                     </section>
                   )

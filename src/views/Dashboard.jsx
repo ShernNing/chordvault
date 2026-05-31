@@ -20,6 +20,16 @@ export default function Dashboard() {
   const { songs, loading, error, reload, deleteSong, bulkDeleteSongs } = useSongs(sortBy)
   const { query, setQuery, results } = useSearch(songs)
   const { setlists } = useSetlists()
+  const [keyFilter, setKeyFilter] = useState('')
+
+  // Keys present in the library, for the key filter dropdown.
+  const availableKeys = React.useMemo(
+    () => [...new Set(songs.map(s => s.original_key).filter(Boolean))].sort(),
+    [songs],
+  )
+  const filteredResults = keyFilter
+    ? results.filter(s => s.original_key === keyFilter)
+    : results
 
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [deleteTarget, setDeleteTarget] = useState(null) // null | { type: 'single', song } | { type: 'bulk' }
@@ -119,6 +129,19 @@ export default function Dashboard() {
               className="w-full h-8 pl-8 pr-3 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-[var(--color-ink)] placeholder-[var(--color-ink-muted)] hover:border-[var(--color-ink-muted)] focus:outline-none focus:border-[var(--color-ink)] transition-colors"
             />
           </div>
+          {availableKeys.length > 0 && (
+            <Select
+              value={keyFilter}
+              onChange={e => setKeyFilter(e.target.value)}
+              className="w-28"
+              title="Filter by key"
+            >
+              <option value="">All keys</option>
+              {availableKeys.map(k => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </Select>
+          )}
           <Select
             value={sortBy}
             onChange={e => setSortBy(e.target.value)}
@@ -172,20 +195,20 @@ export default function Dashboard() {
             </Link>
           }
         />
-      ) : results.length === 0 ? (
+      ) : filteredResults.length === 0 ? (
         <EmptyState
           icon={Search}
-          title={`No results for "${query}"`}
-          description="Try a different search term."
+          title={query ? `No results for "${query}"` : `No songs in key of ${keyFilter}`}
+          description="Try a different search term or key filter."
           action={
-            <Button variant="secondary" size="sm" onClick={() => setQuery('')}>
-              Clear search
+            <Button variant="secondary" size="sm" onClick={() => { setQuery(''); setKeyFilter('') }}>
+              Clear filters
             </Button>
           }
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {results.map(song => (
+          {filteredResults.map(song => (
             <SongCard
               key={song.id}
               song={song}

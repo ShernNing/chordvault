@@ -115,6 +115,7 @@ export default function VoicingDrawer({ chord, onClose, displayMode = 'both', pr
                   compareFrets={i === 0 ? prevFrets : null}
                   stageMode={isStage}
                   showEnharmonic
+                  absolute
                 />
               ))}
             </div>

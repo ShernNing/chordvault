@@ -40,12 +40,14 @@ export default function VoicingCard({
   showFavorite = true,
   onClick = null,
   audioOptions = null,
+  absolute = false,
+  preferFlats: preferFlatsProp = null,
 }) {
   const [playing, setPlaying] = useState(false)
   const frets = displayedFrets || voicing.frets
-  const preferFlats = keyPrefersFlats(displayKey)
+  const preferFlats = preferFlatsProp == null ? keyPrefersFlats(displayKey) : preferFlatsProp
 
-  const delta = semitoneDelta(voicing.sourceKey, displayKey)
+  const delta = absolute ? 0 : semitoneDelta(voicing.sourceKey, displayKey)
   const displayedName = transposeChordName(voicing.displayName, delta, preferFlats)
   const notes = voicingUniquePitchClasses(frets, preferFlats)
 

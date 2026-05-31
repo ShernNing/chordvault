@@ -19,6 +19,9 @@ import {
   ListMusic,
   Guitar,
   Zap,
+  PlayCircle,
+  Share2,
+  Link2,
 } from "lucide-react";
 import { useSong, useLocalStorage, useDisplaySettings, useSetlists, FONT_OPTIONS } from "../lib/hooks";
 import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
@@ -45,6 +48,7 @@ import SongRenderer, {
   PrintableSongSheet,
 } from "../components/song/SongRenderer";
 import TransposeControls from "../components/song/TransposeControls";
+import PerformBar from "../components/song/PerformBar";
 import VoicingDrawer from "../components/voicings/VoicingDrawer";
 import SongVoicingsPanel from "../components/voicings/SongVoicingsPanel";
 import ElectricGuitarNotesPanel from "../components/song/ElectricGuitarNotesPanel";
@@ -65,6 +69,10 @@ export default function SongView() {
     capo: 0,
   });
   const [twoColumn, setTwoColumn] = useLocalStorage(`cv-2col-${id}`, "auto");
+  const [nashville, setNashville] = useLocalStorage("cv-nashville", false);
+  const [bpm, setBpm] = useLocalStorage(`cv-bpm-${id}`, 100);
+  const [showPerform, setShowPerform] = useState(false);
+  const [shared, setShared] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
@@ -175,6 +183,19 @@ export default function SongView() {
     await navigator.clipboard.writeText(song.raw_content || "");
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/songs/${id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: song.title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShared(true);
+        setTimeout(() => setShared(false), 2000);
+      }
+    } catch (_) { /* user cancelled share sheet */ }
   };
 
   const handleExportDocx = async () => {
@@ -296,6 +317,16 @@ export default function SongView() {
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </Button>
           </Tooltip>
+          <Tooltip content={shared ? "Link copied!" : "Share link to this song"}>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={handleShare}
+              title='Share link'
+            >
+              {shared ? <Link2 size={14} /> : <Share2 size={14} />}
+            </Button>
+          </Tooltip>
           <Tooltip content='Export PDF'>
             <Button
               variant='ghost'
@@ -352,6 +383,17 @@ export default function SongView() {
               title='Font & size'
             >
               <Type size={14} />
+            </Button>
+          </Tooltip>
+          <Tooltip content='Perform mode (auto-scroll + metronome)'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setShowPerform(p => !p)}
+              className={showPerform ? 'text-[var(--color-accent)]' : ''}
+              title='Perform mode'
+            >
+              <PlayCircle size={14} />
             </Button>
           </Tooltip>
           <Tooltip content='Add to setlist'>
@@ -431,6 +473,8 @@ export default function SongView() {
           semitones={transpose.semitones}
           capo={transpose.capo}
           onChange={handleTransposeChange}
+          nashville={nashville}
+          onToggleNashville={() => setNashville(v => !v)}
         />
       </div>
 
@@ -501,7 +545,16 @@ export default function SongView() {
         onReload={reload}
         onLineTypeOverride={handleLineTypeOverride}
         onChordClick={setActiveVoicingChord}
+        nashville={nashville}
       />
+
+      {showPerform && (
+        <PerformBar
+          bpm={bpm}
+          onBpmChange={setBpm}
+          onClose={() => setShowPerform(false)}
+        />
+      )}
 
       <VoicingDrawer
         chord={activeVoicingChord}
@@ -804,6 +857,7 @@ function ChordSheetPage({
   onReload,
   onLineTypeOverride,
   onChordClick,
+  nashville = false,
 }) {
   const measureRef = React.useRef(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -859,6 +913,7 @@ function ChordSheetPage({
           fontSize={fontSize}
           onLineTypeOverride={onLineTypeOverride}
           onChordClick={onChordClick}
+          nashville={nashville}
         />
       </div>
 
@@ -882,6 +937,7 @@ function ChordSheetPage({
             targetKey={targetKey}
             twoColumn={false}
             fontSize={fontSize}
+            nashville={nashville}
           />
         </div>
       </div>

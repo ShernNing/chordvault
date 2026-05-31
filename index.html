@@ -19,7 +19,10 @@
     <script>
       (function () {
         try {
-          var isDark = JSON.parse(localStorage.getItem('chordvault-dark-mode') || 'false')
+          var storedDark = localStorage.getItem('chordvault-dark-mode')
+          var isDark = storedDark !== null
+            ? JSON.parse(storedDark)
+            : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
           var isStage = JSON.parse(localStorage.getItem('chordvault-stage-mode') || 'false')
           var darkThemeId = JSON.parse(localStorage.getItem('chordvault-dark-theme') || '"slate"')
           var stageColorId = JSON.parse(localStorage.getItem('chordvault-stage-color') || '"gold"')

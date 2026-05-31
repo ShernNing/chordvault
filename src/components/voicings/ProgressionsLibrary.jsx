@@ -94,13 +94,14 @@ export default function ProgressionsLibrary({ displayMode = 'both', highlightRoo
             </div>
             {step.voicing ? (
               <VoicingCard
-                voicing={{ ...step.voicing, displayName: step.displayName || step.chord }}
+                voicing={{ ...step.voicing, displayName: step.chord }}
                 displayedFrets={step.frets}
-                displayKey={step.chord.match(/^([A-G][b#]?)/)?.[1] || 'C'}
+                displayKey={keyName}
                 displayMode={displayMode}
                 highlightRoot={highlightRoot}
                 compareFrets={i > 0 ? chain[i - 1]?.frets : null}
                 showFavorite={false}
+                absolute
               />
             ) : (
               <div className="p-3 rounded border border-dashed border-[var(--color-border)] text-xs text-[var(--color-ink-muted)] text-center">

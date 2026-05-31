@@ -35,12 +35,14 @@ export default function VoicingGrid({
   favoritesOnly = false,
   favoriteIds = [],
   onCardClick = null,
+  absolute = false,
+  preferFlats = null,
 }) {
   const items = useMemo(() => {
     const favSet = new Set(favoriteIds)
     const q = searchQuery.trim().toLowerCase()
     return voicings
-      .map(v => ({ voicing: v, frets: transposeVoicingTo(v, displayKey) }))
+      .map(v => ({ voicing: v, frets: absolute ? v.frets.slice() : transposeVoicingTo(v, displayKey) }))
       .filter(x => x.frets != null)
       .filter(({ voicing }) => {
         if (favoritesOnly && !favSet.has(voicing.id)) return false
@@ -60,7 +62,7 @@ export default function VoicingGrid({
         }
         return true
       })
-  }, [voicings, displayKey, searchQuery, difficulty, favoritesOnly, favoriteIds])
+  }, [voicings, displayKey, searchQuery, difficulty, favoritesOnly, favoriteIds, absolute])
 
   if (items.length === 0) {
     return (
@@ -84,6 +86,8 @@ export default function VoicingGrid({
           stageMode={stageMode}
           showEnharmonic={showEnharmonic}
           audioOptions={audioOptions}
+          absolute={absolute}
+          preferFlats={preferFlats}
           onClick={onCardClick ? () => onCardClick(voicing, frets) : null}
         />
       ))}

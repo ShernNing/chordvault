@@ -77,6 +77,8 @@ const FAMILIES = {
   dom7:     { suffix: '7',     key: 'dom7',     tag: 'dom7'  },
   m7b5:     { suffix: 'm7b5',  key: 'm7b5',     tag: 'm7b5'  },
   dim7:     { suffix: 'dim7',  key: 'dim7',     tag: 'dim7'  },
+  sus2:     { suffix: 'sus2',  key: 'sus2',     tag: 'sus'   },
+  sus4:     { suffix: 'sus4',  key: 'sus4',     tag: 'sus'   },
 }
 
 // Which families each chord root carries.
@@ -168,7 +170,94 @@ function buildVoicings() {
   return out
 }
 
-export const VOICINGS = buildVoicings()
+// ─── Programmatic 3-string triads ──────────────────────────────────────────
+// Closed triads built directly from chord tones on each adjacent 3-string set,
+// in all three inversions, laddered through every playable octave. This fans the
+// same chord across the neck (low + high) and across string groups (A-D-G,
+// D-G-B, G-B-e) so players get compact options, not just the top-4 drop-2 shapes.
+// Pitch-class correctness is guaranteed by construction (see verify-voicings).
+
+const TRIAD_INTERVALS = {
+  majTriad: [0, 4, 7], minTriad: [0, 3, 7], dimTriad: [0, 3, 6],
+  sus2: [0, 2, 7], sus4: [0, 5, 7],
+}
+
+// Which 3-note families each chord root carries in the string-set generator.
+// Major roots also get sus2/sus4 (same root, 3rd swapped for the 2nd/4th).
+function triadFamiliesFor(rootChord) {
+  const cats = CHORD_FAMILIES[rootChord]
+  if (cats.includes('majTriad')) return ['majTriad', 'sus2', 'sus4']
+  if (cats.includes('minTriad')) return ['minTriad']
+  if (cats.includes('dimTriad')) return ['dimTriad']
+  return []
+}
+
+const TRIAD_INVERSIONS = [
+  { order: [0, 1, 2], label: 'root' },
+  { order: [1, 2, 0], label: '1st' },
+  { order: [2, 0, 1], label: '2nd' },
+]
+
+// String sets as low→high open-string indices. [E,A,D,G,B,e] = 0..5.
+const TRIAD_STRING_SETS = [
+  { idx: [1, 2, 3], label: 'A-D-G' },
+  { idx: [2, 3, 4], label: 'D-G-B' },
+  { idx: [3, 4, 5], label: 'G-B-e' },
+]
+
+// Lowest compact closed triad on one string set for a given inversion.
+// Builds the tightest ascending voicing (open allowed), then lifts the WHOLE
+// shape up an octave if any string is open so it stays fully movable — never
+// stretching individual notes apart. Rejects anything wider than a 5-fret span.
+const TRIAD_MAX_SPAN = 5
+function closedTriad(rootPc, intervals, setIdx, order) {
+  const pcs = order.map(i => (rootPc + intervals[i]) % 12)
+  const frets = [X, X, X, X, X, X]
+  let prevMidi = -Infinity
+  for (let k = 0; k < 3; k++) {
+    const s = setIdx[k]
+    const open = OPEN_MIDI[s]
+    let f = (((pcs[k] - open) % 12) + 12) % 12   // smallest fret ≥ 0 for this pitch class
+    while (open + f <= prevMidi) f += 12          // keep notes ascending = closed voicing
+    frets[s] = f
+    prevMidi = open + f
+  }
+  // Lift the whole shape an octave if it uses any open string (must be movable).
+  if (setIdx.some(s => frets[s] === 0)) for (const s of setIdx) frets[s] += 12
+  const played = setIdx.map(s => frets[s])
+  const span = Math.max(...played) - Math.min(...played)
+  if (span > TRIAD_MAX_SPAN || Math.max(...played) > 17) return null
+  return frets
+}
+
+function buildTriadSetVoicings() {
+  const out = []
+  for (const rootChord of Object.keys(CHORD_FAMILIES)) {
+    const rootPc = PCIDX[rootNoteOf(rootChord)]
+    const seen = new Set()
+    for (const type of triadFamiliesFor(rootChord)) {
+      const fam = FAMILIES[type]
+      const intervals = TRIAD_INTERVALS[type]
+      const displayName = `${rootNoteOf(rootChord)}${fam.suffix}`
+      for (const set of TRIAD_STRING_SETS) {
+        for (const inv of TRIAD_INVERSIONS) {
+          const base0 = closedTriad(rootPc, intervals, set.idx, inv.order)
+          if (!base0) continue
+          const base = normalize(base0)
+          for (const frets of octaveCopies(base)) {
+            const sig = `${type}:${fretSig(frets)}`
+            if (seen.has(sig)) continue
+            seen.add(sig)
+            out.push(mk(rootChord, displayName, frets, fam, { inv: inv.label, strings: set.label }))
+          }
+        }
+      }
+    }
+  }
+  return out
+}
+
+export const VOICINGS = [...buildVoicings(), ...buildTriadSetVoicings()]
 
 export const VOICINGS_BY_CHORD = VOICINGS.reduce((acc, v) => {
   (acc[v.rootChord] = acc[v.rootChord] || []).push(v)

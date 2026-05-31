@@ -1,5 +1,5 @@
 import React from 'react'
-import { RotateCcw, ChevronUp, ChevronDown } from 'lucide-react'
+import { RotateCcw, ChevronUp, ChevronDown, Hash } from 'lucide-react'
 import { ALL_KEYS, transposeKey, getCapoDisplay, semitonesFromKeyToKey } from '../../lib/transposition'
 import { Button, Select, Tooltip, Badge } from '../ui'
 
@@ -17,6 +17,8 @@ export default function TransposeControls({
   semitones = 0,
   capo = 0,
   onChange,
+  nashville = false,
+  onToggleNashville = null,
 }) {
   const displayKey = originalKey
     ? transposeKey(originalKey, semitones)
@@ -133,6 +135,20 @@ export default function TransposeControls({
           </Button>
         </div>
       </div>
+
+      {/* ── Nashville numbers ────────────────────────────────────────── */}
+      {onToggleNashville && (
+        <Tooltip content={originalKey ? 'Show chords as Nashville numbers' : 'Set a song key to use Nashville numbers'}>
+          <Button
+            variant={nashville ? 'primary' : 'secondary'}
+            size="sm"
+            onClick={onToggleNashville}
+            disabled={!originalKey}
+          >
+            <Hash size={12} /> Nashville
+          </Button>
+        </Tooltip>
+      )}
 
       {/* ── Capo hint ────────────────────────────────────────────────── */}
       {capoDisplay && (
