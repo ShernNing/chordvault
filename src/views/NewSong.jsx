@@ -1,10 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X, Search } from 'lucide-react'
 import { useSongs } from '../lib/hooks'
 import { supabaseSongOps } from '../lib/supabaseOps'
 import { ingest, classifyLine, cleanArtistName } from '../lib/ingestion'
-import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
+import { Button, Input, Textarea, TagInput, Badge } from '../components/ui'
 import { lookupArtist } from '../lib/musicbrainz'
 import SongRenderer from '../components/song/SongRenderer'
 import ConflictCard from '../components/song/ConflictCard'
@@ -40,7 +40,7 @@ export default function NewSong() {
     //   "1. Amazing Grace (F)"             → title=Amazing Grace
     //   "Lord I Need You (F)"              → title=Lord I Need You
     const isCategoryLabel = (line) =>
-      /^(?:\d+[\.\)]\s*)?(?:communion|post[\s\-]?sermon)\s*$/i.test(line.trim())
+      /^(?:\d+[.)]\s*)?(?:communion|post[\s-]?sermon)\s*$/i.test(line.trim())
 
     if (!title.trim() && content.trim()) {
       const contentLines = content.split('\n')
@@ -61,19 +61,19 @@ export default function NewSong() {
         ) {
           // Artist extraction: key annotation OR em/en-dash (–—) as strong separator signal
           const artistWithKey = firstLine.match(
-            /[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i
+            /[–-]\s*([^(–-]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i
           )
           const artistEmDash = !artistWithKey && firstLine.match(/[–—]\s*([^–—(]+?)\s*$/)
           const detectedArtist = cleanArtistName(artistWithKey?.[1] || artistEmDash?.[1] || '')
 
           let detected = firstLine
             .replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)\s*$/i, '')
-            .replace(/^\d+[\.\)]\s+/, '')
+            .replace(/^\d+[.)]\s+/, '')
             .trim()
 
           // Strip artist credit from title
           if (detectedArtist) {
-            detected = detected.replace(/\s*[–\-]\s*.+$/, '').trim()
+            detected = detected.replace(/\s*[–-]\s*.+$/, '').trim()
           }
 
           if (detected.length > 0) {
@@ -336,7 +336,7 @@ export default function NewSong() {
               {ingestionResult ? (
                 <SongRenderer
                   parsedContent={ingestionResult.parsed_content}
-                  onLineTypeOverride={(idx, type) => {
+                  onLineTypeOverride={(_idx, _type) => {
                     // In live preview mode, overrides are visual only
                     // They'll be saved when the user saves the song
                   }}

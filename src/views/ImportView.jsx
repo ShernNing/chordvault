@@ -1,14 +1,14 @@
-import React, { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Upload, FileText, FileUp, CheckCircle, XCircle, Edit3,
+  FileUp, CheckCircle, XCircle, Edit3,
   ChevronDown, ChevronUp, AlertTriangle, Save, X, Check,
-  Music2, ArrowRight, Loader2, RotateCcw
+  Music2, Loader2, RotateCcw
 } from 'lucide-react'
 import { importDocument } from '../lib/docImport'
 import { ingest } from '../lib/ingestion'
 import { supabaseSongOps } from '../lib/supabaseOps'
-import { Button, Input, Textarea, TagInput, Badge, ErrorState } from '../components/ui'
+import { Button, Input, Textarea, TagInput, Badge } from '../components/ui'
 import SongRenderer from '../components/song/SongRenderer'
 import ConflictCard from '../components/song/ConflictCard'
 

@@ -1,4 +1,3 @@
-import React from 'react'
 import { Volume2, ArrowDownToLine, ArrowUpToLine } from 'lucide-react'
 
 /**

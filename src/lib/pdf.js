@@ -7,7 +7,6 @@ import html2canvas from 'html2canvas'
  */
 
 const A4_WIDTH_PX = 794
-const A4_HEIGHT_PX = 1123
 const MARGIN_PX = 0
 
 export async function exportSongToPDF(songTitle, key, renderElement) {

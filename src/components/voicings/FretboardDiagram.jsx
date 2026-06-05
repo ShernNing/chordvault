@@ -1,4 +1,3 @@
-import React from 'react'
 import { fretInterval, isRootFret, rootPCOf } from '../../lib/voicings/intervals'
 import { sharedStringMask } from '../../lib/voicings/voiceLeading'
 

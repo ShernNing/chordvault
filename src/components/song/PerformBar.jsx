@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Play, Pause, ChevronUp, ChevronDown, Gauge, Music2, X } from 'lucide-react'
 import { Metronome, tapsToBpm } from '../../lib/metronome'
 import { Button, Tooltip } from '../ui'

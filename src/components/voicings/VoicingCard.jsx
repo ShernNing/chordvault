@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Play, Loader2, Music3 } from 'lucide-react'
 import FretboardDiagram from './FretboardDiagram'
 import FavoriteButton from './FavoriteButton'

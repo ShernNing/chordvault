@@ -11,7 +11,7 @@
  *  - Two or more consecutive blank lines
  */
 
-import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference, classifyLine, cleanSongTitle, cleanArtistName } from './ingestion'
+import { parseRawContent, extractChords, detectKey, extractKeyFromTitle, detectAccidentalPreference, cleanSongTitle, cleanArtistName } from './ingestion'
 
 // ─── DOCX Parsing ─────────────────────────────────────────────────────────
 
@@ -145,18 +145,18 @@ function loadScript(src) {
 // Chord lines are all-caps letters+spaces, so never use a generic all-caps pattern.
 const SONG_TITLE_PATTERNS = [
   // "1. The Joy (F)" or "2. TRIBES – Victory Worship (G)"
-  /^\d+[\.\)]\s+.{2,}/,
+  /^\d+[.)]\s+.{2,}/,
   // "Matchless Love – Sinach (B)" — hyphen + key annotation
-  /^[A-Z].+[–\-].+\([A-G][#b]?\)/,
+  /^[A-Z].+[–-].+\([A-G][#b]?\)/,
   // "Precious Jesus – Sinach" — em/en-dash without key (strong artist separator signal)
   /^[A-Z].+[–—].+/,
   // Category separator labels
-  /^(?:communion|post[\s\-]?sermon)\s*$/i,
+  /^(?:communion|post[\s-]?sermon)\s*$/i,
 ]
 
 // Category labels that are section separators, not song titles.
 // When detected as rawTitle, the real song title is the first line of rawContent.
-const CATEGORY_LABEL_RE = /^(?:\d+[\.\)]\s*)?(?:communion|post[\s\-]?sermon)\s*$/i
+const CATEGORY_LABEL_RE = /^(?:\d+[.)]\s*)?(?:communion|post[\s-]?sermon)\s*$/i
 
 // Patterns that are definitely NOT song titles
 const SKIP_PATTERNS = [
@@ -230,13 +230,13 @@ export function splitDocumentIntoSongs(text) {
 export function cleanTitle(rawTitle) {
   let title = rawTitle.trim()
   // Remove leading number: "1. " or "1) "
-  title = title.replace(/^\d+[\.\)]\s+/, '')
+  title = title.replace(/^\d+[.)]\s+/, '')
   // Remove key annotation: " (F)" or " (Key G)"
   title = title.replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)\s*$/i, '')
   // Strip artist credit "Song – Artist" — only when original had a key annotation,
   // which is the reliable signal that this is "Song – Artist (Key)" not a dash in a title.
   if (extractArtistFromTitle(rawTitle)) {
-    title = title.replace(/\s*[–\-]\s*.+$/, '')
+    title = title.replace(/\s*[–-]\s*.+$/, '')
   }
   return cleanSongTitle(title.trim())
 }
@@ -251,7 +251,7 @@ export function cleanTitle(rawTitle) {
  */
 export function extractArtistFromTitle(rawTitle) {
   // Try: "Song – Artist (Key)" — hyphen/dash + key annotation
-  const withKey = rawTitle.match(/[–\-]\s*([^(\-–]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i)
+  const withKey = rawTitle.match(/[–-]\s*([^(–-]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i)
   if (withKey) return cleanArtistName(withKey[1])
   // Try: "Song – Artist" — em/en-dash without key (strong separator signal)
   const emDash = rawTitle.match(/[–—]\s*([^–—(]+?)\s*$/)

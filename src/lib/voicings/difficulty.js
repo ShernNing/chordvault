@@ -12,7 +12,6 @@ export function difficultyOf(frets, tags = []) {
   const minFret = Math.min(...fretted)
   const maxFret = Math.max(...fretted)
   const span = maxFret - minFret
-  const muted = frets.filter(f => f == null).length
   const open = frets.filter(f => f === 0).length
   const hasInteriorMute = hasInteriorMutedString(frets)
   const isBarre = tags.includes('barre') || looksLikeBarre(frets)

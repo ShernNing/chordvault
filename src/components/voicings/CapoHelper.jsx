@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import VoicingCard from './VoicingCard'
 import { capoOptionsFor } from '../../lib/voicings/capo'
 import { voicingsForChord } from '../../lib/voicings/lookup'

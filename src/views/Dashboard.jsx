@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw } from 'lucide-react'
 import { useSongs, useSearch, useSetlists } from '../lib/hooks'
 import { supabaseSetlistOps } from '../lib/supabaseOps'
-import { Button, Input, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
+import { Button, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
 import SongCard from '../components/song/SongCard'
 
 const SORT_OPTIONS = [

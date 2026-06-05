@@ -1,4 +1,5 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef } from "react";
+import { createRoot } from "react-dom/client";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -8,7 +9,6 @@ import {
   Columns2,
   FileDown,
   Trash2,
-  Music2,
   AlertTriangle,
   Check,
   RefreshCw,
@@ -25,11 +25,11 @@ import {
 } from "lucide-react";
 import { useSong, useLocalStorage, useDisplaySettings, useSetlists, FONT_OPTIONS } from "../lib/hooks";
 import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
-import { transposeKey, getCapoDisplay, getCapoShapeKey, transposeParsedContent, transposeChord } from "../lib/transposition";
+import { transposeKey, getCapoShapeKey, transposeParsedContent, transposeChord } from "../lib/transposition";
+import { extractChords, detectKey, ingest, tokenizeChordLine } from "../lib/ingestion";
 import { bestTransposeFrets } from "../lib/voicings/transpose";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
-import { ingest, tokenizeChordLine } from "../lib/ingestion";
 import { lookupArtist } from "../lib/musicbrainz";
 import {
   Button,
@@ -38,7 +38,6 @@ import {
   TagInput,
   Badge,
   Modal,
-  EmptyState,
   ErrorState,
   SongViewSkeleton,
   Tooltip,
@@ -56,8 +55,6 @@ import ElectricGuitarNotesPanel from "../components/song/ElectricGuitarNotesPane
 export default function SongView() {
   const { id } = useParams();
   const navigate = useNavigate();
-
-  if (!id) return <ErrorState message='Invalid song ID' />;
 
   const { song, loading, error, reload, update } = useSong(id);
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useDisplaySettings();
@@ -90,6 +87,7 @@ export default function SongView() {
 
   const printRef = useRef(null);
 
+  if (!id) return <ErrorState message='Invalid song ID' />;
   if (loading) return <SongViewSkeleton />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!song) return <ErrorState message='Song not found' />;
@@ -217,7 +215,6 @@ export default function SongView() {
     try {
       const container = createPrintContainer();
       // Render a PrintableSongSheet into the container
-      const { createRoot } = await import("react-dom/client");
       const root = createRoot(container);
       root.render(
         <PrintableSongSheet
@@ -453,8 +450,6 @@ export default function SongView() {
               size='icon-sm'
               title='Re-detect key'
               onClick={async () => {
-                const { extractChords, detectKey } =
-                  await import("../lib/ingestion");
                 const chords = extractChords(song.parsed_content);
                 const result = detectKey(chords);
                 if (result?.key) await update({ original_key: result.key });
@@ -851,7 +846,6 @@ function ChordSheetPage({
   semitones,
   targetKey,
   twoColumn,
-  onTwoColumnChange,
   printRef,
   fontSize = 14,
   onReload,

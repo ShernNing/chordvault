@@ -147,6 +147,7 @@ export function useDisplaySettings() {
     root.style.setProperty('--lyric-font', fontFamily)
     root.style.setProperty('--chord-size', `${fontSize}px`)
     root.style.setProperty('--lyric-size', `${fontSize}px`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- setFontSize from useLocalStorage is stable and intentionally omitted
   }, [fontSize, fontFamily])
 
   return { fontSize, setFontSize, fontFamily, setFontFamily }
@@ -228,7 +229,7 @@ export function useSongs(sortBy = 'title') {
   }, [load])
 
   const bulkDeleteSongs = useCallback(async (ids) => {
-    for (const id of ids) await supabaseSongOps.delete(id)
+    await supabaseSongOps.deleteMany(ids)
     await load()
   }, [load])
 
@@ -260,7 +261,8 @@ export function useSong(id) {
       if (!data) throw new Error('Song not found')
       setSong(data)
       try { localStorage.setItem(`cv-song-cache-${id}`, JSON.stringify(data)) } catch {}
-      await supabaseSongOps.markPlayed(id)
+      // Fire-and-forget: don't block the loading state on the play-count write.
+      supabaseSongOps.markPlayed(id).catch(() => {})
     } catch (e) {
       setError(e.message)
     } finally {

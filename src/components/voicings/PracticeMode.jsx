@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, RotateCw, Check, X as XIcon } from 'lucide-react'
 import FretboardDiagram from './FretboardDiagram'
 import { VOICINGS } from '../../lib/voicings/catalog'

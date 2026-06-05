@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 import { X, GripVertical, FileDown, Scissors, Clipboard, RefreshCw } from 'lucide-react'
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
@@ -98,8 +100,6 @@ function getTransposeData(slot) {
 
 async function computePageLayout(editedSlots) {
   if (editedSlots.length === 0) return []
-  const { createRoot } = await import('react-dom/client')
-  const { flushSync } = await import('react-dom')
 
   const measureEl = document.createElement('div')
   measureEl.style.cssText =
@@ -174,7 +174,7 @@ async function computePageLayout(editedSlots) {
 // ── main component ────────────────────────────────────────────────────────────
 
 export default function SetlistFullEditor({
-  setlist, slots, onClose, onReorder,
+  setlist, slots, onClose,
   handleExportPDF, handleExportDocx, exporting, exportingDocx,
 }) {
   const [editedSlots, setEditedSlots] = useState(() =>
@@ -201,6 +201,7 @@ export default function SetlistFullEditor({
     computePageLayout(editedSlots)
       .then(setPages)
       .finally(() => setLayoutBusy(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: layout computed once on open, not on every editedSlots change
   }, []) // compute once on open
 
   const refreshLayout = async () => {

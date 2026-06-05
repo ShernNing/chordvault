@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { AlertTriangle, Edit3, X, Check } from 'lucide-react'
 import { ingest } from '../../lib/ingestion'
 import { Input, Textarea, Button } from '../ui'

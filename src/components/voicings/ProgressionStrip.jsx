@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import VoicingCard from './VoicingCard'
 import { getVoicingById } from '../../lib/voicings/catalog'
 import { transposeVoicingTo, transposeChordName, semitoneDelta } from '../../lib/voicings/transpose'

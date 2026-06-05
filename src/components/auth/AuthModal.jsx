@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Cloud, Mail, X, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { Button, Input } from '../ui'

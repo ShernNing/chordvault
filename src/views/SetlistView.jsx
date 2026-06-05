@@ -1,4 +1,6 @@
-import React, { useState, useRef } from "react";
+import { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { flushSync } from "react-dom";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -44,8 +46,6 @@ import {
   ErrorState,
   Skeleton,
   Select,
-  Tooltip,
-  Modal,
 } from "../components/ui";
 
 // Half-page column: (794 - 48px padding - 32px gap) / 2 = 357px ÷ ~7.2px/char ≈ 49 chars
@@ -71,8 +71,6 @@ function getMaxLineChars(parsedContent) {
 export default function SetlistView() {
   const { id } = useParams();
 
-  if (!id) return <ErrorState message='Invalid setlist ID' />;
-
   const {
     setlist,
     loading,
@@ -94,8 +92,6 @@ export default function SetlistView() {
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const printRefs = useRef({});
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, {
@@ -103,6 +99,7 @@ export default function SetlistView() {
     }),
   );
 
+  if (!id) return <ErrorState message='Invalid setlist ID' />;
   if (loading)
     return (
       <div className='max-w-5xl mx-auto space-y-4'>
@@ -142,9 +139,6 @@ export default function SetlistView() {
   const handleExportPDF = async (slotsOverride) => {
     setExporting(true);
     try {
-      const { createRoot } = await import("react-dom/client");
-      const { flushSync } = await import("react-dom");
-      const { semitonesFromKeyToKey } = await import("../lib/transposition");
       const containers = [];
       const roots = [];
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
@@ -328,7 +322,6 @@ export default function SetlistView() {
   const handleExportDocx = async (slotsOverride) => {
     setExportingDocx(true);
     try {
-      const { semitonesFromKeyToKey } = await import("../lib/transposition");
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
       await exportSetlistToDocx(setlist.name, exportSlots.filter(s => s.song), (slot) => {
         const semitones = slot.chosen_key && slot.song.original_key
@@ -601,7 +594,6 @@ function SortableSlot({ slot, index, onRemove, onUpdateSlot }) {
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const [editingKey, setEditingKey] = useState(false);
   const [localKey, setLocalKey] = useState(
     slot.chosen_key || slot.song?.original_key || "",
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, ListMusic, Trash2, Calendar } from 'lucide-react'
 import { useSetlists } from '../lib/hooks'
@@ -24,7 +24,7 @@ export default function Setlists() {
     setCreating(true)
     setFormError('')
     try {
-      const s = await createSetlist(newName.trim())
+      await createSetlist(newName.trim())
       setNewName('')
     } catch (err) {
       setFormError(err.message)

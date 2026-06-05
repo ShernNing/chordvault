@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { X, Guitar } from 'lucide-react'
 import VoicingCard from './VoicingCard'
 import { voicingsForChord } from '../../lib/voicings/lookup'
@@ -19,7 +19,7 @@ export default function VoicingDrawer({ chord, onClose, displayMode = 'both', pr
   const { isStage } = useTheme()
   const [highlightRoot] = useLocalStorage('chordvault-voicings-highlightroot', true)
   const [dotLabels] = useLocalStorage('chordvault-voicings-dotlabels', 'fret')
-  const { ids: favoriteIds, has: isFav } = useFavorites()
+  const { has: isFav } = useFavorites()
 
   useEffect(() => {
     if (!open) return

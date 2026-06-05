@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { Save, Trash2, RotateCcw, X as XIcon } from 'lucide-react'
+import { Save, Trash2, RotateCcw } from 'lucide-react'
 import FretboardDiagram from './FretboardDiagram'
 import { useUserVoicings } from '../../lib/voicings/userVoicings'
 import { detectChordNames } from '../../lib/voicings/enharmonic'

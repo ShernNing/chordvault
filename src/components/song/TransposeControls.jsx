@@ -1,4 +1,3 @@
-import React from 'react'
 import { RotateCcw, ChevronUp, ChevronDown, Hash } from 'lucide-react'
 import { ALL_KEYS, transposeKey, getCapoDisplay, semitonesFromKeyToKey } from '../../lib/transposition'
 import { Button, Select, Tooltip, Badge } from '../ui'

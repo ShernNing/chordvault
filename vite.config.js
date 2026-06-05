@@ -86,9 +86,6 @@ export default defineConfig({
           if (id.includes("mammoth")) {
             return "doc";
           }
-          if (id.includes("dexie")) {
-            return "db";
-          }
           if (id.includes("lucide-react") || id.includes("@dnd-kit")) {
             return "ui";
           }

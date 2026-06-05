@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Guitar, Eye, Type, LayoutGrid, Search, Star, ListTree, Sparkles, Hash, GitCompare, Wrench, GraduationCap } from 'lucide-react'
 import VoicingGrid from '../components/voicings/VoicingGrid'
 import ProgressionStrip from '../components/voicings/ProgressionStrip'

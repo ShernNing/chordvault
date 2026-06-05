@@ -1,6 +1,6 @@
 # ChordVault
 
-A responsive, PWA-enabled chord sheet manager for musicians. Built with React + Vite. Runs fully offline after first load. Zero backend cost.
+A responsive, PWA-enabled chord sheet manager for musicians. Built with React + Vite. Data lives in Supabase (Postgres) with a localStorage cache so previously-viewed songs stay readable offline. Runs on free tiers end to end.
 
 ---
 
@@ -10,9 +10,11 @@ A responsive, PWA-enabled chord sheet manager for musicians. Built with React + 
 | ------------- | ------------------------- |
 | Framework     | React 18 + Vite           |
 | Styling       | Tailwind CSS              |
-| Database      | Dexie (IndexedDB)         |
+| Backend / DB  | Supabase (Postgres + Auth)|
+| Offline cache | localStorage              |
 | Music engine  | tonal                     |
 | PDF export    | jsPDF + html2canvas       |
+| DOCX export   | docx + mammoth            |
 | Drag and drop | @dnd-kit                  |
 | PWA           | vite-plugin-pwa + Workbox |
 | Hosting       | Vercel (free)             |
@@ -33,6 +35,13 @@ git clone <your-repo>
 cd chordvault
 npm install
 npm run dev
+```
+
+Create a `.env` with your Supabase project credentials:
+
+```
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-key>
 ```
 
 Open `http://localhost:5173`
@@ -87,21 +96,20 @@ Until you add these, the PWA will still work but won't show a custom install ico
 
 ## Data Storage
 
-All data is stored locally in your browser's IndexedDB via Dexie. This means:
+Songs and setlists live in a **Supabase** (Postgres) project, so they sync across every device signed into the same account. This means:
 
-- **Data is per-browser/device** — adding a song on your phone won't appear on your laptop automatically
-- **Data persists across sessions** — closing the tab doesn't delete anything
-- **Clearing browser data will delete your songs** — export PDFs as backups
+- **Data syncs across devices** — add a song on your phone, it shows up on your laptop
+- **localStorage holds a read cache** — previously-viewed songs/setlists stay readable offline; writes need a connection
+- **Auth is handled by Supabase** — see `src/lib/AuthContext.jsx`
 
-### Cross-device sync (optional)
+### Required environment variables
 
-To sync across devices, sign up for [Dexie Cloud](https://dexie.cloud) (free tier: 100MB).
+Set these locally (`.env`) and in your Vercel project settings:
 
-1. Create a free account at dexie.cloud
-2. Create a database, get your database URL
-3. Uncomment the Dexie Cloud lines in `src/lib/db.js`
-4. Add your DB URL as `VITE_DEXIE_CLOUD_URL` in your Vercel environment variables
-5. Set `VITE_DEXIE_CLOUD_ENABLED=true` in your environment to enable sync
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+The Workbox service worker caches Supabase REST GETs (NetworkFirst, 5s timeout) so offline reads fall back to the last-fetched data — see `vite.config.js`.
 
 ---
 
@@ -190,22 +198,31 @@ Both are parsed and stored in the same format (chord line above lyric line).
 ```
 src/
 ├── lib/
-│   ├── db.js           — Dexie schema + CRUD operations
-│   ├── ingestion.js    — Parse pipeline (classify, tokenize, key detect)
+│   ├── supabase.js      — Supabase client
+│   ├── supabaseOps.js   — Song/setlist CRUD against Supabase
+│   ├── AuthContext.jsx  — Auth provider + session
+│   ├── ingestion.js     — Parse pipeline (classify, tokenize, key detect)
 │   ├── transposition.js — Chord/key transpose engine
-│   ├── hooks.js        — React hooks (useSongs, useSetlist, useTheme…)
-│   └── pdf.js          — PDF export utilities
+│   ├── nashville.js     — Nashville number system
+│   ├── hooks.js         — React hooks (useSongs, useSetlist, useTheme…)
+│   ├── pdf.js / docxExport.js — PDF + DOCX export
+│   └── voicings/        — Chord voicing catalog, fretboard, capo, audio
 ├── components/
 │   ├── ui/             — Primitives (Button, Input, Badge, Modal…)
 │   ├── song/           — SongRenderer, TransposeControls, SongCard
+│   ├── voicings/       — Fretboard diagrams, voicing grid/editor, practice
+│   ├── setlist/        — SetlistFullEditor
+│   ├── auth/           — AuthModal
 │   └── layout/         — AppShell (nav, header, footer)
 ├── views/
 │   ├── Dashboard.jsx   — Song library grid
 │   ├── NewSong.jsx     — Ingestion + live preview
 │   ├── SongView.jsx    — Full song with controls
 │   ├── Setlists.jsx    — Setlist list
-│   └── SetlistView.jsx — Setlist editor with DnD
-├── App.jsx             — Router
+│   ├── SetlistView.jsx — Setlist editor with DnD
+│   ├── ImportView.jsx  — Bulk import
+│   └── ChordVoicings.jsx — Voicing library
+├── App.jsx             — Router (lazy-loaded views)
 ├── main.jsx            — Entry point
 └── index.css           — CSS variables + chord sheet styles
 ```

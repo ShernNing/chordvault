@@ -1,10 +1,10 @@
-import React, { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { X, FileDown, Music2, Link2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import FretboardDiagram from './FretboardDiagram'
 import { voicingsForChord } from '../../lib/voicings/lookup'
 import { pickBestNext } from '../../lib/voicings/voiceLeading'
-import { transposeChordName, semitoneDelta, pitchClassIndex } from '../../lib/voicings/transpose'
+import { transposeChordName } from '../../lib/voicings/transpose'
 import { keyPrefersFlats } from '../../lib/voicings/notes'
 import { difficultyOf } from '../../lib/voicings/difficulty'
 import { exportSongToPDF, createPrintContainer } from '../../lib/pdf'
@@ -132,7 +132,7 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
         <div className="flex-1 overflow-y-auto p-4">
           <div ref={printRef} className="bg-[var(--color-bg)]">
             <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(440px,1fr))]">
-              {chordsWithVoicings.map(({ chord, voicings, primaryFrets }, idx) => {
+              {chordsWithVoicings.map(({ chord, voicings }, idx) => {
                 const otherSongs = songsByChord.get(chord) || []
                 return (
                   <section key={chord} className="flex flex-col gap-2 p-3 rounded border border-[var(--color-border)] bg-[var(--color-bg-warm)]">

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from './supabase'
 
 const AuthContext = createContext({ session: null, isLoggedIn: false, email: undefined })
@@ -34,4 +34,5 @@ export function AuthProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- useAuth hook is intentionally exported alongside the provider
 export const useAuth = () => useContext(AuthContext)

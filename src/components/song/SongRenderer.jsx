@@ -135,6 +135,7 @@ function _splitPrintSections(sections) {
 
 // Estimate total print height of a song at half-page column width.
 // Title: 19px × 1.2 lineHeight + 8px margin-bottom = 30.8 → 31px
+// eslint-disable-next-line react-refresh/only-export-components -- shared print-height helper, intentionally co-located
 export function estimateSongPrintHeight(parsedContent) {
   const content = _stripIntraPairBlanks(parsedContent || [])
   const sections = _groupPrintSections(content)

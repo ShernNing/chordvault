@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { X, Plus, Trash2, Edit3, Check, Zap } from 'lucide-react'
 import FretboardDiagram from '../voicings/FretboardDiagram'
 import { voicingsForChord } from '../../lib/voicings/lookup'
@@ -87,6 +87,7 @@ function transposeForDisplay(entry, semitones, displayKey) {
 }
 
 export default function ElectricGuitarNotesPanel({ song, semitones = 0, displayKey = null, onSave, onClose }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- stored derives from song prop; re-memoising on song reference is intentional
   const stored = song.electric_guitar_notes || []
   const [editingId, setEditingId] = useState(null)
   const [draft, setDraft] = useState(null)
@@ -310,7 +311,7 @@ function EntryCard({ entry, onEdit, onDelete }) {
 
 // ─── Editor — branches on draft.type ──────────────────────────────────────
 
-function EntryEditor({ draft, setDraft, originalKey, onSave, onCancel }) {
+function EntryEditor({ draft, setDraft, _originalKey, onSave, onCancel }) {
   const type = entryType(draft)
   return (
     <article className="p-2 border border-[var(--color-accent)] rounded bg-[var(--color-bg-warm)] space-y-2">
@@ -971,7 +972,7 @@ function FretboardClickGrid({ notes, onAdd, onAddSlide, onAddBend, onUpdateNote,
   )
 }
 
-function FretCell({ width, height, fret, stringIdx, isMiddleRow, occurrences, occNotes, isTopBorder, isBottomBorder, onRemove }) {
+function FretCell({ width, height, fret, _stringIdx, isMiddleRow, occurrences, occNotes, isTopBorder, _isBottomBorder, onRemove }) {
   const [hover, setHover] = useState(false)
   const hasNote = occurrences.length > 0
   const isOpenCol = fret === 0

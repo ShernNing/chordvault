@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import VoicingCard from './VoicingCard'
 import { transposeVoicingTo } from '../../lib/voicings/transpose'
 import { difficultyOf } from '../../lib/voicings/difficulty'

@@ -1,8 +1,8 @@
 // Map an arbitrary chord name (from a song) → catalog voicings transposed
 // to that chord's root. Handles major/minor/dim/sus/dom7/slash families.
 
-import { VOICINGS, VOICINGS_BY_CHORD } from './catalog'
-import { semitoneDelta, transposeFrets, bestTransposeFrets, pitchClassIndex } from './transpose'
+import { VOICINGS_BY_CHORD } from './catalog'
+import { semitoneDelta, bestTransposeFrets } from './transpose'
 
 /**
  * Parse a chord name like "Bm7", "C#dim7", "F#m7b5", "D/F#" into root + quality.

@@ -21,16 +21,6 @@ export function detectChordNames(frets) {
 // As above, but with an explicit bass note (lowest sounding string).
 export function detectChordNamesWithBass(frets) {
   if (!frets) return []
-  // Find lowest fretted string
-  let bassPC = null
-  const STRING_OPEN_MIDI = [40, 45, 50, 55, 59, 64]
-  const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-  for (let i = 0; i < 6; i++) {
-    const f = frets[i]
-    if (f == null) continue
-    bassPC = SHARP_NAMES[(STRING_OPEN_MIDI[i] + f) % 12]
-    break
-  }
   const pcs = voicingUniquePitchClasses(frets)
   if (pcs.length === 0) return []
   try {

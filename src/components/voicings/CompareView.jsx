@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import VoicingCard from './VoicingCard'
 import { VOICINGS } from '../../lib/voicings/catalog'
-import { leadingScore, sharedStringMask } from '../../lib/voicings/voiceLeading'
+import { leadingScore } from '../../lib/voicings/voiceLeading'
 import { voicingUniquePitchClasses } from '../../lib/voicings/notes'
 
 export default function CompareView() {

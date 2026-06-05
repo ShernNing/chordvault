@@ -49,6 +49,13 @@ export const supabaseSongOps = {
     if (error) throw error
   },
 
+  async deleteMany(ids) {
+    if (!ids?.length) return
+    await supabase.from('setlist_songs').delete().in('song_id', ids)
+    const { error } = await supabase.from('songs').delete().in('id', ids)
+    if (error) throw error
+  },
+
   async markPlayed(id) {
     const { data: song } = await supabase.from('songs').select('play_count').eq('id', id).single()
     await supabase.from('songs').update({
