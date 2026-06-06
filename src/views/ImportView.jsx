@@ -11,6 +11,7 @@ import { supabaseSongOps } from '../lib/supabaseOps'
 import { Button, Input, Textarea, TagInput, Badge } from '../components/ui'
 import SongRenderer from '../components/song/SongRenderer'
 import ConflictCard from '../components/song/ConflictCard'
+import { Reveal, AnimatedNumber } from '../lib/motion'
 
 // ─── States ────────────────────────────────────────────────────────────────
 // idle → uploading → reviewing → saving → done
@@ -197,12 +198,13 @@ export default function ImportView() {
         </div>
 
         <div className="space-y-3">
-          {conflicts.map(conflict => (
-            <ConflictCard
-              key={conflict.importedSong.id}
-              conflict={conflict}
-              onChange={updates => updateConflict(conflict.importedSong.id, updates)}
-            />
+          {conflicts.map((conflict, i) => (
+            <Reveal key={conflict.importedSong.id} delay={Math.min(i, 16) * 0.04}>
+              <ConflictCard
+                conflict={conflict}
+                onChange={updates => updateConflict(conflict.importedSong.id, updates)}
+              />
+            </Reveal>
           ))}
         </div>
 
@@ -347,15 +349,16 @@ export default function ImportView() {
       {/* Song cards */}
       <div className="space-y-3">
         {songs.map((song, index) => (
-          <ImportSongCard
-            key={song.id}
-            song={song}
-            index={index}
-            onAccept={() => acceptSong(song.id)}
-            onDiscard={() => discardSong(song.id)}
-            onRestore={() => restoreSong(song.id)}
-            onUpdate={(updates) => updateSong(song.id, updates)}
-          />
+          <Reveal key={song.id} delay={Math.min(index, 16) * 0.03}>
+            <ImportSongCard
+              song={song}
+              index={index}
+              onAccept={() => acceptSong(song.id)}
+              onDiscard={() => discardSong(song.id)}
+              onRestore={() => restoreSong(song.id)}
+              onUpdate={(updates) => updateSong(song.id, updates)}
+            />
+          </Reveal>
         ))}
       </div>
     </div>
@@ -424,7 +427,7 @@ function ImportSongCard({ song, index, onAccept, onDiscard, onRestore, onUpdate 
               <span className="ml-1">· key from title</span>
             )}
             {!song.title_key && song.detected_key && (
-              <span className="ml-1">· key detected ({Math.round(song.detected_key.confidence * 100)}% confidence)</span>
+              <span className="ml-1">· key detected (<AnimatedNumber value={Math.round(song.detected_key.confidence * 100)} />% confidence)</span>
             )}
           </div>
         </div>

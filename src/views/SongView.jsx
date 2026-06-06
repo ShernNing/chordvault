@@ -30,6 +30,7 @@ import { extractChords, detectKey, ingest, tokenizeChordLine } from "../lib/inge
 import { bestTransposeFrets } from "../lib/voicings/transpose";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
+import { useToast } from "../lib/toast";
 import { lookupArtist } from "../lib/musicbrainz";
 import {
   Button,
@@ -59,6 +60,7 @@ export default function SongView() {
   const { song, loading, error, reload, update } = useSong(id);
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useDisplaySettings();
   const { setlists } = useSetlists();
+  const toast = useToast();
 
   // Per-song transpose state stored in localStorage
   const [transpose, setTranspose] = useLocalStorage(`cv-transpose-${id}`, {
@@ -205,6 +207,7 @@ export default function SongView() {
       await exportSongToDocx(song, shapeSemitones, shapeKey, keyLabel);
     } catch (e) {
       console.error("Docx export failed:", e);
+      toast.error("DOCX export failed");
     } finally {
       setExportingDocx(false);
     }
@@ -239,6 +242,7 @@ export default function SongView() {
       document.body.removeChild(container);
     } catch (e) {
       console.error("PDF export failed:", e);
+      toast.error("PDF export failed");
     } finally {
       setExporting(false);
     }
@@ -249,8 +253,12 @@ export default function SongView() {
     setAddingToSetlist(true);
     try {
       await supabaseSetlistOps.addSong(chosenSetlistId, song.id, song.original_key || null, 0);
+      const dest = setlists.find(s => s.id === chosenSetlistId)?.name || 'setlist';
       setAddToSetlistOpen(false);
       setChosenSetlistId('');
+      toast.success(`Added to ${dest}`);
+    } catch (e) {
+      toast.error(e.message || 'Could not add to setlist');
     } finally {
       setAddingToSetlist(false);
     }

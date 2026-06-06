@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { useParams, Link } from "react-router-dom";
+import { motion, AnimatePresence, ease } from "../lib/motion";
 import {
   ArrowLeft,
   GripVertical,
@@ -475,15 +476,25 @@ export default function SetlistView() {
                 strategy={verticalListSortingStrategy}
               >
                 <div className='space-y-2'>
-                  {slots.map((slot, index) => (
-                    <SortableSlot
-                      key={slot.id}
-                      slot={slot}
-                      index={index}
-                      onRemove={() => removeSong(slot.id)}
-                      onUpdateSlot={(updates) => updateSlot(slot.id, updates)}
-                    />
-                  ))}
+                  <AnimatePresence initial={false}>
+                    {slots.map((slot, index) => (
+                      <motion.div
+                        key={slot.id}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={ease}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <SortableSlot
+                          slot={slot}
+                          index={index}
+                          onRemove={() => removeSong(slot.id)}
+                          onUpdateSlot={(updates) => updateSlot(slot.id, updates)}
+                        />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
               </SortableContext>
             </DndContext>

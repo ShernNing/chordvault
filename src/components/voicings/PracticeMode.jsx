@@ -3,6 +3,7 @@ import { Eye, EyeOff, RotateCw, Check, X as XIcon } from 'lucide-react'
 import FretboardDiagram from './FretboardDiagram'
 import { VOICINGS } from '../../lib/voicings/catalog'
 import { useLocalStorage } from '../../lib/hooks'
+import { motion, AnimatePresence, AnimatedNumber, spring, ease } from '../../lib/motion'
 
 function pickRandomVoicing(prev) {
   if (VOICINGS.length === 0) return null
@@ -53,20 +54,41 @@ export default function PracticeMode() {
           </p>
         </div>
         <div className="text-right">
-          <div className="text-xl font-display text-[var(--color-ink)]">{score.correct} / {score.total}</div>
-          <div className="text-xs text-[var(--color-ink-muted)]">{pct}% correct</div>
+          <div className="text-xl font-display text-[var(--color-ink)]">
+            <AnimatedNumber value={score.correct} /> / <AnimatedNumber value={score.total} />
+          </div>
+          <div className="text-xs text-[var(--color-ink-muted)]"><AnimatedNumber value={pct} />% correct</div>
         </div>
       </header>
 
       <div className="flex flex-col items-center gap-3 p-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-warm)] w-full max-w-md">
-        <FretboardDiagram frets={current.frets} width={160} showLabels />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={current.id}
+            initial={{ opacity: 0, scale: 0.95, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+            transition={ease}
+          >
+            <FretboardDiagram frets={current.frets} width={160} showLabels animate />
+          </motion.div>
+        </AnimatePresence>
 
-        <div className="h-9 flex items-center">
-          {revealed ? (
-            <span className="font-display text-3xl text-[var(--color-ink)]">{current.displayName}</span>
-          ) : (
-            <span className="font-display text-3xl text-[var(--color-ink-muted)] tracking-widest">? ? ?</span>
-          )}
+        <div className="h-9 flex items-center" style={{ perspective: 600 }}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={revealed ? 'answer' : 'question'}
+              initial={{ rotateX: -90, opacity: 0 }}
+              animate={{ rotateX: 0, opacity: 1 }}
+              exit={{ rotateX: 90, opacity: 0 }}
+              transition={spring}
+              className={revealed
+                ? 'font-display text-3xl text-[var(--color-ink)]'
+                : 'font-display text-3xl text-[var(--color-ink-muted)] tracking-widest'}
+            >
+              {revealed ? current.displayName : '? ? ?'}
+            </motion.span>
+          </AnimatePresence>
         </div>
 
         <div className="flex gap-2 w-full justify-center">

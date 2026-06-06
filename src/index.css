@@ -155,7 +155,7 @@ body {
   cursor: pointer;
   line-height: inherit;
   border-radius: 2px;
-  transition: background-color 0.12s, outline-color 0.12s;
+  transition: background-color 0.12s, outline-color 0.12s, transform 0.1s ease-out;
   vertical-align: baseline;
 }
 .chord-token-btn:hover,
@@ -163,6 +163,15 @@ body {
   background-color: var(--color-accent-soft);
   outline: 1px solid var(--color-accent);
   outline-offset: 0;
+}
+/* Tap feedback — quick pop when opening voicings. Off on stage / reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .chord-token-btn:active {
+    transform: scale(1.18);
+  }
+}
+.stage-mode .chord-token-btn:active {
+  transform: none;
 }
 
 /* Uncertain classification highlight */
@@ -261,6 +270,65 @@ body {
 }
 @keyframes btnShimmer {
   to { transform: translateX(130%); }
+}
+
+/* ─── Skeleton shimmer ────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-ink-muted) 22%, transparent),
+      transparent
+    );
+    animation: skeletonShimmer 1.4s ease-in-out infinite;
+  }
+}
+@keyframes skeletonShimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* ─── Shiny wordmark (hover sweep on gradient text) ───────────────────── */
+.shiny-text {
+  background: linear-gradient(
+    110deg,
+    var(--color-ink) 40%,
+    var(--color-accent) 50%,
+    var(--color-ink) 60%
+  );
+  background-size: 220% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .shiny-text:hover {
+    animation: shinyText 0.9s ease-out;
+  }
+}
+@keyframes shinyText {
+  to { background-position: -20% 0; }
+}
+
+/* ─── Float (subtle bob, e.g. empty-state icon) ───────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .float-soft {
+    animation: floatSoft 3.2s ease-in-out infinite;
+  }
+}
+.stage-mode .float-soft { animation: none; }
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
 /* ─── Utility ─────────────────────────────────────────────────────────── */

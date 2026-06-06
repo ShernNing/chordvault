@@ -6,6 +6,7 @@ import { supabaseSetlistOps } from '../lib/supabaseOps'
 import { Button, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
 import SongCard from '../components/song/SongCard'
 import { motion, AnimatePresence, Reveal, AnimatedNumber, ease } from '../lib/motion'
+import { useToast } from '../lib/toast'
 
 const SORT_OPTIONS = [
   { value: 'title', label: 'Title A–Z' },
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const { songs, loading, error, reload, deleteSong, bulkDeleteSongs } = useSongs(sortBy)
   const { query, setQuery, results } = useSearch(songs)
   const { setlists } = useSetlists()
+  const toast = useToast()
   const [keyFilter, setKeyFilter] = useState('')
 
   // Keys present in the library, for the key filter dropdown.
@@ -63,10 +65,15 @@ export default function Dashboard() {
           next.delete(deleteTarget.song.id)
           return next
         })
+        toast.success(`Deleted "${deleteTarget.song.title}"`)
       } else {
+        const n = selectedIds.size
         await bulkDeleteSongs([...selectedIds])
         setSelectedIds(new Set())
+        toast.success(`Deleted ${n} song${n === 1 ? '' : 's'}`)
       }
+    } catch (e) {
+      toast.error(e.message || 'Delete failed')
     } finally {
       setBulkDeleting(false)
       setDeleteTarget(null)
@@ -77,13 +84,18 @@ export default function Dashboard() {
     if (!chosenSetlistId) return
     setBulkAdding(true)
     try {
+      const n = selectedIds.size
       for (const songId of selectedIds) {
         const song = songs.find(s => s.id === songId)
         await supabaseSetlistOps.addSong(chosenSetlistId, songId, song?.original_key || null, 0)
       }
+      const dest = setlists.find(s => s.id === chosenSetlistId)?.name || 'setlist'
       setAddToSetlistOpen(false)
       setChosenSetlistId('')
       setSelectedIds(new Set())
+      toast.success(`Added ${n} song${n === 1 ? '' : 's'} to ${dest}`)
+    } catch (e) {
+      toast.error(e.message || 'Could not add to setlist')
     } finally {
       setBulkAdding(false)
     }

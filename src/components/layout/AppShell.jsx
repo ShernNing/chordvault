@@ -10,6 +10,7 @@ import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Button, Tooltip } from '../ui'
 import AuthModal from '../auth/AuthModal'
+import { motion, AnimatePresence, useMotionEnabled, spring, ease } from '../../lib/motion'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Library', icon: LayoutGrid, exact: true },
@@ -56,7 +57,7 @@ export default function AppShell({ children }) {
             <div className="w-7 h-7 bg-[var(--color-ink)] rounded flex items-center justify-center">
               <Music2 size={14} className="text-[var(--color-bg)]" />
             </div>
-            <span className="font-display text-base font-normal text-[var(--color-ink)] tracking-tight hidden sm:block">
+            <span className="shiny-text font-display text-base font-normal tracking-tight hidden sm:block">
               ChordVault
             </span>
           </NavLink>
@@ -128,8 +129,15 @@ export default function AppShell({ children }) {
         </div>
 
         {/* Mobile Nav Dropdown */}
+        <AnimatePresence>
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-[var(--color-border)] bg-[var(--color-bg)] animate-fade-in">
+          <motion.div
+            className="md:hidden border-t border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={ease}
+          >
             <nav className="flex flex-col p-2 gap-1">
               {NAV_ITEMS.map(item => (
                 <NavItem key={item.to} {...item} mobile onClick={() => setMobileMenuOpen(false)} />
@@ -152,8 +160,9 @@ export default function AppShell({ children }) {
                 )}
               </div>
             </nav>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </header>
 
       {/* ── Main Content ──────────────────────────────────────────── */}
@@ -228,22 +237,40 @@ export default function AppShell({ children }) {
 }
 
 function NavItem({ to, label, icon: Icon, exact, mobile, onClick }) {
+  const enabled = useMotionEnabled()
   return (
     <NavLink
       to={to}
       end={exact}
       onClick={onClick}
       className={({ isActive }) => `
-        flex items-center gap-2 px-3 rounded transition-colors duration-100 font-sans text-sm
+        relative flex items-center px-3 rounded transition-colors duration-100 font-sans text-sm
         ${mobile ? 'h-10' : 'h-7'}
         ${isActive
-          ? 'bg-[var(--color-ink)] text-[var(--color-bg)]'
+          ? 'text-[var(--color-bg)]'
           : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
         }
       `}
     >
-      <Icon size={14} />
-      {label}
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            enabled && !mobile ? (
+              <motion.span
+                layoutId="navIndicator"
+                className="absolute inset-0 rounded bg-[var(--color-ink)]"
+                transition={spring}
+              />
+            ) : (
+              <span className="absolute inset-0 rounded bg-[var(--color-ink)]" />
+            )
+          )}
+          <span className="relative flex items-center gap-2">
+            <Icon size={14} />
+            {label}
+          </span>
+        </>
+      )}
     </NavLink>
   )
 }

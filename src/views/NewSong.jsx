@@ -8,11 +8,14 @@ import { Button, Input, Textarea, TagInput, Badge } from '../components/ui'
 import { lookupArtist } from '../lib/musicbrainz'
 import SongRenderer from '../components/song/SongRenderer'
 import ConflictCard from '../components/song/ConflictCard'
+import { motion, AnimatePresence, AnimatedNumber, Reveal, ease } from '../lib/motion'
+import { useToast } from '../lib/toast'
 
 export default function NewSong() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { createSong } = useSongs()
+  const { createSong, songs } = useSongs()
+  const toast = useToast()
 
   const [title, setTitle] = useState(searchParams.get('title') || '')
   const [artist, setArtist] = useState(searchParams.get('artist') || '')
@@ -113,7 +116,9 @@ export default function NewSong() {
         setSaving(false)
         return
       }
+      const wasEmpty = songs.length === 0
       const { song } = await createSong(rawContent, title.trim(), artist.trim(), tags)
+      if (wasEmpty) toast.celebrate()
       navigate(`/songs/${song.id}`)
     } catch (e) {
       setError(e.message)
@@ -331,38 +336,47 @@ export default function NewSong() {
             </Button>
           </div>
 
-          {showPreview && (
-            <div className="border border-[var(--color-border)] rounded-lg p-4 bg-[var(--color-bg)] h-[500px] overflow-y-auto">
-              {ingestionResult ? (
-                <SongRenderer
-                  parsedContent={ingestionResult.parsed_content}
-                  onLineTypeOverride={(_idx, _type) => {
-                    // In live preview mode, overrides are visual only
-                    // They'll be saved when the user saves the song
-                  }}
-                />
-              ) : (
-                <p className="text-xs text-[var(--color-ink-muted)] italic">
-                  Start typing or paste a chord sheet on the left to see the preview.
-                </p>
-              )}
-            </div>
-          )}
+          <AnimatePresence initial={false}>
+            {showPreview && (
+              <motion.div
+                key="preview"
+                className="border border-[var(--color-border)] rounded-lg p-4 bg-[var(--color-bg)] h-[500px] overflow-y-auto"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={ease}
+              >
+                {ingestionResult ? (
+                  <SongRenderer
+                    parsedContent={ingestionResult.parsed_content}
+                    onLineTypeOverride={(_idx, _type) => {
+                      // In live preview mode, overrides are visual only
+                      // They'll be saved when the user saves the song
+                    }}
+                  />
+                ) : (
+                  <p className="text-xs text-[var(--color-ink-muted)] italic">
+                    Start typing or paste a chord sheet on the left to see the preview.
+                  </p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Key detection result */}
           {ingestionResult?.original_key && (
-            <div className="flex items-center gap-2 p-2 border border-[var(--color-border)] rounded text-xs bg-[var(--color-bg-warm)]">
+            <Reveal className="flex items-center gap-2 p-2 border border-[var(--color-border)] rounded text-xs bg-[var(--color-bg-warm)]">
               <span className="text-[var(--color-ink-muted)]">Detected key:</span>
               <Badge variant="key">{ingestionResult.original_key}</Badge>
               {ingestionResult.detected_key?.confidence && (
                 <span className="text-[var(--color-ink-muted)]">
-                  ({Math.round(ingestionResult.detected_key.confidence * 100)}% confidence)
+                  (<AnimatedNumber value={Math.round(ingestionResult.detected_key.confidence * 100)} />% confidence)
                 </span>
               )}
               {ingestionResult.key_mismatch && (
                 <Badge variant="warning">⚠ Mismatch with title</Badge>
               )}
-            </div>
+            </Reveal>
           )}
         </div>
       </div>

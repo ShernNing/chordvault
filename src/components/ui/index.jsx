@@ -1,5 +1,6 @@
 import React, { useEffect, forwardRef } from 'react'
 import { Loader2, AlertCircle, RefreshCw, Music } from 'lucide-react'
+import { motion, AnimatePresence, useMotionEnabled, spring, ease } from '../../lib/motion'
 
 // ─── Button ────────────────────────────────────────────────────────────────
 export function Button({
@@ -174,7 +175,7 @@ export function Divider({ className = '' }) {
 export function Skeleton({ className = '', ...props }) {
   return (
     <div
-      className={`animate-pulse bg-[var(--color-border)] rounded ${className}`}
+      className={`skeleton-shimmer bg-[var(--color-border)] rounded ${className}`}
       {...props}
     />
   )
@@ -211,7 +212,7 @@ export function SongViewSkeleton() {
 export function EmptyState({ icon: Icon = Music, title, description, action }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-8 text-center animate-fade-in">
-      <div className="w-14 h-14 rounded-full border-2 border-dashed border-[var(--color-border)] flex items-center justify-center mb-4">
+      <div className="float-soft w-14 h-14 rounded-full border-2 border-dashed border-[var(--color-border)] flex items-center justify-center mb-4">
         <Icon size={22} className="text-[var(--color-ink-muted)]" />
       </div>
       <h3 className="text-sm font-semibold text-[var(--color-ink)] mb-1">{title}</h3>
@@ -294,6 +295,7 @@ export function TagInput({ tags = [], onChange, placeholder = 'Add tag...' }) {
 
 // ─── Modal ─────────────────────────────────────────────────────────────────
 export function Modal({ isOpen, onClose, title, children, className = '' }) {
+  const enabled = useMotionEnabled()
   useEffect(() => {
     if (!isOpen) return
     const handleKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -301,35 +303,45 @@ export function Modal({ isOpen, onClose, title, children, className = '' }) {
     return () => document.removeEventListener('keydown', handleKey)
   }, [isOpen, onClose])
 
-  if (!isOpen) return null
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div
-        className={`
-          relative z-10 bg-[var(--color-bg)] border border-[var(--color-border)]
-          rounded-lg shadow-2xl w-full max-w-md animate-slide-up
-          ${className}
-        `}
-      >
-        {title && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-            <h2 className="text-sm font-semibold text-[var(--color-ink)]">{title}</h2>
-            <button
-              onClick={onClose}
-              className="text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors text-lg leading-none"
-            >
-              ×
-            </button>
-          </div>
-        )}
-        <div className="p-5">{children}</div>
-      </div>
-    </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+          initial={enabled ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
+          exit={enabled ? { opacity: 0 } : undefined}
+          transition={ease}
+        >
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <motion.div
+            className={`
+              relative z-10 bg-[var(--color-bg)] border border-[var(--color-border)]
+              rounded-lg shadow-2xl w-full max-w-md
+              ${className}
+            `}
+            initial={enabled ? { opacity: 0, scale: 0.96, y: 10 } : false}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={enabled ? { opacity: 0, scale: 0.97, y: 8 } : undefined}
+            transition={spring}
+          >
+            {title && (
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
+                <h2 className="text-sm font-semibold text-[var(--color-ink)]">{title}</h2>
+                <button
+                  onClick={onClose}
+                  className="text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors text-lg leading-none"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <div className="p-5">{children}</div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 
