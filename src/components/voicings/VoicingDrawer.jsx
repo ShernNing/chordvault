@@ -4,6 +4,7 @@ import VoicingCard from './VoicingCard'
 import { voicingsForChord } from '../../lib/voicings/lookup'
 import { useTheme, useLocalStorage } from '../../lib/hooks'
 import { useFavorites } from '../../lib/voicings/favorites'
+import { Reveal } from '../../lib/motion'
 
 /**
  * Right-side slide-in drawer showing voicings for a clicked chord.
@@ -104,19 +105,21 @@ export default function VoicingDrawer({ chord, onClose, displayMode = 'both', pr
           ) : (
             <div className={`grid gap-3 ${isStage ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {sortedItems.map(({ voicing, frets, displayedName }, i) => (
-                <VoicingCard
-                  key={`${voicing.id}-${i}`}
-                  voicing={{ ...voicing, displayName: displayedName }}
-                  displayedFrets={frets}
-                  displayKey={displayKey}
-                  displayMode={displayMode}
-                  highlightRoot={highlightRoot}
-                  dotLabels={dotLabels}
-                  compareFrets={i === 0 ? prevFrets : null}
-                  stageMode={isStage}
-                  showEnharmonic
-                  absolute
-                />
+                <Reveal key={`${voicing.id}-${i}`} delay={Math.min(i, 10) * 0.04}>
+                  <VoicingCard
+                    voicing={{ ...voicing, displayName: displayedName }}
+                    displayedFrets={frets}
+                    displayKey={displayKey}
+                    displayMode={displayMode}
+                    highlightRoot={highlightRoot}
+                    dotLabels={dotLabels}
+                    compareFrets={i === 0 ? prevFrets : null}
+                    stageMode={isStage}
+                    showEnharmonic
+                    absolute
+                    animate
+                  />
+                </Reveal>
               ))}
             </div>
           )}

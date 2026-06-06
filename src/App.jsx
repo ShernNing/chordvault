@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { MotionConfig } from 'framer-motion'
 import { AuthProvider } from './lib/AuthContext'
 import AppShell from './components/layout/AppShell'
 
@@ -21,6 +22,7 @@ function RouteFallback() {
 
 export default function App() {
   return (
+    <MotionConfig reducedMotion="user">
     <AuthProvider>
     <BrowserRouter>
       <AppShell>
@@ -39,5 +41,6 @@ export default function App() {
       </AppShell>
     </BrowserRouter>
     </AuthProvider>
+    </MotionConfig>
   )
 }

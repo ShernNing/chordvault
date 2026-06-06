@@ -1,5 +1,6 @@
 import { fretInterval, isRootFret, rootPCOf } from '../../lib/voicings/intervals'
 import { sharedStringMask } from '../../lib/voicings/voiceLeading'
+import { motion, useMotionEnabled, spring } from '../../lib/motion'
 
 const NUM_STRINGS = 6
 const DEFAULT_SPAN = 5
@@ -29,7 +30,11 @@ export default function FretboardDiagram({
   dotLabels = 'fret',
   compareFrets = null,
   stageMode = false,
+  animate = false,
 }) {
+  const enabled = useMotionEnabled()
+  // Dot draw-in only in detail contexts (animate=true), never on stage / reduced-motion.
+  const playDots = animate && enabled && !stageMode
   if (!frets || frets.length !== NUM_STRINGS) return null
 
   const playedFrets = frets.filter(f => f != null && f > 0)
@@ -154,12 +159,16 @@ export default function FretboardDiagram({
               {isShared && (
                 <circle cx={x} cy={padTop - 6 * scale} r={5 * scale} fill="none" stroke={sharedHalo} strokeWidth={2} opacity={0.6} />
               )}
-              <circle
+              <motion.circle
                 cx={x} cy={padTop - 6 * scale}
                 r={3.2 * scale}
                 fill={isRoot && highlightRoot ? rootRingColor : 'none'}
                 stroke={isRoot && highlightRoot ? rootRingColor : muteColor}
                 strokeWidth={1}
+                style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+                initial={playDots ? { scale: 0, opacity: 0 } : false}
+                animate={playDots ? { scale: 1, opacity: 1 } : undefined}
+                transition={playDots ? { ...spring, delay: i * 0.05 } : undefined}
               />
             </g>
           )
@@ -181,21 +190,28 @@ export default function FretboardDiagram({
             {isShared && (
               <circle cx={x} cy={cy} r={dotR + 3 * scale} fill="none" stroke={sharedHalo} strokeWidth={2} opacity={0.6} />
             )}
-            <circle
+            <motion.circle
               cx={x} cy={cy} r={dotR}
               fill={dotFill}
               stroke={isRoot && highlightRoot ? rootRingColor : 'var(--color-ink)'}
               strokeWidth={isRoot && highlightRoot ? 2.5 : 1}
+              style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+              initial={playDots ? { scale: 0, opacity: 0 } : false}
+              animate={playDots ? { scale: 1, opacity: 1 } : undefined}
+              transition={playDots ? { ...spring, delay: i * 0.05 } : undefined}
             />
             {labelText && (
-              <text
+              <motion.text
                 x={x} y={cy + fontSize * 0.36}
                 textAnchor="middle"
                 fontSize={fontSize}
                 fill="#000"
                 fontFamily="ui-sans-serif, system-ui, sans-serif"
                 fontWeight="800"
-              >{labelText}</text>
+                initial={playDots ? { opacity: 0 } : false}
+                animate={playDots ? { opacity: 1 } : undefined}
+                transition={playDots ? { duration: 0.2, delay: i * 0.05 + 0.1 } : undefined}
+              >{labelText}</motion.text>
             )}
           </g>
         )

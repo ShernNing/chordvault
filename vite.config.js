@@ -83,6 +83,9 @@ export default defineConfig({
           if (id.includes("tonal")) {
             return "music";
           }
+          if (id.includes("framer-motion") || id.includes("motion-dom") || id.includes("motion-utils")) {
+            return "motion";
+          }
           if (id.includes("mammoth")) {
             return "doc";
           }

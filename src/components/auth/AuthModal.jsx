@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Cloud, Mail, X, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { Button, Input } from '../ui'
+import { motion, AnimatePresence, useMotionEnabled, spring, ease } from '../../lib/motion'
 
 function GoogleIcon() {
   return (
@@ -20,8 +21,7 @@ export default function AuthModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState('')
-
-  if (!isOpen) return null
+  const enabled = useMotionEnabled()
 
   const handleClose = () => {
     setStep('email'); setEmail(''); setError('')
@@ -62,11 +62,23 @@ export default function AuthModal({ isOpen, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div
-        className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-sm p-6 animate-fade-in"
-        onClick={e => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          initial={enabled ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
+          exit={enabled ? { opacity: 0 } : undefined}
+          transition={ease}
+        >
+          <motion.div
+            className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}
+            initial={enabled ? { opacity: 0, scale: 0.96, y: 10 } : false}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={enabled ? { opacity: 0, scale: 0.97, y: 8 } : undefined}
+            transition={spring}
+          >
         {/* Header */}
         <div className="flex items-start justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -97,57 +109,73 @@ export default function AuthModal({ isOpen, onClose }) {
           </div>
         )}
 
-        {step === 'email' ? (
-          <div className="flex flex-col gap-4">
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              loading={googleLoading}
-              onClick={handleGoogle}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </Button>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={step}
+            initial={enabled ? { opacity: 0, x: step === 'sent' ? 14 : -14 } : false}
+            animate={{ opacity: 1, x: 0 }}
+            exit={enabled ? { opacity: 0, x: step === 'sent' ? -14 : 14 } : undefined}
+            transition={ease}
+          >
+            {step === 'email' ? (
+              <div className="flex flex-col gap-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  loading={googleLoading}
+                  onClick={handleGoogle}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </Button>
 
-            <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-[var(--color-border)]" />
-              <span className="text-xs text-[var(--color-ink-muted)]">or</span>
-              <div className="flex-1 border-t border-[var(--color-border)]" />
-            </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 border-t border-[var(--color-border)]" />
+                  <span className="text-xs text-[var(--color-ink-muted)]">or</span>
+                  <div className="flex-1 border-t border-[var(--color-border)]" />
+                </div>
 
-            <form onSubmit={handleSend} className="flex flex-col gap-4">
-              <Input
-                label="Email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                autoComplete="email"
-                size="lg"
-                autoFocus
-              />
-              <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full">
-                Send sign-in link
-              </Button>
-            </form>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-4 py-2 text-center">
-            <CheckCircle2 size={36} className="text-green-500" />
-            <div>
-              <p className="text-sm text-[var(--color-ink)]">Sign-in link sent!</p>
-              <p className="text-xs text-[var(--color-ink-muted)] mt-1">
-                Click the link in your email to sign in.<br />
-                You can close this window.
-              </p>
-            </div>
-            <Button variant="secondary" size="md" onClick={handleClose} className="w-full">
-              Close
-            </Button>
-          </div>
-        )}
+                <form onSubmit={handleSend} className="flex flex-col gap-4">
+                  <Input
+                    label="Email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    autoComplete="email"
+                    size="lg"
+                    autoFocus
+                  />
+                  <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full btn-shimmer">
+                    Send sign-in link
+                  </Button>
+                </form>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4 py-2 text-center">
+                <motion.div
+                  initial={enabled ? { scale: 0, rotate: -25 } : false}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={spring}
+                >
+                  <CheckCircle2 size={36} className="text-green-500" />
+                </motion.div>
+                <div>
+                  <p className="text-sm text-[var(--color-ink)]">Sign-in link sent!</p>
+                  <p className="text-xs text-[var(--color-ink-muted)] mt-1">
+                    Click the link in your email to sign in.<br />
+                    You can close this window.
+                  </p>
+                </div>
+                <Button variant="secondary" size="md" onClick={handleClose} className="w-full">
+                  Close
+                </Button>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
 
         {step === 'email' && (
           <button
@@ -158,7 +186,9 @@ export default function AuthModal({ isOpen, onClose }) {
             Continue without syncing →
           </button>
         )}
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

@@ -42,6 +42,7 @@ export default function VoicingCard({
   audioOptions = null,
   absolute = false,
   preferFlats: preferFlatsProp = null,
+  animate = false,
 }) {
   const [playing, setPlaying] = useState(false)
   const frets = displayedFrets || voicing.frets
@@ -81,8 +82,9 @@ export default function VoicingCard({
       onClick={onClick}
       className={`
         flex flex-col gap-2 p-3 rounded border bg-[var(--color-bg)]
-        transition-colors
+        transition-all duration-200 ease-out
         ${onClick ? 'cursor-pointer' : ''}
+        ${stageMode ? '' : 'hover:-translate-y-0.5 hover:shadow-md will-change-transform'}
         ${highlight
           ? 'border-[var(--color-accent)] shadow-sm'
           : 'border-[var(--color-border)] hover:border-[var(--color-ink-muted)]'}
@@ -146,6 +148,7 @@ export default function VoicingCard({
             dotLabels={dotLabels}
             compareFrets={compareFrets}
             stageMode={stageMode}
+            animate={animate}
           />
         </div>
       )}

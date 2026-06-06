@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import VoicingCard from './VoicingCard'
 import { transposeVoicingTo } from '../../lib/voicings/transpose'
 import { difficultyOf } from '../../lib/voicings/difficulty'
+import { Reveal } from '../../lib/motion'
 
 /**
  * Grid of voicing cards.
@@ -74,22 +75,23 @@ export default function VoicingGrid({
 
   return (
     <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
-      {items.map(({ voicing, frets }) => (
-        <VoicingCard
-          key={voicing.id}
-          voicing={voicing}
-          displayedFrets={frets}
-          displayKey={displayKey}
-          displayMode={displayMode}
-          highlightRoot={highlightRoot}
-          dotLabels={dotLabels}
-          stageMode={stageMode}
-          showEnharmonic={showEnharmonic}
-          audioOptions={audioOptions}
-          absolute={absolute}
-          preferFlats={preferFlats}
-          onClick={onCardClick ? () => onCardClick(voicing, frets) : null}
-        />
+      {items.map(({ voicing, frets }, i) => (
+        <Reveal key={voicing.id} delay={Math.min(i, 16) * 0.03} className="h-full">
+          <VoicingCard
+            voicing={voicing}
+            displayedFrets={frets}
+            displayKey={displayKey}
+            displayMode={displayMode}
+            highlightRoot={highlightRoot}
+            dotLabels={dotLabels}
+            stageMode={stageMode}
+            showEnharmonic={showEnharmonic}
+            audioOptions={audioOptions}
+            absolute={absolute}
+            preferFlats={preferFlats}
+            onClick={onCardClick ? () => onCardClick(voicing, frets) : null}
+          />
+        </Reveal>
       ))}
     </div>
   )

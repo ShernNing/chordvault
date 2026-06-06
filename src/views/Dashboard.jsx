@@ -5,6 +5,7 @@ import { useSongs, useSearch, useSetlists } from '../lib/hooks'
 import { supabaseSetlistOps } from '../lib/supabaseOps'
 import { Button, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
 import SongCard from '../components/song/SongCard'
+import { motion, AnimatePresence, Reveal, AnimatedNumber, ease } from '../lib/motion'
 
 const SORT_OPTIONS = [
   { value: 'title', label: 'Title A–Z' },
@@ -98,7 +99,7 @@ export default function Dashboard() {
           <h1 className="font-display text-2xl text-[var(--color-ink)]">Library</h1>
           {!loading && (
             <p className="text-xs text-[var(--color-ink-muted)] mt-0.5">
-              {songs.length} {songs.length === 1 ? 'song' : 'songs'}
+              <AnimatedNumber value={songs.length} /> {songs.length === 1 ? 'song' : 'songs'}
             </p>
           )}
         </div>
@@ -155,27 +156,35 @@ export default function Dashboard() {
       )}
 
       {/* ── Selection action bar ─────────────────────────────────── */}
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-warm)] animate-fade-in">
-          <span className="text-xs text-[var(--color-ink-soft)]">
-            {selectedIds.size} {selectedIds.size === 1 ? 'song' : 'songs'} selected
-          </span>
-          <div className="flex-1" />
-          <Button variant="secondary" size="sm" onClick={() => setAddToSetlistOpen(true)}>
-            <ListMusic size={13} /> Add to setlist
-          </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setDeleteTarget({ type: 'bulk' })}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            className="flex items-center gap-2 px-3 py-2 border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-warm)] overflow-hidden"
+            initial={{ opacity: 0, height: 0, y: -6 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -6 }}
+            transition={ease}
           >
-            <Trash2 size={13} /> Delete
-          </Button>
-          <Button variant="ghost" size="sm" onClick={clearSelection}>
-            <X size={13} />
-          </Button>
-        </div>
-      )}
+            <span className="text-xs text-[var(--color-ink-soft)]">
+              {selectedIds.size} {selectedIds.size === 1 ? 'song' : 'songs'} selected
+            </span>
+            <div className="flex-1" />
+            <Button variant="secondary" size="sm" onClick={() => setAddToSetlistOpen(true)}>
+              <ListMusic size={13} /> Add to setlist
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setDeleteTarget({ type: 'bulk' })}
+            >
+              <Trash2 size={13} /> Delete
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              <X size={13} />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Content ──────────────────────────────────────────────── */}
       {loading ? (
@@ -208,14 +217,15 @@ export default function Dashboard() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredResults.map(song => (
-            <SongCard
-              key={song.id}
-              song={song}
-              selected={selectedIds.has(song.id)}
-              onSelect={toggleSelect}
-              onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
-            />
+          {filteredResults.map((song, i) => (
+            <Reveal key={song.id} delay={Math.min(i, 20) * 0.03}>
+              <SongCard
+                song={song}
+                selected={selectedIds.has(song.id)}
+                onSelect={toggleSelect}
+                onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
+              />
+            </Reveal>
           ))}
         </div>
       )}

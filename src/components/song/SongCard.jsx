@@ -59,7 +59,7 @@ export default function SongCard({ song, selected = false, onSelect, onDelete })
 
       <Link
         to={`/songs/${song.id}`}
-        className={`block border rounded-lg p-4 bg-[var(--color-bg)] hover:shadow-sm transition-all duration-150 animate-fade-in
+        className={`block border rounded-lg p-4 bg-[var(--color-bg)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ease-out will-change-transform
           ${selected
             ? 'border-[var(--color-ink)]'
             : 'border-[var(--color-border)] hover:border-[var(--color-ink-muted)]'

@@ -235,6 +235,34 @@ body {
   }
 }
 
+/* ─── Shimmer sweep (tasteful, used on key CTAs) ──────────────────────── */
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-130%);
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .btn-shimmer:not(:disabled):hover::after {
+    animation: btnShimmer 0.9s ease-out;
+  }
+}
+@keyframes btnShimmer {
+  to { transform: translateX(130%); }
+}
+
 /* ─── Utility ─────────────────────────────────────────────────────────── */
 .border-ink {
   border-color: var(--color-border);

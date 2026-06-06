@@ -1,6 +1,7 @@
 import { RotateCcw, ChevronUp, ChevronDown, Hash } from 'lucide-react'
 import { ALL_KEYS, transposeKey, getCapoDisplay, semitonesFromKeyToKey } from '../../lib/transposition'
 import { Button, Select, Tooltip, Badge } from '../ui'
+import { RollValue } from '../../lib/motion'
 
 /**
  * TransposeControls — always-visible control bar for song view.
@@ -67,7 +68,7 @@ export default function TransposeControls({
         </Tooltip>
 
         <div className="w-8 text-center font-mono text-xs font-semibold text-[var(--color-ink)] select-none">
-          {semitones > 0 ? `+${semitones}` : semitones}
+          <RollValue value={semitones > 0 ? `+${semitones}` : semitones} className="justify-items-center w-full" />
         </div>
 
         <Tooltip content="Up 1 semitone">
@@ -87,7 +88,7 @@ export default function TransposeControls({
         <div className="flex items-center gap-1">
           <span className="text-xs text-[var(--color-ink-muted)]">Key</span>
           <Badge variant="key" className="text-xs">
-            {displayKey || '—'}
+            <RollValue value={displayKey || '—'} />
           </Badge>
           {semitones !== 0 && originalKey && (
             <span className="text-[10px] text-[var(--color-ink-muted)] hidden sm:inline">
@@ -122,7 +123,7 @@ export default function TransposeControls({
             <ChevronDown size={13} />
           </Button>
           <div className="w-6 text-center font-mono text-xs font-semibold text-[var(--color-ink)] select-none">
-            {capo}
+            <RollValue value={capo} className="justify-items-center w-full" />
           </div>
           <Button
             variant="secondary"
