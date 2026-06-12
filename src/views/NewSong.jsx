@@ -79,6 +79,13 @@ export default function NewSong() {
             detected = detected.replace(/\s*[–-]\s*.+$/, '').trim()
           }
 
+          // Normalize casing only when all-caps or all-lowercase; keep intentional mixed casing
+          const hasLower = /[a-z]/.test(detected)
+          const hasUpper = /[A-Z]/.test(detected)
+          if (!hasLower || !hasUpper) {
+            detected = detected.replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          }
+
           if (detected.length > 0) {
             setTitle(detected)
             setTitleAutoDetected(true)
