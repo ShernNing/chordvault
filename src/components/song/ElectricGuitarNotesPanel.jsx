@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, Plus, Trash2, Edit3, Check, Zap } from 'lucide-react'
 import FretboardDiagram from '../voicings/FretboardDiagram'
 import { voicingsForChord } from '../../lib/voicings/lookup'
@@ -92,6 +92,35 @@ export default function ElectricGuitarNotesPanel({ song, semitones = 0, displayK
   const [editingId, setEditingId] = useState(null)
   const [draft, setDraft] = useState(null)
 
+  // Resizable panel width (desktop). Persisted across sessions.
+  const [panelW, setPanelW] = useState(() => {
+    if (typeof window === 'undefined') return 460
+    const saved = parseInt(localStorage.getItem('cv-eg-panel-w') || '', 10)
+    return Number.isFinite(saved) ? Math.min(Math.max(saved, 380), 1000) : 460
+  })
+  useEffect(() => {
+    try { localStorage.setItem('cv-eg-panel-w', String(panelW)) } catch {}
+  }, [panelW])
+
+  const onResizeDown = (e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = panelW
+    const move = (ev) => {
+      const dx = startX - ev.clientX // drag left → wider
+      const maxW = Math.min(window.innerWidth - 32, 1000)
+      setPanelW(Math.min(Math.max(startW + dx, 380), maxW))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.style.userSelect = ''
+    }
+    document.body.style.userSelect = 'none'
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   const displayed = useMemo(
     () => stored.map(e => transposeForDisplay(e, semitones, displayKey)),
     [stored, semitones, displayKey]
@@ -180,7 +209,18 @@ export default function ElectricGuitarNotesPanel({ song, semitones = 0, displayK
   return (
     <>
       <div className="fixed inset-0 z-[45] bg-black/40 no-print" onClick={onClose} />
-      <aside className="fixed top-0 right-0 bottom-0 z-50 w-full sm:w-[460px] bg-[var(--color-bg)] border-l border-[var(--color-border)] shadow-2xl no-print flex flex-col">
+      <aside
+        style={{ width: panelW, maxWidth: '100vw' }}
+        className="fixed top-0 right-0 bottom-0 z-50 w-full sm:w-auto bg-[var(--color-bg)] border-l border-[var(--color-border)] shadow-2xl no-print flex flex-col"
+      >
+        {/* Resize handle (desktop) — drag left edge to widen */}
+        <div
+          onPointerDown={onResizeDown}
+          className="hidden sm:block absolute left-0 top-0 bottom-0 w-2 -translate-x-1/2 cursor-ew-resize z-20 group"
+          title="Drag to resize"
+        >
+          <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-transparent group-hover:bg-[var(--color-accent)] transition-colors" />
+        </div>
         <header className="flex items-center justify-between gap-3 px-4 h-12 border-b border-[var(--color-border)] shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Zap size={16} className="text-[var(--color-ink-soft)] shrink-0" />
@@ -266,7 +306,7 @@ function EntryCard({ entry, onEdit, onDelete }) {
     <article className="p-2 border border-[var(--color-border)] rounded bg-[var(--color-bg-warm)]">
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-ink-muted)]">
+          <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-ink-soft)]">
             {type}
           </span>
           {type === 'chord' && (
@@ -293,7 +333,7 @@ function EntryCard({ entry, onEdit, onDelete }) {
             <FretboardDiagram frets={entry.frets} width={120} highlightRoot chordName={entry.chord} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-mono text-[10px] text-[var(--color-ink-muted)]">
+            <div className="font-mono text-[11px] font-medium text-[var(--color-ink-soft)]">
               {entry.frets.map(f => f == null ? 'x' : f).join(' ')}
             </div>
             {entry.label && <p className="text-xs text-[var(--color-ink-soft)] mt-1 break-words">{entry.label}</p>}
@@ -1035,69 +1075,108 @@ function FretCell({ width, height, fret, _stringIdx, isMiddleRow, occurrences, o
   )
 }
 
-// Horizontal tab strip — 6 horizontal lines, notes plotted left→right with fret number.
+// Horizontal tab strip — 6 horizontal lines, notes plotted left→right.
+// Long licks wrap onto multiple staves so notes stay big & legible.
+// Reflows to the available width (panel resize aware) via ResizeObserver.
 function LickTabStrip({ notes }) {
-  if (!notes || notes.length === 0) {
-    return <div className="text-xs text-[var(--color-ink-muted)] italic">No notes</div>
-  }
+  const wrapRef = useRef(null)
+  const [boxW, setBoxW] = useState(0)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width
+      if (w) setBoxW(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const labelText = (n) => {
     if (n.slideTo != null) return `${n.fret}${n.slideTo > n.fret ? '/' : '\\'}${n.slideTo}`
     if (n.bend != null) return `${n.fret}b${n.bend === 1 ? '½' : n.bend === 2 ? '' : n.bend}`
     return String(n.fret)
   }
-  const widths = notes.map(n => Math.max(16, labelText(n).length * 6 + 6))
-  const slot = Math.max(28, ...widths.map(w => w + 6))
-  const width = Math.max(220, notes.length * slot + 24)
-  const padX = 22
-  const padY = 14
-  const stringSpacing = 14
-  const noteSpacing = (width - padX * 2) / Math.max(notes.length - 1, 1)
-  const height = padY * 2 + stringSpacing * 5
+
+  if (!notes || notes.length === 0) {
+    return <div ref={wrapRef} className="text-xs text-[var(--color-ink-soft)] italic">No notes</div>
+  }
+
+  const labelW = 20
+  const padX = 8
+  const padY = 16
+  const stringSpacing = 16
+  const minSlot = 34 // min px per note → stays readable
+  const staffH = padY * 2 + stringSpacing * 5
+  const rowGap = 16
+
+  // 420 fallback ≈ default panel content width (avoids first-paint flash before ResizeObserver fires)
+  const avail = Math.max(boxW || 420, minSlot + labelW + padX * 2)
+  const usable = avail - labelW - padX * 2
+  const perRow = Math.max(1, Math.min(notes.length, Math.floor(usable / minSlot)))
+  const slot = usable / perRow
+
+  const rows = []
+  for (let i = 0; i < notes.length; i += perRow) rows.push(notes.slice(i, i + perRow))
+
+  const totalW = avail
+  const totalH = rows.length * staffH + (rows.length - 1) * rowGap
 
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      width="100%"
-      style={{ maxWidth: width, display: 'block', overflow: 'visible' }}
-    >
-      {STRING_LABELS.map((label, i) => {
-        const y = padY + (5 - i) * stringSpacing
-        return (
-          <g key={`s-${i}`}>
-            <line x1={padX} y1={y} x2={width - padX} y2={y} stroke="var(--color-ink-soft)" strokeWidth={0.5} />
-            <text x={4} y={y + 3} fontSize={9} fill="var(--color-ink-muted)" fontFamily="ui-monospace, monospace">{label}</text>
-          </g>
-        )
-      })}
-      {notes.map((n, idx) => {
-        const x = padX + (notes.length === 1 ? (width - padX * 2) / 2 : idx * noteSpacing)
-        const y = padY + (5 - n.string) * stringSpacing
-        const text = labelText(n)
-        const w = Math.max(16, text.length * 6 + 6)
-        const isBend = n.bend != null
-        return (
-          <g key={`n-${idx}`}>
-            <rect
-              x={x - w / 2} y={y - 6}
-              width={w} height={12} rx={2}
-              fill="var(--color-bg)"
-              stroke={isBend ? '#d97706' : 'var(--color-accent)'}
-              strokeWidth={1}
-            />
-            <text
-              x={x} y={y + 3.5}
-              textAnchor="middle"
-              fontSize={9}
-              fontFamily="ui-monospace, monospace"
-              fill="var(--color-ink)"
-              fontWeight="700"
-            >{text}</text>
-            {isBend && (
-              <text x={x + w / 2 + 2} y={y - 3} fontSize={7} fill="#d97706" fontFamily="ui-monospace, monospace">↑</text>
-            )}
-          </g>
-        )
-      })}
-    </svg>
+    <div ref={wrapRef} style={{ width: '100%' }}>
+      <svg
+        viewBox={`0 0 ${totalW} ${totalH}`}
+        width="100%"
+        height={totalH}
+        style={{ display: 'block', overflow: 'visible' }}
+      >
+        {rows.map((rowNotes, rowIdx) => {
+          const baseY = rowIdx * (staffH + rowGap)
+          return (
+            <g key={`row-${rowIdx}`}>
+              {STRING_LABELS.map((label, i) => {
+                const y = baseY + padY + (5 - i) * stringSpacing
+                return (
+                  <g key={`s-${rowIdx}-${i}`}>
+                    <line x1={labelW} y1={y} x2={totalW - padX} y2={y} stroke="var(--color-ink-soft)" strokeWidth={0.6} />
+                    <text x={2} y={y + 3.5} fontSize={10} fill="var(--color-ink-soft)" fontFamily="ui-monospace, monospace">{label}</text>
+                  </g>
+                )
+              })}
+              {rowNotes.map((n, col) => {
+                const x = labelW + padX + col * slot + slot / 2
+                const y = baseY + padY + (5 - n.string) * stringSpacing
+                const text = labelText(n)
+                const w = Math.max(18, text.length * 7 + 8)
+                const isBend = n.bend != null
+                return (
+                  <g key={`n-${rowIdx}-${col}`}>
+                    <rect
+                      x={x - w / 2} y={y - 7}
+                      width={w} height={14} rx={2}
+                      fill="var(--color-bg)"
+                      stroke={isBend ? '#d97706' : 'var(--color-accent)'}
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={x} y={y + 4}
+                      textAnchor="middle"
+                      fontSize={10.5}
+                      fontFamily="ui-monospace, monospace"
+                      fill="var(--color-ink)"
+                      fontWeight="700"
+                    >{text}</text>
+                    {isBend && (
+                      <text x={x + w / 2 + 2} y={y - 4} fontSize={8} fill="#d97706" fontFamily="ui-monospace, monospace">↑</text>
+                    )}
+                  </g>
+                )
+              })}
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }
