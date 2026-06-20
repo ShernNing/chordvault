@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react'
 import { supabaseSongOps, supabaseSetlistOps } from './supabaseOps'
 import { ingest, cleanSongTitle } from './ingestion'
+import { createResource } from './cache'
 
 // ─── Online Status ─────────────────────────────────────────────────────────
 export function useOnlineStatus() {
@@ -154,7 +155,41 @@ export function useDisplaySettings() {
 }
 
 // ─── Songs ─────────────────────────────────────────────────────────────────
-const SONGS_CACHE_KEY = 'cv-songs-cache'
+// Shared caches — fetched once per session, refetched only when a mutation
+// invalidates them. Survive route changes so navigating back is instant.
+const songsResource = createResource({
+  fetcher: () => supabaseSongOps.getAll(),
+  storageKey: 'cv-songs-cache',
+})
+const setlistsResource = createResource({
+  fetcher: () => supabaseSetlistOps.getAll(),
+  storageKey: 'cv-setlists-cache',
+})
+
+const _songResources = new Map()
+function songResource(id) {
+  if (!_songResources.has(id)) {
+    _songResources.set(id, createResource({
+      fetcher: () => supabaseSongOps.getById(id),
+      storageKey: `cv-song-cache-${id}`,
+    }))
+  }
+  return _songResources.get(id)
+}
+
+const _setlistResources = new Map()
+function setlistResource(id) {
+  if (!_setlistResources.has(id)) {
+    _setlistResources.set(id, createResource({
+      fetcher: () => supabaseSetlistOps.getWithSongs(id),
+      storageKey: `cv-setlist-cache-${id}`,
+    }))
+  }
+  return _setlistResources.get(id)
+}
+
+const _noopSubscribe = () => () => {}
+const _nullSnapshot = () => null
 
 function _sortSongs(data, sortBy) {
   const d = [...data]
@@ -173,42 +208,35 @@ function _sortSongs(data, sortBy) {
 }
 
 export function useSongs(sortBy = 'title') {
-  const [songs, setSongs] = useState(() => {
-    try {
-      const raw = localStorage.getItem(SONGS_CACHE_KEY)
-      return raw ? _sortSongs(JSON.parse(raw), sortBy) : []
-    } catch { return [] }
-  })
-  const [loading, setLoading] = useState(true)
+  const data = useSyncExternalStore(songsResource.subscribe, songsResource.getSnapshot)
   const [error, setError] = useState(null)
+  const [pending, setPending] = useState(() => !songsResource.isLoaded())
 
+  // Fetch once per session; cached data is served instantly on later mounts.
   const load = useCallback(async (force = false) => {
-    if (force) {
-      setSongs([])
-      try { localStorage.removeItem(SONGS_CACHE_KEY) } catch {}
-    }
     try {
-      setLoading(true)
       setError(null)
-      const data = _sortSongs(await supabaseSongOps.getAll(), sortBy)
-      setSongs(data)
-      try { localStorage.setItem(SONGS_CACHE_KEY, JSON.stringify(data)) } catch {}
+      setPending(!songsResource.isLoaded() || force)
+      await songsResource.ensure(force)
     } catch (e) {
       setError(e.message)
     } finally {
-      setLoading(false)
+      setPending(false)
     }
-  }, [sortBy])
+  }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Sort is client-side — changing `sortBy` never triggers a refetch.
+  const songs = useMemo(() => _sortSongs(data ?? [], sortBy), [data, sortBy])
 
   const createSong = useCallback(async (rawContent, title, artist, tags = []) => {
     const result = ingest(rawContent, title)
     const cleanedTitle = cleanSongTitle(title)
     const song = await supabaseSongOps.create({ title: cleanedTitle, artist, raw_content: rawContent, parsed_content: result.parsed_content, original_key: result.original_key, tags })
-    await load()
+    await songsResource.ensure(true)
     return { song, ingestionResult: result }
-  }, [load])
+  }, [])
 
   const updateSong = useCallback(async (id, updates) => {
     let finalUpdates = { ...updates }
@@ -219,58 +247,51 @@ export function useSongs(sortBy = 'title') {
       if (!updates.original_key) finalUpdates.original_key = result.original_key
     }
     const song = await supabaseSongOps.update(id, finalUpdates)
-    await load()
+    await songsResource.ensure(true)
     return song
-  }, [load])
+  }, [])
 
   const deleteSong = useCallback(async (id) => {
     await supabaseSongOps.delete(id)
-    await load()
-  }, [load])
+    await songsResource.ensure(true)
+  }, [])
 
   const bulkDeleteSongs = useCallback(async (ids) => {
     await supabaseSongOps.deleteMany(ids)
-    await load()
-  }, [load])
+    await songsResource.ensure(true)
+  }, [])
 
-  return { songs, loading: loading && songs.length === 0, error, reload: () => load(true), createSong, updateSong, deleteSong, bulkDeleteSongs }
+  return { songs, loading: pending && songs.length === 0, error, reload: () => load(true), createSong, updateSong, deleteSong, bulkDeleteSongs }
 }
 
 // ─── Single Song ───────────────────────────────────────────────────────────
 export function useSong(id) {
-  const [song, setSong] = useState(() => {
-    if (!id) return null
-    try {
-      const raw = localStorage.getItem(`cv-song-cache-${id}`)
-      return raw ? JSON.parse(raw) : null
-    } catch { return null }
-  })
-  const [loading, setLoading] = useState(true)
+  const res = id ? songResource(id) : null
+  const song = useSyncExternalStore(
+    res ? res.subscribe : _noopSubscribe,
+    res ? res.getSnapshot : _nullSnapshot,
+  )
   const [error, setError] = useState(null)
+  const [pending, setPending] = useState(() => !!id && !(res && res.isLoaded()))
 
-  const load = useCallback(async (force = false) => {
+  useEffect(() => {
     if (!id) return
-    if (force) {
-      setSong(null)
-      try { localStorage.removeItem(`cv-song-cache-${id}`) } catch {}
-    }
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await supabaseSongOps.getById(id)
-      if (!data) throw new Error('Song not found')
-      setSong(data)
-      try { localStorage.setItem(`cv-song-cache-${id}`, JSON.stringify(data)) } catch {}
-      // Fire-and-forget: don't block the loading state on the play-count write.
-      supabaseSongOps.markPlayed(id).catch(() => {})
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    const r = songResource(id)
+    let alive = true
+    setError(null)
+    setPending(!r.isLoaded())
+    r.ensure()
+      .then(data => { if (!data) throw new Error('Song not found') })
+      .catch(e => { if (alive) setError(e.message) })
+      .finally(() => { if (alive) setPending(false) })
+    // Fire-and-forget play tracking. Patch the songs-list cache in place so
+    // "recently played" sort stays fresh without a full refetch.
+    supabaseSongOps.markPlayed(id).catch(() => {})
+    songsResource.patchItem(id, { last_played_at: new Date().toISOString() })
+    return () => { alive = false }
   }, [id])
 
-  useEffect(() => { load() }, [load])
+  const reload = useCallback(() => { if (id) songResource(id).ensure(true) }, [id])
 
   const update = useCallback(async (updates) => {
     let finalUpdates = { ...updates }
@@ -281,97 +302,107 @@ export function useSong(id) {
       if (!updates.original_key) finalUpdates.original_key = result.original_key
     }
     const updated = await supabaseSongOps.update(id, finalUpdates)
-    setSong(updated)
-    try { localStorage.setItem(`cv-song-cache-${id}`, JSON.stringify(updated)) } catch {}
+    songResource(id).set(updated)
+    songsResource.invalidate() // list now stale — refetch on next Library mount
     return updated
   }, [id, song])
 
-  return { song, loading: loading && !song, error, reload: () => load(true), update }
+  return { song, loading: pending && !song, error, reload, update }
 }
 
 // ─── Setlists ──────────────────────────────────────────────────────────────
 export function useSetlists() {
-  const [setlists, setSetlists] = useState([])
-  const [loading, setLoading] = useState(true)
+  const data = useSyncExternalStore(setlistsResource.subscribe, setlistsResource.getSnapshot)
   const [error, setError] = useState(null)
+  const [pending, setPending] = useState(() => !setlistsResource.isLoaded())
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     try {
-      setLoading(true)
       setError(null)
-      setSetlists(await supabaseSetlistOps.getAll())
+      setPending(!setlistsResource.isLoaded() || force)
+      await setlistsResource.ensure(force)
     } catch (e) {
       setError(e.message)
     } finally {
-      setLoading(false)
+      setPending(false)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
 
+  const setlists = data ?? []
+
   const createSetlist = useCallback(async (name) => {
     const s = await supabaseSetlistOps.create(name)
-    await load()
+    await setlistsResource.ensure(true)
     return s
-  }, [load])
+  }, [])
 
   const deleteSetlist = useCallback(async (id) => {
     await supabaseSetlistOps.delete(id)
-    await load()
-  }, [load])
+    _setlistResources.delete(id)
+    await setlistsResource.ensure(true)
+  }, [])
 
-  return { setlists, loading, error, reload: load, createSetlist, deleteSetlist }
+  return { setlists, loading: pending && setlists.length === 0, error, reload: () => load(true), createSetlist, deleteSetlist }
 }
 
 // ─── Single Setlist ────────────────────────────────────────────────────────
 export function useSetlist(id) {
-  const [setlist, setSetlist] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const res = id ? setlistResource(id) : null
+  const setlist = useSyncExternalStore(
+    res ? res.subscribe : _noopSubscribe,
+    res ? res.getSnapshot : _nullSnapshot,
+  )
   const [error, setError] = useState(null)
+  const [pending, setPending] = useState(() => !!id && !(res && res.isLoaded()))
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     if (!id) return
+    const r = setlistResource(id)
     try {
-      setLoading(true)
       setError(null)
-      const data = await supabaseSetlistOps.getWithSongs(id)
+      setPending(!r.isLoaded() || force)
+      const data = await r.ensure(force)
       if (!data) throw new Error('Setlist not found')
-      setSetlist(data)
     } catch (e) {
       setError(e.message)
     } finally {
-      setLoading(false)
+      setPending(false)
     }
   }, [id])
 
   useEffect(() => { load() }, [load])
 
+  const refresh = useCallback(() => setlistResource(id).ensure(true), [id])
+
   const addSong = useCallback(async (songId, chosenKey, capo) => {
     await supabaseSetlistOps.addSong(id, songId, chosenKey, capo)
-    await load()
-  }, [id, load])
+    await refresh()
+  }, [id, refresh])
 
   const removeSong = useCallback(async (slotId) => {
     await supabaseSetlistOps.removeSong(slotId)
-    await load()
-  }, [load])
+    await refresh()
+  }, [refresh])
 
   const updateSlot = useCallback(async (slotId, updates) => {
     await supabaseSetlistOps.updateSongSlot(slotId, updates)
-    await load()
-  }, [load])
+    await refresh()
+  }, [refresh])
 
   const reorder = useCallback(async (orderedSlotIds) => {
     await supabaseSetlistOps.reorderSongs(id, orderedSlotIds)
-    await load()
-  }, [id, load])
+    await refresh()
+  }, [id, refresh])
 
   const rename = useCallback(async (name) => {
     await supabaseSetlistOps.update(id, { name })
-    await load()
-  }, [id, load])
+    await refresh()
+    setlistsResource.invalidate() // name shown in the list — refetch it next time
+  }, [id, refresh])
 
-  return { setlist, loading, error, reload: load, addSong, removeSong, updateSlot, reorder, rename }
+  return { setlist, loading: pending && !setlist, error, reload: () => load(true), addSong, removeSong, updateSlot, reorder, rename }
 }
 
 // ─── Debounce ──────────────────────────────────────────────────────────────

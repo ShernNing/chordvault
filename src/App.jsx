@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useMotionEnabled } from './lib/motion'
 import { ToastProvider } from './lib/toast'
 import { AuthProvider } from './lib/AuthContext'
 import AppShell from './components/layout/AppShell'
+import ScrollRestoration from './lib/ScrollRestoration'
 
 const Dashboard = lazy(() => import('./views/Dashboard'))
 const NewSong = lazy(() => import('./views/NewSong'))
@@ -57,6 +58,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <BrowserRouter>
+            <ScrollRestoration />
             <AppShell>
               <AnimatedRoutes />
             </AppShell>

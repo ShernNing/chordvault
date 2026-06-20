@@ -169,7 +169,7 @@ export default function ChordVoicings() {
                     key={v}
                     onClick={() => setView(v)}
                     className={`h-8 px-3 text-xs font-medium transition-colors ${i > 0 ? 'border-l border-[var(--color-border)]' : ''} ${
-                      view === v ? 'bg-[var(--color-ink)] text-[var(--color-bg)]' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
+                      view === v ? 'bg-[var(--color-accent)] text-black' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
                     }`}
                   >{v === 'chord' ? 'By Chord' : 'By Progression'}</button>
                 ))}
@@ -188,7 +188,7 @@ export default function ChordVoicings() {
                     key={id}
                     onClick={() => setDisplayMode(id)}
                     className={`h-8 px-2 transition-colors ${idx > 0 ? 'border-l border-[var(--color-border)]' : ''} ${
-                      displayMode === id ? 'bg-[var(--color-ink)] text-[var(--color-bg)]' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
+                      displayMode === id ? 'bg-[var(--color-accent)] text-black' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
                     }`}
                   ><Icon size={14} /></button>
                 ))}
@@ -206,7 +206,7 @@ export default function ChordVoicings() {
                     key={d}
                     onClick={() => setDifficulty(d)}
                     className={`h-7 px-2 text-xs capitalize transition-colors ${i > 0 ? 'border-l border-[var(--color-border)]' : ''} ${
-                      difficulty === d ? 'bg-[var(--color-ink)] text-[var(--color-bg)]' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
+                      difficulty === d ? 'bg-[var(--color-accent)] text-black' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
                     }`}
                   >{d}</button>
                 ))}
@@ -228,7 +228,7 @@ export default function ChordVoicings() {
             <button
               onClick={() => setHighlightRoot(r => !r)}
               className={`h-7 px-3 text-xs rounded border transition-colors ${
-                highlightRoot ? 'bg-[var(--color-ink)] text-[var(--color-bg)] border-[var(--color-ink)]'
+                highlightRoot ? 'bg-[var(--color-accent)] text-black border-[var(--color-accent)]'
                               : 'bg-[var(--color-bg)] border-[var(--color-border)] text-[var(--color-ink-soft)]'
               }`}
             >Highlight root</button>
@@ -243,7 +243,7 @@ export default function ChordVoicings() {
                   key={id}
                   onClick={() => setDotLabels(id)}
                   className={`h-7 px-2 text-xs transition-colors ${idx > 0 ? 'border-l border-[var(--color-border)]' : ''} ${
-                    dotLabels === id ? 'bg-[var(--color-ink)] text-[var(--color-bg)]' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
+                    dotLabels === id ? 'bg-[var(--color-accent)] text-black' : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)]'
                   }`}
                 >{label}</button>
               ))}
@@ -252,7 +252,7 @@ export default function ChordVoicings() {
             <button
               onClick={() => setShowEnharmonic(s => !s)}
               className={`h-7 px-3 text-xs rounded border transition-colors ${
-                showEnharmonic ? 'bg-[var(--color-ink)] text-[var(--color-bg)] border-[var(--color-ink)]'
+                showEnharmonic ? 'bg-[var(--color-accent)] text-black border-[var(--color-accent)]'
                                : 'bg-[var(--color-bg)] border-[var(--color-border)] text-[var(--color-ink-soft)]'
               }`}
             >Show enharmonics</button>
@@ -260,7 +260,7 @@ export default function ChordVoicings() {
             <button
               onClick={() => setShowAudioPanel(p => !p)}
               className={`h-7 px-3 text-xs rounded border transition-colors ${
-                showAudioPanel ? 'bg-[var(--color-ink)] text-[var(--color-bg)] border-[var(--color-ink)]'
+                showAudioPanel ? 'bg-[var(--color-accent)] text-black border-[var(--color-accent)]'
                                : 'bg-[var(--color-bg)] border-[var(--color-border)] text-[var(--color-ink-soft)]'
               }`}
             >Audio…</button>
@@ -280,7 +280,7 @@ export default function ChordVoicings() {
                   onClick={() => setActiveChord(null)}
                   className={`h-8 px-3 text-xs rounded-full border ${
                     activeChord == null
-                      ? 'bg-[var(--color-ink)] text-[var(--color-bg)] border-[var(--color-ink)]'
+                      ? 'bg-[var(--color-accent)] text-black border-[var(--color-accent)]'
                       : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)] border-[var(--color-border)] hover:border-[var(--color-ink-muted)]'
                   }`}
                 >All</button>
@@ -291,7 +291,7 @@ export default function ChordVoicings() {
                     title={c.roman ? `${c.label} · ${c.roman} of ${displayKey}` : c.label}
                     className={`h-8 px-3 text-xs rounded-full border inline-flex items-center gap-1 ${
                       activeChord === c.rootChord
-                        ? 'bg-[var(--color-ink)] text-[var(--color-bg)] border-[var(--color-ink)]'
+                        ? 'bg-[var(--color-accent)] text-black border-[var(--color-accent)]'
                         : c.diatonic
                           ? 'bg-[var(--color-accent-soft)] text-[var(--color-ink)] border-[var(--color-accent)]'
                           : 'bg-[var(--color-bg)] text-[var(--color-ink-soft)] border-[var(--color-border)] hover:border-[var(--color-ink-muted)]'

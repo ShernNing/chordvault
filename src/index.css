@@ -220,6 +220,13 @@ body {
   background-color: var(--color-accent-soft);
   color: var(--color-ink);
 }
+/* accent-soft is near-black in dark/stage themes — use the bright accent so
+   highlighted text is actually visible. */
+.dark ::selection,
+.stage-mode ::selection {
+  background-color: var(--color-accent);
+  color: #000;
+}
 
 /* ─── Print Styles ────────────────────────────────────────────────────── */
 @media print {
