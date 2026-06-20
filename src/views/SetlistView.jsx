@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { useParams, Link } from "react-router-dom";
@@ -16,6 +16,10 @@ import {
   ChevronDown,
   Music2,
   Eye,
+  PlayCircle,
+  Clock,
+  Share2,
+  Link2,
 } from "lucide-react";
 import {
   DndContext,
@@ -33,12 +37,15 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useSetlist, useSongs } from "../lib/hooks";
+import { useSetlist, useSongs, getSongSeconds, setSongSeconds, formatDuration } from "../lib/hooks";
 import { transposeKey, getCapoDisplay, ALL_KEYS, semitonesFromKeyToKey } from "../lib/transposition";
+import { createSetlistShare, shareUrl } from "../lib/shares";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSetlistToDocx } from "../lib/docxExport";
 import { PrintableSongSheet, MultiSongPage, SingleSongForColumn } from "../components/song/SongRenderer";
 import SetlistFullEditor from "../components/setlist/SetlistFullEditor";
+import SetlistPerformer from "../components/setlist/SetlistPerformer";
+import { useToast } from "../lib/toast";
 import {
   Button,
   Input,
@@ -92,6 +99,11 @@ export default function SetlistView() {
   const [exportingDocx, setExportingDocx] = useState(false);
   const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [performOpen, setPerformOpen] = useState(false);
+  const [durations, setDurations] = useState({});
+  const [sharing, setSharing] = useState(false);
+  const [shareLink, setShareLink] = useState("");
+  const toast = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -99,6 +111,14 @@ export default function SetlistView() {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+
+  // Seed per-song duration estimates (localStorage) so the setlist total reacts live.
+  useEffect(() => {
+    const songs = setlist?.songs || [];
+    const next = {};
+    for (const s of songs) if (s.song) next[s.song_id] = getSongSeconds(s.song_id);
+    setDurations(next);
+  }, [setlist?.songs]);
 
   if (!id) return <ErrorState message='Invalid setlist ID' />;
   if (loading)
@@ -113,6 +133,31 @@ export default function SetlistView() {
 
   const slots = setlist.songs || [];
   const slotIds = slots.map((s) => s.id);
+
+  const totalSeconds = slots.reduce(
+    (sum, s) => (s.song ? sum + (durations[s.song_id] ?? getSongSeconds(s.song_id)) : sum),
+    0,
+  );
+
+  const handleDurationChange = (songId, seconds) => {
+    setSongSeconds(songId, seconds);
+    setDurations((d) => ({ ...d, [songId]: seconds }));
+  };
+
+  const handleShareSetlist = async () => {
+    setSharing(true);
+    try {
+      const token = await createSetlistShare(setlist, slots);
+      const url = shareUrl(token);
+      setShareLink(url);
+      try { await navigator.clipboard.writeText(url); } catch { /* clipboard blocked */ }
+      toast.success("Share link copied to clipboard");
+    } catch (e) {
+      toast.error(e.message || "Could not create share link");
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const handleDragEnd = async (event) => {
     const { active, over } = event;
@@ -406,7 +451,15 @@ export default function SetlistView() {
             </div>
           )}
         </div>
-        <div className='flex items-center gap-2 shrink-0'>
+        <div className='flex items-center gap-2 shrink-0 flex-wrap justify-end'>
+          <Button
+            variant='primary'
+            size='sm'
+            onClick={() => setPerformOpen(true)}
+            disabled={slots.length === 0}
+          >
+            <PlayCircle size={13} /> Perform
+          </Button>
           <Button
             variant='secondary'
             size='sm'
@@ -415,12 +468,21 @@ export default function SetlistView() {
             <Plus size={13} /> Add song
           </Button>
           <Button
-            variant='primary'
+            variant='secondary'
             size='sm'
             onClick={() => setPreviewOpen(true)}
             disabled={slots.length === 0}
           >
             <Eye size={13} /> Edit full setlist
+          </Button>
+          <Button
+            variant='secondary'
+            size='sm'
+            onClick={handleShareSetlist}
+            loading={sharing}
+            disabled={slots.length === 0}
+          >
+            {shareLink ? <Link2 size={13} /> : <Share2 size={13} />} Share
           </Button>
           <Button
             variant='secondary'
@@ -441,6 +503,22 @@ export default function SetlistView() {
         </div>
       </div>
 
+      {shareLink && (
+        <div className='flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg text-xs'>
+          <Link2 size={13} className='text-[var(--color-accent)] shrink-0' />
+          <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>Public link:</span>
+          <input
+            readOnly
+            value={shareLink}
+            onFocus={(e) => e.target.select()}
+            className='flex-1 min-w-0 bg-transparent font-mono text-[var(--color-ink)] outline-none'
+          />
+          <Button variant='ghost' size='xs' onClick={() => { navigator.clipboard?.writeText(shareLink); toast.success('Copied'); }}>
+            Copy
+          </Button>
+        </div>
+      )}
+
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
         {/* ── Left: Setlist ─────────────────────────────────────────── */}
         <div className='lg:col-span-2 space-y-2'>
@@ -448,6 +526,11 @@ export default function SetlistView() {
             <span className='text-xs text-[var(--color-ink-muted)] uppercase tracking-wide'>
               {slots.length} {slots.length === 1 ? "song" : "songs"}
             </span>
+            {slots.length > 0 && (
+              <span className='flex items-center gap-1 text-xs text-[var(--color-ink-muted)] font-mono' title='Estimated total length'>
+                <Clock size={11} /> ~{formatDuration(totalSeconds)}
+              </span>
+            )}
           </div>
 
           {slots.length === 0 ? (
@@ -489,6 +572,8 @@ export default function SetlistView() {
                         <SortableSlot
                           slot={slot}
                           index={index}
+                          seconds={durations[slot.song_id] ?? getSongSeconds(slot.song_id)}
+                          onDurationChange={(s) => handleDurationChange(slot.song_id, s)}
                           onRemove={() => removeSong(slot.id)}
                           onUpdateSlot={(updates) => updateSlot(slot.id, updates)}
                         />
@@ -583,13 +668,21 @@ export default function SetlistView() {
           exportingDocx={exportingDocx}
         />
       )}
+
+      {performOpen && (
+        <SetlistPerformer
+          setlist={setlist}
+          slots={slots}
+          onClose={() => setPerformOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Sortable Slot ─────────────────────────────────────────────────────────
 
-function SortableSlot({ slot, index, onRemove, onUpdateSlot }) {
+function SortableSlot({ slot, index, seconds = 210, onDurationChange, onRemove, onUpdateSlot }) {
   const {
     attributes,
     listeners,
@@ -751,6 +844,35 @@ function SortableSlot({ slot, index, onRemove, onUpdateSlot }) {
                 size='xs'
                 onClick={() => handleCapoChange(localCapo + 1)}
                 disabled={localCapo >= 12}
+                className='w-5 h-5 p-0'
+              >
+                <ChevronUp size={10} />
+              </Button>
+            </div>
+          </div>
+
+          <div className='flex items-center gap-1.5'>
+            <span className='text-[10px] text-[var(--color-ink-muted)] flex items-center gap-0.5'>
+              <Clock size={9} /> Length
+            </span>
+            <div className='flex items-center gap-0.5'>
+              <Button
+                variant='ghost'
+                size='xs'
+                onClick={() => onDurationChange?.(Math.max(30, seconds - 30))}
+                disabled={seconds <= 30}
+                className='w-5 h-5 p-0'
+              >
+                <ChevronDown size={10} />
+              </Button>
+              <span className='w-9 text-center font-mono text-[11px] text-[var(--color-ink)] tabular-nums'>
+                {formatDuration(seconds)}
+              </span>
+              <Button
+                variant='ghost'
+                size='xs'
+                onClick={() => onDurationChange?.(Math.min(1800, seconds + 30))}
+                disabled={seconds >= 1800}
                 className='w-5 h-5 p-0'
               >
                 <ChevronUp size={10} />

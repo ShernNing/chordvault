@@ -14,6 +14,8 @@ const Setlists = lazy(() => import('./views/Setlists'))
 const SetlistView = lazy(() => import('./views/SetlistView'))
 const ImportView = lazy(() => import('./views/ImportView'))
 const ChordVoicings = lazy(() => import('./views/ChordVoicings'))
+const Stats = lazy(() => import('./views/Stats'))
+const ShareView = lazy(() => import('./views/ShareView'))
 
 function RouteFallback() {
   return (
@@ -44,6 +46,8 @@ function AnimatedRoutes() {
             <Route path="/setlists/:id" element={<SetlistView />} />
             <Route path="/import" element={<ImportView />} />
             <Route path="/voicings" element={<ChordVoicings />} />
+            <Route path="/stats" element={<Stats />} />
+            <Route path="/share/:token" element={<ShareView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

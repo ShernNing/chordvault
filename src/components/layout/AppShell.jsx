@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   Music2, ListMusic, LayoutGrid, Plus, Moon, Sun,
   Zap, Wifi, WifiOff, Menu, X, FileUp,
-  CloudOff, LogIn, LogOut, User, ExternalLink, ArrowUp, Guitar
+  CloudOff, LogIn, LogOut, User, ExternalLink, ArrowUp, Guitar, BarChart3
 } from 'lucide-react'
 import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/import', label: 'Import', icon: FileUp },
   { to: '/setlists', label: 'Setlists', icon: ListMusic },
   { to: '/voicings', label: 'Chord Voicings', icon: Guitar },
+  { to: '/stats', label: 'Stats', icon: BarChart3 },
 ]
 
 export default function AppShell({ children }) {
@@ -25,6 +26,7 @@ export default function AppShell({ children }) {
   const { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId, darkThemeId, setDarkThemeId } = useTheme()
   useDisplaySettings()
   const { isLoggedIn, email } = useAuth()
+  const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -34,6 +36,11 @@ export default function AppShell({ children }) {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Public share pages render their own minimal chrome — no app nav/footer.
+  if (location.pathname.startsWith('/share/')) {
+    return <>{children}</>
+  }
 
   const handleLogout = async () => {
     await supabase?.auth.signOut()

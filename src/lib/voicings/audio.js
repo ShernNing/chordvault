@@ -1,6 +1,7 @@
 // Lazy-loaded Tone.js voicing playback. Tone (~80KB gz) is fetched on first play.
 // Supports strum (down/up), arpeggio, single chord, tunable speed + sustain.
 
+import { Chord, Note } from 'tonal'
 import { voicingPitches } from './notes'
 
 let _tonePromise = null
@@ -73,4 +74,100 @@ export async function playVoicing(frets, options = {}) {
   })
 
   await new Promise(res => setTimeout(res, (opts.speedMs * pitches.length) + 120))
+}
+
+// ─── Chord progression playback (strum the whole song) ───────────────────────
+
+/**
+ * Turn a chord name into stacked pitches (with octaves), low → high.
+ * Handles slash chords by placing the bass note an octave below.
+ *   chordToPitches('Am7')   → ['A3','C4','E4','G4']
+ *   chordToPitches('F/A')   → ['A2','F3','A3','C4']
+ */
+export function chordToPitches(chordName, { baseOctave = 3 } = {}) {
+  if (!chordName) return []
+  let name = chordName.trim()
+  let bass = null
+  if (name.includes('/')) {
+    const [c, b] = name.split('/')
+    name = c
+    bass = b
+  }
+
+  const info = Chord.get(name)
+  let notes = info && info.notes && info.notes.length ? info.notes : null
+  if (!notes) {
+    const m = name.match(/^([A-G][#b]?)/)
+    if (!m) return []
+    notes = [m[1]]
+  }
+
+  const out = []
+  let prevMidi = -Infinity
+  for (const pc of notes) {
+    let oct = baseOctave
+    let midi = Note.midi(`${pc}${oct}`)
+    while (midi != null && midi <= prevMidi) { oct += 1; midi = Note.midi(`${pc}${oct}`) }
+    if (midi == null) continue
+    prevMidi = midi
+    out.push(`${pc}${oct}`)
+  }
+
+  if (bass) {
+    const bassPitch = `${bass}${baseOctave - 1}`
+    if (Note.midi(bassPitch) != null) out.unshift(bassPitch)
+  }
+  return out
+}
+
+/**
+ * Build a controllable player that walks a chord progression at tempo.
+ *   chords:        ordered array of chord-name strings
+ *   bpm:           tempo
+ *   beatsPerChord: how many beats each chord rings (default 4 = one bar in 4/4)
+ *   strum:         lightly stagger notes (true) vs block chord (false)
+ *   onStep(i, chord): fired as each chord starts
+ *   onEnd():       fired when the progression finishes
+ * Returns { start, stop }. Safe to call stop() at any time.
+ */
+export function createProgressionPlayer({ chords = [], bpm = 100, beatsPerChord = 4, strum = true, onStep, onEnd }) {
+  let i = 0
+  let timer = null
+  let stopped = false
+  const intervalMs = (60 / Math.max(bpm, 1)) * beatsPerChord * 1000
+
+  const playStep = async () => {
+    if (stopped) return
+    if (i >= chords.length) { stop(); onEnd?.(); return }
+    const chord = chords[i]
+    onStep?.(i, chord)
+    const pitches = chordToPitches(chord)
+    try {
+      const { Tone, synth } = await getSynth()
+      if (stopped) return
+      const now = Tone.now()
+      const stagger = strum ? 0.028 : 0
+      const sustain = Math.min(intervalMs / 1000 * 0.95, 2.4)
+      pitches.forEach((p, k) => synth.triggerAttackRelease(p, sustain, now + k * stagger))
+    } catch (e) {
+      console.warn('Chord playback failed', e)
+    }
+    i += 1
+    timer = setTimeout(playStep, intervalMs)
+  }
+
+  const start = async () => {
+    stopped = false
+    i = 0
+    try { await getSynth() } catch { /* keeps going; playStep handles failure */ }
+    if (!stopped) playStep()
+  }
+
+  function stop() {
+    stopped = true
+    if (timer) { clearTimeout(timer); timer = null }
+    _synthPromise?.then(({ synth }) => { try { synth.releaseAll() } catch { /* not ready */ } }).catch(() => {})
+  }
+
+  return { start, stop }
 }

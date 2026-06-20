@@ -1,5 +1,6 @@
 import { RotateCcw, ChevronUp, ChevronDown, Hash } from 'lucide-react'
 import { ALL_KEYS, transposeKey, getCapoDisplay, semitonesFromKeyToKey } from '../../lib/transposition'
+import { normalizeNashville } from '../../lib/nashville'
 import { Button, Select, Tooltip, Badge } from '../ui'
 import { RollValue } from '../../lib/motion'
 
@@ -136,19 +137,29 @@ export default function TransposeControls({
         </div>
       </div>
 
-      {/* ── Nashville numbers ────────────────────────────────────────── */}
-      {onToggleNashville && (
-        <Tooltip content={originalKey ? 'Show chords as Nashville numbers' : 'Set a song key to use Nashville numbers'}>
-          <Button
-            variant={nashville ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={onToggleNashville}
-            disabled={!originalKey}
-          >
-            <Hash size={12} /> Nashville
-          </Button>
-        </Tooltip>
-      )}
+      {/* ── Nashville numbers (off → numbers → numbers+chords) ───────────── */}
+      {onToggleNashville && (() => {
+        const mode = normalizeNashville(nashville)
+        const tip = !originalKey
+          ? 'Set a song key to use Nashville numbers'
+          : mode === 'off'
+            ? 'Show chords as Nashville numbers'
+            : mode === 'numbers'
+              ? 'Show numbers above the chord names'
+              : 'Hide Nashville numbers'
+        return (
+          <Tooltip content={tip}>
+            <Button
+              variant={mode !== 'off' ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={onToggleNashville}
+              disabled={!originalKey}
+            >
+              <Hash size={12} /> {mode === 'both' ? 'Nashville + chords' : 'Nashville'}
+            </Button>
+          </Tooltip>
+        )
+      })()}
 
       {/* ── Capo hint ────────────────────────────────────────────────── */}
       {capoDisplay && (

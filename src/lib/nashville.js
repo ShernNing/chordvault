@@ -45,16 +45,39 @@ export function chordToNashville(chordName, key) {
   return DEGREE[(pc - keyPc + 12) % 12] + m[2]
 }
 
-// Convert all chord tokens in parsed content to Nashville numbers (does not mutate).
-export function nashvilleParsedContent(parsedContent, key) {
-  if (!parsedContent || !key) return parsedContent
+// Annotate chord tokens with Nashville numbers (does not mutate).
+//   mode 'numbers' → replace chord text with the number (1, 6m, 4/6…)
+//   mode 'both'    → keep chord text, attach `.nashville` so the renderer can
+//                    stack the number above the original chord name
+export function annotateNashville(parsedContent, key, mode = 'numbers') {
+  if (!parsedContent || !key || mode === 'off') return parsedContent
   return parsedContent.map(line => {
     if (line.type !== 'chord_line' || !line.tokens) return line
     return {
       ...line,
-      tokens: line.tokens.map(t =>
-        t.isChord ? { ...t, text: chordToNashville(t.text, key) } : t,
-      ),
+      tokens: line.tokens.map(t => {
+        if (!t.isChord) return t
+        const num = chordToNashville(t.text, key)
+        return mode === 'both' ? { ...t, nashville: num } : { ...t, text: num }
+      }),
     }
   })
+}
+
+// Convert all chord tokens in parsed content to Nashville numbers (does not mutate).
+export function nashvilleParsedContent(parsedContent, key) {
+  return annotateNashville(parsedContent, key, 'numbers')
+}
+
+// ── Tri-state display mode: 'off' → 'numbers' → 'both' → 'off' ──────────────
+// Tolerates legacy booleans from prefs stored before the third state existed.
+export function normalizeNashville(v) {
+  if (v === true || v === 'numbers') return 'numbers'
+  if (v === 'both') return 'both'
+  return 'off'
+}
+
+export function cycleNashville(v) {
+  const m = normalizeNashville(v)
+  return m === 'off' ? 'numbers' : m === 'numbers' ? 'both' : 'off'
 }

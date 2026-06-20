@@ -118,6 +118,30 @@ body {
   min-height: calc(var(--chord-size) * var(--chord-line-height));
 }
 
+/* Nashville "both" mode: original chord with its number stacked above.
+   The chord text stays in normal monospace flow (alignment with the lyric is
+   untouched); the number floats above with zero layout width. with-nash adds
+   the top room so the floated numbers don't clip into the line above. */
+.chord-sheet .chord-line.with-nash {
+  padding-top: 0.9em;
+}
+
+.chord-stack {
+  position: relative;
+}
+
+.chord-stack .chord-nash {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 1px;
+  font-size: 0.62em;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
 .chord-sheet .lyric-line {
   font-family: var(--lyric-font);
   font-size: var(--lyric-size);
@@ -142,6 +166,23 @@ body {
   white-space: pre-wrap;
   display: block;
   line-height: var(--lyric-line-height);
+}
+
+/* Performance cue / director's note (a "!" line in the source) */
+.chord-sheet .annotation-line {
+  font-family: var(--lyric-font);
+  font-size: calc(var(--lyric-size) - 1px);
+  font-weight: 600;
+  font-style: italic;
+  color: var(--color-accent);
+  white-space: pre-wrap;
+  display: block;
+  line-height: var(--lyric-line-height);
+  margin: 2px 0;
+}
+.chord-sheet .annotation-line::before {
+  content: '→ ';
+  opacity: 0.7;
 }
 
 /* Inline chord-name button — click to open voicings drawer */

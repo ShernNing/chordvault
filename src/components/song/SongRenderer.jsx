@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { transposeParsedContent } from '../../lib/transposition'
-import { nashvilleParsedContent } from '../../lib/nashville'
+import { annotateNashville, normalizeNashville } from '../../lib/nashville'
 import { normalizeSectionHeader, cleanSongTitle } from '../../lib/ingestion'
 
 // ─── Column layout helpers ───────────────────────────────────────────────────
@@ -17,6 +17,7 @@ function _estimateGroupHeight(group) {
     case 'section_header': return 38   // text(14) + margin-top(16) + margin-bottom(8)
     case 'chord_line':     return 18
     case 'lyric_line':     return 17
+    case 'annotation':     return 20
     case 'blank':          return 16
     default:               return 17
   }
@@ -64,6 +65,7 @@ function _estimatePrintLineHeight(line) {
   switch (line.type) {
     case 'chord_line': return 20  // 16px × 1.2 lineHeight = 19.2 → 20
     case 'lyric_line': return 22  // 19.2 + 2px margin-bottom = 21.2 → 22
+    case 'annotation': return 20  // 13px × 1.2 + 4px margins
     case 'blank':      return 8
     default:           return 22
   }
@@ -145,11 +147,30 @@ export function estimateSongPrintHeight(parsedContent) {
 
 // ─── SongRenderer ────────────────────────────────────────────────────────────
 
+// True when any chord token carries a stacked Nashville number ('both' mode).
+function hasNashvilleStack(line) {
+  return !!line?.tokens?.some(t => t.nashville != null)
+}
+
+// A chord token's visible content. In 'both' mode the Nashville number is
+// absolutely positioned above the chord (see .chord-stack in index.css) so the
+// chord text keeps its exact monospace width and stays aligned to the lyric.
+function tokenInner(t) {
+  if (t.nashville == null) return t.text
+  return (
+    <span className="chord-stack">
+      <span className="chord-nash">{t.nashville}</span>
+      {t.text}
+    </span>
+  )
+}
+
 // Render chord-line text. When `onChordClick` is supplied, each chord token is
 // rendered as a clickable button — used to open the voicings drawer.
 function renderChordTextInline(line, onChordClick) {
   if (!line) return ''
-  if (!line.tokens || !onChordClick) {
+  // Fast path: plain string only when there's nothing interactive or stacked.
+  if (!line.tokens || (!onChordClick && !hasNashvilleStack(line))) {
     return line.tokens
       ? line.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('')
       : (line.raw || '')
@@ -157,11 +178,15 @@ function renderChordTextInline(line, onChordClick) {
   return line.tokens.map((t, i) => (
     <React.Fragment key={i}>
       {' '.repeat(t.leadingSpaces || 0)}
-      <button
-        type="button"
-        className="chord-token-btn"
-        onClick={() => onChordClick(t.text)}
-      >{t.text}</button>
+      {onChordClick ? (
+        <button
+          type="button"
+          className="chord-token-btn"
+          onClick={() => onChordClick(t.text)}
+        >{tokenInner(t)}</button>
+      ) : (
+        <span className="chord-token">{tokenInner(t)}</span>
+      )}
     </React.Fragment>
   ))
 }
@@ -182,8 +207,9 @@ export default function SongRenderer({
   const transposed = semitones !== 0
     ? transposeParsedContent(parsedContent, semitones, targetKey)
     : parsedContent
-  const content = nashville && targetKey
-    ? nashvilleParsedContent(transposed, targetKey)
+  const nashMode = normalizeNashville(nashville)
+  const content = nashMode !== 'off' && targetKey
+    ? annotateNashville(transposed, targetKey, nashMode)
     : transposed
 
   if (!content || content.length === 0) {
@@ -247,7 +273,7 @@ export default function SongRenderer({
       const chordContent = renderChordTextInline(chord, !printMode ? onChordClick : null)
       return (
         <div key={getKey(group)} className={`chord-lyric-pair ${chord.uncertain ? 'uncertain-line' : ''}`}>
-          <span className="chord-line">{chordContent}</span>
+          <span className={`chord-line ${hasNashvilleStack(chord) ? 'with-nash' : ''}`}>{chordContent}</span>
           <span className="lyric-line">{lyric.text}</span>
           {chord.uncertain && !printMode && onLineTypeOverride && (
             <UncertainOverlay
@@ -342,6 +368,13 @@ function RenderLine({ line, index, printMode, onOverride, onChordClick }) {
         </div>
       )
 
+    case 'annotation':
+      return (
+        <div key={index} className="annotation-line">
+          {line.text}
+        </div>
+      )
+
     default:
       return (
         <div key={index} className="lyric-line">
@@ -356,7 +389,7 @@ function ChordLineRender({ line, index, printMode, onOverride, onChordClick }) {
 
   return (
     <div className={`chord-lyric-pair ${line.uncertain ? 'uncertain-line' : ''}`}>
-      <span className="chord-line">{chordContent}</span>
+      <span className={`chord-line ${hasNashvilleStack(line) ? 'with-nash' : ''}`}>{chordContent}</span>
       {line.uncertain && !printMode && onOverride && (
         <UncertainOverlay
           label="Chord line?"
@@ -563,9 +596,25 @@ function PrintLine({ line }) {
     marginBottom: '2px',
   }
 
+  const annotationStyle = {
+    fontFamily: 'Arial, sans-serif',
+    fontSize: '13px',
+    fontWeight: '700',
+    fontStyle: 'italic',
+    color: '#555555',
+    whiteSpace: 'pre-wrap',
+    display: 'block',
+    lineHeight: '1.2',
+    marginTop: '2px',
+    marginBottom: '2px',
+  }
+
   switch (line.type) {
     case 'section_header':
       return <span style={sectionStyle}>{normalizeSectionHeader(line.text)}</span>
+
+    case 'annotation':
+      return <span style={annotationStyle}>{`→ ${line.text}`}</span>
 
     case 'chord_line': {
       const text = line.tokens

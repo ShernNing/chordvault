@@ -405,6 +405,66 @@ export function useSetlist(id) {
   return { setlist, loading: pending && !setlist, error, reload: () => load(true), addSong, removeSong, updateSlot, reorder, rename }
 }
 
+// ─── Keyboard / Pedal Controls ───────────────────────────────────────────────
+// Maps arrow keys, space, and PageUp/PageDown (the codes most Bluetooth
+// page-turner pedals send) to next / prev / toggle actions. Ignores key events
+// while the user is typing in a form field.
+export function useKeyboardControls({ onNext, onPrev, onToggle, enabled = true }) {
+  useEffect(() => {
+    if (!enabled) return undefined
+    const handler = (e) => {
+      const el = e.target
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'ArrowDown':
+        case 'PageDown':
+          if (onNext) { e.preventDefault(); onNext() }
+          break
+        case 'ArrowLeft':
+        case 'ArrowUp':
+        case 'PageUp':
+          if (onPrev) { e.preventDefault(); onPrev() }
+          break
+        case ' ':
+        case 'Spacebar':
+          if (onToggle) { e.preventDefault(); onToggle() }
+          break
+        default:
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onNext, onPrev, onToggle, enabled])
+}
+
+// ─── Per-song duration estimate (localStorage, no DB) ────────────────────────
+export const DEFAULT_SONG_SECONDS = 210 // 3:30 default per song
+
+export function getSongSeconds(songId) {
+  try {
+    const v = localStorage.getItem(`cv-duration-${songId}`)
+    const n = v != null ? JSON.parse(v) : DEFAULT_SONG_SECONDS
+    return Number.isFinite(n) ? n : DEFAULT_SONG_SECONDS
+  } catch { return DEFAULT_SONG_SECONDS }
+}
+
+export function setSongSeconds(songId, seconds) {
+  try { localStorage.setItem(`cv-duration-${songId}`, JSON.stringify(seconds)) } catch { /* quota */ }
+}
+
+export function formatDuration(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds))
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  if (m >= 60) {
+    const h = Math.floor(m / 60)
+    return `${h}h ${m % 60}m`
+  }
+  return `${m}:${String(sec).padStart(2, '0')}`
+}
+
 // ─── Debounce ──────────────────────────────────────────────────────────────
 export function useDebounce(value, delay = 300) {
   const [debounced, setDebounced] = useState(value)

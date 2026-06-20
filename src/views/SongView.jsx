@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
@@ -22,11 +22,14 @@ import {
   PlayCircle,
   Share2,
   Link2,
+  Mic,
+  Music4,
 } from "lucide-react";
 import { useSong, useLocalStorage, useDisplaySettings, useSetlists, FONT_OPTIONS } from "../lib/hooks";
 import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
 import { transposeKey, getCapoShapeKey, transposeParsedContent, transposeChord } from "../lib/transposition";
 import { extractChords, detectKey, ingest, tokenizeChordLine } from "../lib/ingestion";
+import { cycleNashville } from "../lib/nashville";
 import { bestTransposeFrets } from "../lib/voicings/transpose";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
@@ -44,11 +47,14 @@ import {
   Tooltip,
   Select,
 } from "../components/ui";
+import { createSongShare, shareUrl } from "../lib/shares";
 import SongRenderer, {
   PrintableSongSheet,
 } from "../components/song/SongRenderer";
 import TransposeControls from "../components/song/TransposeControls";
 import PerformBar from "../components/song/PerformBar";
+import ChordPlayer from "../components/song/ChordPlayer";
+import VocalRangeHelper from "../components/song/VocalRangeHelper";
 import VoicingDrawer from "../components/voicings/VoicingDrawer";
 import SongVoicingsPanel from "../components/voicings/SongVoicingsPanel";
 import ElectricGuitarNotesPanel from "../components/song/ElectricGuitarNotesPanel";
@@ -71,7 +77,21 @@ export default function SongView() {
   const [nashville, setNashville] = useLocalStorage("cv-nashville", false);
   const [bpm, setBpm] = useLocalStorage(`cv-bpm-${id}`, 100);
   const [showPerform, setShowPerform] = useState(false);
+  const [showChordPlayer, setShowChordPlayer] = useState(false);
+  const [showRangePanel, setShowRangePanel] = useState(false);
   const [shared, setShared] = useState(false);
+  const [shareLink, setShareLink] = useState("");
+  const [sharingLink, setSharingLink] = useState(false);
+
+  // Sounding chords in playing order (post-transpose) for the chord player.
+  const songChords = useMemo(() => {
+    if (!song?.parsed_content) return [];
+    const dk = song.original_key ? transposeKey(song.original_key, transpose.semitones) : null;
+    const content = transpose.semitones !== 0
+      ? transposeParsedContent(song.parsed_content, transpose.semitones, dk)
+      : song.parsed_content;
+    return extractChords(content);
+  }, [song?.parsed_content, song?.original_key, transpose.semitones]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
@@ -186,16 +206,23 @@ export default function SongView() {
   };
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/songs/${id}`;
+    setSharingLink(true);
     try {
+      const token = await createSongShare(song);
+      const url = shareUrl(token);
+      setShareLink(url);
       if (navigator.share) {
-        await navigator.share({ title: song.title, url });
+        try { await navigator.share({ title: song.title, url }); } catch { /* cancelled */ }
       } else {
-        await navigator.clipboard.writeText(url);
+        try { await navigator.clipboard.writeText(url); } catch { /* clipboard blocked */ }
         setShared(true);
         setTimeout(() => setShared(false), 2000);
       }
-    } catch (_) { /* user cancelled share sheet */ }
+    } catch (e) {
+      toast.error(e.message || "Could not create share link");
+    } finally {
+      setSharingLink(false);
+    }
   };
 
   const handleExportDocx = async () => {
@@ -322,14 +349,15 @@ export default function SongView() {
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </Button>
           </Tooltip>
-          <Tooltip content={shared ? "Link copied!" : "Share link to this song"}>
+          <Tooltip content={shared ? "Link copied!" : "Create public share link"}>
             <Button
               variant='ghost'
               size='icon-sm'
               onClick={handleShare}
+              loading={sharingLink}
               title='Share link'
             >
-              {shared ? <Link2 size={14} /> : <Share2 size={14} />}
+              {shared || shareLink ? <Link2 size={14} /> : <Share2 size={14} />}
             </Button>
           </Tooltip>
           <Tooltip content='Export PDF'>
@@ -399,6 +427,28 @@ export default function SongView() {
               title='Perform mode'
             >
               <PlayCircle size={14} />
+            </Button>
+          </Tooltip>
+          <Tooltip content='Play the chords (strum-along)'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setShowChordPlayer(p => !p)}
+              className={showChordPlayer ? 'text-[var(--color-accent)]' : ''}
+              title='Play chords'
+            >
+              <Music4 size={14} />
+            </Button>
+          </Tooltip>
+          <Tooltip content='Fit the key to my vocal range'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => setShowRangePanel(p => !p)}
+              className={showRangePanel ? 'text-[var(--color-accent)]' : ''}
+              title='Fit to my voice'
+            >
+              <Mic size={14} />
             </Button>
           </Tooltip>
           <Tooltip content='Add to setlist'>
@@ -477,9 +527,38 @@ export default function SongView() {
           capo={transpose.capo}
           onChange={handleTransposeChange}
           nashville={nashville}
-          onToggleNashville={() => setNashville(v => !v)}
+          onToggleNashville={() => setNashville(cycleNashville)}
         />
       </div>
+
+      {/* ── Share link banner ─────────────────────────────────────── */}
+      {shareLink && (
+        <div className='no-print flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg text-xs'>
+          <Link2 size={13} className='text-[var(--color-accent)] shrink-0' />
+          <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>Public link:</span>
+          <input
+            readOnly
+            value={shareLink}
+            onFocus={(e) => e.target.select()}
+            className='flex-1 min-w-0 bg-transparent font-mono text-[var(--color-ink)] outline-none'
+          />
+          <Button variant='ghost' size='xs' onClick={() => { navigator.clipboard?.writeText(shareLink); toast.success('Copied'); }}>
+            Copy
+          </Button>
+        </div>
+      )}
+
+      {/* ── Vocal Range Panel ─────────────────────────────────────── */}
+      {showRangePanel && (
+        <div className='no-print'>
+          <VocalRangeHelper
+            songId={id}
+            originalKey={song.original_key}
+            currentCapo={transpose.capo}
+            onApply={(semitones, capo) => { setTranspose({ semitones, capo }); setShowRangePanel(false); }}
+          />
+        </div>
+      )}
 
       {/* ── Save Key Banner ───────────────────────────────────────── */}
       {transpose.semitones !== 0 && song.original_key && (
@@ -556,6 +635,15 @@ export default function SongView() {
           bpm={bpm}
           onBpmChange={setBpm}
           onClose={() => setShowPerform(false)}
+        />
+      )}
+
+      {showChordPlayer && (
+        <ChordPlayer
+          chords={songChords}
+          bpm={bpm}
+          raised={showPerform}
+          onClose={() => setShowChordPlayer(false)}
         />
       )}
 
@@ -822,6 +910,7 @@ function EditSongModal({ song, onSave, onClose }) {
               onChange={(e) => setRawContent(e.target.value)}
               className='h-[400px]'
               spellCheck={false}
+              hint='Tip: start a line with "!" to add a performance cue — e.g. ! capo 2 here'
             />
             <div className='flex flex-col gap-2'>
               <label className='text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide'>

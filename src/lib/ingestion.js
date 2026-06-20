@@ -154,6 +154,14 @@ export function parseRawContent(rawText) {
       ? rawLines[i].replace(/\s*\|\s*/g, '  ').replace(/(^|\s)\/(?=\s|$)/g, '$1').trim()
       : rawLines[i]
 
+    // Performance cue / annotation: a line beginning with "!" (e.g. "! capo here",
+    // "! big build"). Rendered as an inline director's note, never transposed.
+    const annotationMatch = rawLines[i].match(/^\s*!\s?(.*)$/)
+    if (annotationMatch && annotationMatch[1].trim()) {
+      parsedLines.push({ type: 'annotation', text: annotationMatch[1].trim() })
+      continue
+    }
+
     // Detect inline section+chord: "Intro A", "intro - a", "Verse 1: C G Am"
     const inlineSec = INLINE_SECTION_RE.exec(line)
     if (inlineSec) {
