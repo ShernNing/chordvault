@@ -147,30 +147,46 @@ export function estimateSongPrintHeight(parsedContent) {
 
 // ─── SongRenderer ────────────────────────────────────────────────────────────
 
-// True when any chord token carries a stacked Nashville number ('both' mode).
-function hasNashvilleStack(line) {
-  return !!line?.tokens?.some(t => t.nashville != null)
+// A scale-degree numeral with its quality/extension shrunk to a superscript, so
+// 'G2' shows as a 1 with a small raised 2 — never the ambiguous "12".
+function NashNum({ parts }) {
+  if (!parts) return null
+  return (
+    <>
+      {parts.degree}
+      {parts.quality && <span className="chord-ext">{parts.quality}</span>}
+    </>
+  )
 }
 
-// A chord token's visible content. In 'both' mode the Nashville number is
-// absolutely positioned above the chord (see .chord-stack in index.css) so the
-// chord text keeps its exact monospace width and stays aligned to the lyric.
-function tokenInner(t) {
-  if (t.nashville == null) return t.text
+// True when the line carries Nashville numbers stacked above chords ('both' mode).
+function hasNashvilleStack(line, mode) {
+  return mode === 'both' && !!line?.tokens?.some(t => t.nashville != null)
+}
+
+// A chord token's visible content, by Nashville display mode:
+//   'numbers' → the number replaces the chord name inline
+//   'both'    → the number floats above the chord name (see .chord-stack), so the
+//               chord text keeps its monospace width and stays aligned to the lyric
+function tokenInner(t, mode) {
+  if (t.nashville == null || mode === 'off') return t.text
+  if (mode === 'numbers') return <NashNum parts={t.nashville} />
   return (
     <span className="chord-stack">
-      <span className="chord-nash">{t.nashville}</span>
+      <span className="chord-nash"><NashNum parts={t.nashville} /></span>
       {t.text}
     </span>
   )
 }
 
 // Render chord-line text. When `onChordClick` is supplied, each chord token is
-// rendered as a clickable button — used to open the voicings drawer.
-function renderChordTextInline(line, onChordClick) {
+// rendered as a clickable button — used to open the voicings drawer. Clicks
+// always carry the real chord name (t.text), even in Nashville modes.
+function renderChordTextInline(line, onChordClick, mode = 'off') {
   if (!line) return ''
-  // Fast path: plain string only when there's nothing interactive or stacked.
-  if (!line.tokens || (!onChordClick && !hasNashvilleStack(line))) {
+  const hasNash = mode !== 'off' && !!line.tokens?.some(t => t.nashville != null)
+  // Fast path: plain string only when there's nothing interactive or numbered.
+  if (!line.tokens || (!onChordClick && !hasNash)) {
     return line.tokens
       ? line.tokens.map(t => ' '.repeat(t.leadingSpaces || 0) + t.text).join('')
       : (line.raw || '')
@@ -183,9 +199,9 @@ function renderChordTextInline(line, onChordClick) {
           type="button"
           className="chord-token-btn"
           onClick={() => onChordClick(t.text)}
-        >{tokenInner(t)}</button>
+        >{tokenInner(t, mode)}</button>
       ) : (
-        <span className="chord-token">{tokenInner(t)}</span>
+        <span className="chord-token">{tokenInner(t, mode)}</span>
       )}
     </React.Fragment>
   ))
@@ -270,10 +286,10 @@ export default function SongRenderer({
   const renderGroup = (group) => {
     if (group.type === 'pair') {
       const { chord, lyric, chordIndex } = group
-      const chordContent = renderChordTextInline(chord, !printMode ? onChordClick : null)
+      const chordContent = renderChordTextInline(chord, !printMode ? onChordClick : null, nashMode)
       return (
         <div key={getKey(group)} className={`chord-lyric-pair ${chord.uncertain ? 'uncertain-line' : ''}`}>
-          <span className={`chord-line ${hasNashvilleStack(chord) ? 'with-nash' : ''}`}>{chordContent}</span>
+          <span className={`chord-line ${hasNashvilleStack(chord, nashMode) ? 'with-nash' : ''}`}>{chordContent}</span>
           <span className="lyric-line">{lyric.text}</span>
           {chord.uncertain && !printMode && onLineTypeOverride && (
             <UncertainOverlay
@@ -293,6 +309,7 @@ export default function SongRenderer({
         printMode={printMode}
         onOverride={onLineTypeOverride ? handleOverride : null}
         onChordClick={!printMode ? onChordClick : null}
+        nashMode={nashMode}
       />
     )
   }
@@ -326,7 +343,7 @@ export default function SongRenderer({
   )
 }
 
-function RenderLine({ line, index, printMode, onOverride, onChordClick }) {
+function RenderLine({ line, index, printMode, onOverride, onChordClick, nashMode = 'off' }) {
   switch (line.type) {
     case 'section_header':
       return (
@@ -344,6 +361,7 @@ function RenderLine({ line, index, printMode, onOverride, onChordClick }) {
           printMode={printMode}
           onOverride={onOverride}
           onChordClick={onChordClick}
+          nashMode={nashMode}
         />
       )
 
@@ -384,12 +402,12 @@ function RenderLine({ line, index, printMode, onOverride, onChordClick }) {
   }
 }
 
-function ChordLineRender({ line, index, printMode, onOverride, onChordClick }) {
-  const chordContent = renderChordTextInline(line, !printMode ? onChordClick : null)
+function ChordLineRender({ line, index, printMode, onOverride, onChordClick, nashMode = 'off' }) {
+  const chordContent = renderChordTextInline(line, !printMode ? onChordClick : null, nashMode)
 
   return (
     <div className={`chord-lyric-pair ${line.uncertain ? 'uncertain-line' : ''}`}>
-      <span className={`chord-line ${hasNashvilleStack(line) ? 'with-nash' : ''}`}>{chordContent}</span>
+      <span className={`chord-line ${hasNashvilleStack(line, nashMode) ? 'with-nash' : ''}`}>{chordContent}</span>
       {line.uncertain && !printMode && onOverride && (
         <UncertainOverlay
           label="Chord line?"

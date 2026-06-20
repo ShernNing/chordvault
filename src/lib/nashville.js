@@ -27,46 +27,64 @@ function noteToNashville(noteName, keyPc) {
   return DEGREE[(pc - keyPc + 12) % 12] + noteName.slice(m[1].length)
 }
 
-// Convert one chord name (e.g. 'Am7', 'F/A', 'Bbmaj7') to its Nashville number.
-export function chordToNashville(chordName, key) {
-  if (!chordName || !key) return chordName
+// Split a chord into its Nashville scale-degree numeral and the trailing
+// quality/extension — everything after the root: 'm', '7', '2', 'sus', '/5'…
+// Keeping them apart lets the renderer show the degree full-size and shrink the
+// quality, so 'G2' reads as a 1 with a small 2 — not the ambiguous "12".
+export function chordToNashvilleParts(chordName, key) {
+  const none = { degree: chordName || '', quality: '' }
+  if (!chordName || !key) return none
   const keyPc = keyChroma(key)
-  if (keyPc == null) return chordName
+  if (keyPc == null) return none
 
   if (chordName.includes('/')) {
     const [top, bass] = chordName.split('/')
-    return `${chordToNashville(top, key)}/${noteToNashville(bass, keyPc)}`
+    const t = chordToNashvilleParts(top, key)
+    return { degree: t.degree, quality: `${t.quality}/${noteToNashville(bass, keyPc)}` }
   }
 
   const m = chordName.match(/^([A-G][#b]?)(.*)$/)
-  if (!m) return chordName
+  if (!m) return none
   const pc = chroma(m[1])
-  if (pc == null) return chordName
-  return DEGREE[(pc - keyPc + 12) % 12] + m[2]
+  if (pc == null) return none
+  return { degree: DEGREE[(pc - keyPc + 12) % 12], quality: m[2] }
 }
 
-// Annotate chord tokens with Nashville numbers (does not mutate).
-//   mode 'numbers' → replace chord text with the number (1, 6m, 4/6…)
-//   mode 'both'    → keep chord text, attach `.nashville` so the renderer can
-//                    stack the number above the original chord name
+// Convert one chord name (e.g. 'Am7', 'F/A', 'Bbmaj7') to its Nashville number.
+export function chordToNashville(chordName, key) {
+  const { degree, quality } = chordToNashvilleParts(chordName, key)
+  return degree + quality
+}
+
+// Attach Nashville parts to every chord token (does not mutate, keeps t.text so
+// chord clicks / voicing lookups still resolve to the real chord). The renderer
+// reads `t.nashville` and decides — by mode — whether to show the number alone
+// ('numbers') or stacked above the chord name ('both').
 export function annotateNashville(parsedContent, key, mode = 'numbers') {
   if (!parsedContent || !key || mode === 'off') return parsedContent
   return parsedContent.map(line => {
     if (line.type !== 'chord_line' || !line.tokens) return line
     return {
       ...line,
-      tokens: line.tokens.map(t => {
-        if (!t.isChord) return t
-        const num = chordToNashville(t.text, key)
-        return mode === 'both' ? { ...t, nashville: num } : { ...t, text: num }
-      }),
+      tokens: line.tokens.map(t =>
+        t.isChord ? { ...t, nashville: chordToNashvilleParts(t.text, key) } : t,
+      ),
     }
   })
 }
 
 // Convert all chord tokens in parsed content to Nashville numbers (does not mutate).
 export function nashvilleParsedContent(parsedContent, key) {
-  return annotateNashville(parsedContent, key, 'numbers')
+  if (!parsedContent || !key) return parsedContent
+  return parsedContent.map(line => {
+    if (line.type !== 'chord_line' || !line.tokens) return line
+    return {
+      ...line,
+      tokens: line.tokens.map(t =>
+        t.isChord ? { ...t, text: chordToNashville(t.text, key) } : t,
+      ),
+    }
+  })
 }
 
 // ── Tri-state display mode: 'off' → 'numbers' → 'both' → 'off' ──────────────
