@@ -8,6 +8,7 @@ import {
   getCapoDisplay,
   semitonesFromKeyToKey,
 } from '../lib/transposition'
+import { cycleNashville } from '../lib/nashville'
 import SongRenderer from '../components/song/SongRenderer'
 import TransposeControls from '../components/song/TransposeControls'
 import { Button, Badge, ErrorState, Skeleton } from '../components/ui'
@@ -107,7 +108,7 @@ function SharedSong({ payload }) {
             capo={capo}
             onChange={(s, c) => { setSemitones(s); setCapo(c) }}
             nashville={nashville}
-            onToggleNashville={() => setNashville((v) => !v)}
+            onToggleNashville={() => setNashville(cycleNashville)}
           />
         </div>
       )}

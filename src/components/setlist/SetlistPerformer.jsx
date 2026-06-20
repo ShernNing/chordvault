@@ -7,6 +7,7 @@ import { semitonesFromKeyToKey, transposeKey, getCapoDisplay } from '../../lib/t
 import { supabaseSongOps } from '../../lib/supabaseOps'
 import { Metronome, tapsToBpm } from '../../lib/metronome'
 import { useKeyboardControls, useDisplaySettings } from '../../lib/hooks'
+import { cycleNashville, normalizeNashville } from '../../lib/nashville'
 import SongRenderer from '../song/SongRenderer'
 import { Button, Tooltip, Badge } from '../ui'
 
@@ -161,14 +162,22 @@ export default function SetlistPerformer({ slots, onClose }) {
           <Button variant="ghost" size="icon-sm" onClick={() => setFontSize((s) => Math.min(28, s + 1))} disabled={fontSize >= 28}>+</Button>
         </div>
 
-        <Tooltip content={song.original_key ? 'Nashville numbers' : 'Set a key to use Nashville'}>
+        <Tooltip content={
+          !song.original_key ? 'Set a key to use Nashville'
+            : normalizeNashville(nashville) === 'off' ? 'Nashville numbers'
+            : normalizeNashville(nashville) === 'numbers' ? 'Numbers above chords'
+            : 'Hide Nashville numbers'
+        }>
           <Button
-            variant={nashville ? 'primary' : 'ghost'}
+            variant={normalizeNashville(nashville) !== 'off' ? 'primary' : 'ghost'}
             size="icon-sm"
-            onClick={() => setNashville((v) => !v)}
+            onClick={() => setNashville(cycleNashville)}
             disabled={!displayKey}
           >
             <Hash size={14} />
+            {normalizeNashville(nashville) === 'both' && (
+              <span className="text-[9px] font-bold leading-none ml-0.5">+</span>
+            )}
           </Button>
         </Tooltip>
 

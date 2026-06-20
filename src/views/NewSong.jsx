@@ -64,13 +64,13 @@ export default function NewSong() {
         ) {
           // Artist extraction: key annotation OR em/en-dash (–—) as strong separator signal
           const artistWithKey = firstLine.match(
-            /[–-]\s*([^(–-]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/i
+            /[–-]\s*([^(–-]+?)\s*\((?:Key\s*)?[A-G][#b]?\s*(?:m(?:in(?:or)?)?|maj(?:or)?)?\s*\)/i
           )
           const artistEmDash = !artistWithKey && firstLine.match(/[–—]\s*([^–—(]+?)\s*$/)
           const detectedArtist = cleanArtistName(artistWithKey?.[1] || artistEmDash?.[1] || '')
 
           let detected = firstLine
-            .replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)\s*$/i, '')
+            .replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:m(?:in(?:or)?)?|maj(?:or)?)?\s*\)\s*$/i, '')
             .replace(/^\d+[.)]\s+/, '')
             .trim()
 

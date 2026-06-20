@@ -29,8 +29,8 @@ export function cleanArtistName(artist) {
 
 export function cleanSongTitle(title) {
   if (!title) return title
-  // Strip key annotation: (G), (Key G), (Bb major), etc.
-  const stripped = title.replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:major|minor|maj|min)?\s*\)/gi, '').trim()
+  // Strip key annotation: (G), (Key G), (Bb major), (Am), (C#m), (E minor), etc.
+  const stripped = title.replace(/\s*\((?:Key\s*)?[A-G][#b]?\s*(?:m(?:in(?:or)?)?|maj(?:or)?)?\s*\)/gi, '').trim()
   // Title case: capitalize first letter of each word, lowercase rest
   return stripped.replace(/\S+/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
 }
@@ -328,9 +328,12 @@ export function detectKey(chords) {
 
 export function extractKeyFromTitle(title) {
   if (!title) return null
-  // Matches: (F), (Key G), (Bb), (F#), (Key Eb major), etc.
-  const match = title.match(/\((?:Key\s*)?([A-G][#b]?)\s*(?:major|minor|maj|min)?\s*\)/i)
-  return match ? match[1] : null
+  // Matches: (F), (Key G), (Bb), (F#), (Key Eb major), (Am), (C#m), (E minor), etc.
+  const match = title.match(/\((?:Key\s*)?([A-G][#b]?)\s*(m(?:in(?:or)?)?|maj(?:or)?)?\s*\)/i)
+  if (!match) return null
+  const qual = (match[2] || '').toLowerCase()
+  const isMinor = qual === 'm' || qual === 'min' || qual === 'minor'
+  return match[1] + (isMinor ? 'm' : '')
 }
 
 export function detectAccidentalPreference(chords) {
