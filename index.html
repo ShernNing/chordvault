@@ -5,48 +5,110 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111111" />
-    <meta name="description" content="ChordVault — Personal chord sheet manager for musicians" />
+    <meta
+      name="description"
+      content="ChordVault, Personal chord sheet manager for musicians"
+    />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
     <meta name="apple-mobile-web-app-title" content="ChordVault" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
     <title>ChordVault</title>
   </head>
   <body>
     <script>
       (function () {
         try {
-          var storedDark = localStorage.getItem('chordvault-dark-mode')
-          var isDark = storedDark !== null
-            ? JSON.parse(storedDark)
-            : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
-          var isStage = JSON.parse(localStorage.getItem('chordvault-stage-mode') || 'false')
-          var darkThemeId = JSON.parse(localStorage.getItem('chordvault-dark-theme') || '"slate"')
-          var stageColorId = JSON.parse(localStorage.getItem('chordvault-stage-color') || '"gold"')
-          var root = document.documentElement
-          if (isDark || isStage) root.classList.add('dark')
+          var storedDark = localStorage.getItem("chordvault-dark-mode");
+          var isDark =
+            storedDark !== null
+              ? JSON.parse(storedDark)
+              : window.matchMedia &&
+                window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var isStage = JSON.parse(
+            localStorage.getItem("chordvault-stage-mode") || "false",
+          );
+          var darkThemeId = JSON.parse(
+            localStorage.getItem("chordvault-dark-theme") || '"slate"',
+          );
+          var stageColorId = JSON.parse(
+            localStorage.getItem("chordvault-stage-color") || '"gold"',
+          );
+          var root = document.documentElement;
+          if (isDark || isStage) root.classList.add("dark");
           if (isStage) {
-            root.classList.add('stage-mode')
-            var stageColors = { gold: ['#FFD700','#ffffff'], green: ['#00ff88','#ffffff'], cyan: ['#00d4ff','#ffffff'], white: ['#ffffff','#dddddd'], pink: ['#ff6eb4','#ffffff'] }
-            var col = stageColors[stageColorId] || stageColors.gold
-            root.style.setProperty('--chord-color', col[0])
-            root.style.setProperty('--lyric-color', col[1])
-            root.style.setProperty('--section-header-color', col[0])
-            root.style.setProperty('--color-accent', col[0])
+            root.classList.add("stage-mode");
+            var stageColors = {
+              gold: ["#FFD700", "#ffffff"],
+              green: ["#00ff88", "#ffffff"],
+              cyan: ["#00d4ff", "#ffffff"],
+              white: ["#ffffff", "#dddddd"],
+              pink: ["#ff6eb4", "#ffffff"],
+            };
+            var col = stageColors[stageColorId] || stageColors.gold;
+            root.style.setProperty("--chord-color", col[0]);
+            root.style.setProperty("--lyric-color", col[1]);
+            root.style.setProperty("--section-header-color", col[0]);
+            root.style.setProperty("--color-accent", col[0]);
           } else if (isDark) {
             var themes = {
-              black: { '--color-bg': '#000000', '--color-bg-warm': '#111111', '--color-border': '#222222', '--color-ink': '#f0f0f0', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#666666', '--color-accent': '#f59e0b', '--color-accent-soft': '#1a1200', '--chord-color': '#fbbf24', '--lyric-color': '#f0f0f0', '--section-header-color': '#fbbf24' },
-              gray:  { '--color-bg': '#1a1a1a', '--color-bg-warm': '#252525', '--color-border': '#383838', '--color-ink': '#eeeeee', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#666666', '--color-accent': '#f59e0b', '--color-accent-soft': '#1c1405', '--chord-color': '#fbbf24', '--lyric-color': '#eeeeee', '--section-header-color': '#fbbf24' },
-              cream: { '--color-bg': '#1e1a14', '--color-bg-warm': '#2a2318', '--color-border': '#3d3426', '--color-ink': '#f0e6d0', '--color-ink-soft': '#b8a88a', '--color-ink-muted': '#7a6a52', '--color-accent': '#e8a020', '--color-accent-soft': '#2a1e08', '--chord-color': '#e8a020', '--lyric-color': '#f0e6d0', '--section-header-color': '#e8a020' },
-            }
-            var vars = themes[darkThemeId]
-            if (vars) Object.keys(vars).forEach(function(k) { root.style.setProperty(k, vars[k]) })
+              black: {
+                "--color-bg": "#000000",
+                "--color-bg-warm": "#111111",
+                "--color-border": "#222222",
+                "--color-ink": "#f0f0f0",
+                "--color-ink-soft": "#aaaaaa",
+                "--color-ink-muted": "#666666",
+                "--color-accent": "#f59e0b",
+                "--color-accent-soft": "#1a1200",
+                "--chord-color": "#fbbf24",
+                "--lyric-color": "#f0f0f0",
+                "--section-header-color": "#fbbf24",
+              },
+              gray: {
+                "--color-bg": "#1a1a1a",
+                "--color-bg-warm": "#252525",
+                "--color-border": "#383838",
+                "--color-ink": "#eeeeee",
+                "--color-ink-soft": "#aaaaaa",
+                "--color-ink-muted": "#666666",
+                "--color-accent": "#f59e0b",
+                "--color-accent-soft": "#1c1405",
+                "--chord-color": "#fbbf24",
+                "--lyric-color": "#eeeeee",
+                "--section-header-color": "#fbbf24",
+              },
+              cream: {
+                "--color-bg": "#1e1a14",
+                "--color-bg-warm": "#2a2318",
+                "--color-border": "#3d3426",
+                "--color-ink": "#f0e6d0",
+                "--color-ink-soft": "#b8a88a",
+                "--color-ink-muted": "#7a6a52",
+                "--color-accent": "#e8a020",
+                "--color-accent-soft": "#2a1e08",
+                "--chord-color": "#e8a020",
+                "--lyric-color": "#f0e6d0",
+                "--section-header-color": "#e8a020",
+              },
+            };
+            var vars = themes[darkThemeId];
+            if (vars)
+              Object.keys(vars).forEach(function (k) {
+                root.style.setProperty(k, vars[k]);
+              });
           }
         } catch (e) {}
-      })()
+      })();
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

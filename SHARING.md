@@ -1,7 +1,7 @@
-# Public Share Links — one-time setup
+# Public Share Links, one-time setup
 
 ChordVault can mint **read-only public links** to a song or a whole setlist
-(`/share/:token`). Each link is a self-contained *snapshot* — the recipient sees
+(`/share/:token`). Each link is a self-contained _snapshot_, the recipient sees
 only the exact content you shared, never your live library.
 
 This feature needs one table. Run the SQL below **once** in your Supabase project
@@ -39,9 +39,9 @@ create policy "owner can delete shares"
 ## Security notes
 
 - **The token is the secret.** Tokens are 32 random hex chars (`crypto.randomUUID`),
-  so links are effectively unguessable. There is no listing endpoint — you can
+  so links are effectively unguessable. There is no listing endpoint, you can
   only read a share if you already have its token.
-- **No library access leaks.** A share stores a *copy* of the song/setlist content
+- **No library access leaks.** A share stores a _copy_ of the song/setlist content
   in `payload`. The public `select` policy exposes only the `shares` table, never
   `songs` or `setlists`, so a link can never be walked back to the rest of your
   library.

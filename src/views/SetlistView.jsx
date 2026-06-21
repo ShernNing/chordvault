@@ -37,12 +37,27 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useSetlist, useSongs, getSongSeconds, setSongSeconds, formatDuration } from "../lib/hooks";
-import { transposeKey, getCapoDisplay, ALL_KEYS, semitonesFromKeyToKey } from "../lib/transposition";
+import {
+  useSetlist,
+  useSongs,
+  getSongSeconds,
+  setSongSeconds,
+  formatDuration,
+} from "../lib/hooks";
+import {
+  transposeKey,
+  getCapoDisplay,
+  ALL_KEYS,
+  semitonesFromKeyToKey,
+} from "../lib/transposition";
 import { createSetlistShare, shareUrl } from "../lib/shares";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSetlistToDocx } from "../lib/docxExport";
-import { PrintableSongSheet, MultiSongPage, SingleSongForColumn } from "../components/song/SongRenderer";
+import {
+  PrintableSongSheet,
+  MultiSongPage,
+  SingleSongForColumn,
+} from "../components/song/SongRenderer";
 import SetlistFullEditor from "../components/setlist/SetlistFullEditor";
 import SetlistPerformer from "../components/setlist/SetlistPerformer";
 import { useToast } from "../lib/toast";
@@ -64,12 +79,15 @@ function getMaxLineChars(parsedContent) {
   let max = 0;
   for (const line of parsedContent || []) {
     let len = 0;
-    if (line.type === 'chord_line') {
+    if (line.type === "chord_line") {
       len = line.tokens
-        ? line.tokens.reduce((s, t) => s + (t.leadingSpaces || 0) + t.text.length, 0)
-        : (line.raw || '').length;
-    } else if (line.type === 'lyric_line') {
-      len = (line.text || '').length;
+        ? line.tokens.reduce(
+            (s, t) => s + (t.leadingSpaces || 0) + t.text.length,
+            0,
+          )
+        : (line.raw || "").length;
+    } else if (line.type === "lyric_line") {
+      len = (line.text || "").length;
     }
     if (len > max) max = len;
   }
@@ -116,7 +134,8 @@ export default function SetlistView() {
   useEffect(() => {
     const songs = setlist?.songs || [];
     const next = {};
-    for (const s of songs) if (s.song) next[s.song_id] = getSongSeconds(s.song_id);
+    for (const s of songs)
+      if (s.song) next[s.song_id] = getSongSeconds(s.song_id);
     setDurations(next);
   }, [setlist?.songs]);
 
@@ -135,7 +154,8 @@ export default function SetlistView() {
   const slotIds = slots.map((s) => s.id);
 
   const totalSeconds = slots.reduce(
-    (sum, s) => (s.song ? sum + (durations[s.song_id] ?? getSongSeconds(s.song_id)) : sum),
+    (sum, s) =>
+      s.song ? sum + (durations[s.song_id] ?? getSongSeconds(s.song_id)) : sum,
     0,
   );
 
@@ -150,7 +170,11 @@ export default function SetlistView() {
       const token = await createSetlistShare(setlist, slots);
       const url = shareUrl(token);
       setShareLink(url);
-      try { await navigator.clipboard.writeText(url); } catch { /* clipboard blocked */ }
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        /* clipboard blocked */
+      }
       toast.success("Share link copied to clipboard");
     } catch (e) {
       toast.error(e.message || "Could not create share link");
@@ -190,7 +214,7 @@ export default function SetlistView() {
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
 
       const PAGE_COL_HEIGHT = 1087; // A4 (1123px) minus 12px top + 24px bottom padding
-      const SONG_GAP = 16;          // vertical gap between songs in same column
+      const SONG_GAP = 16; // vertical gap between songs in same column
 
       // Step 1: compute key/semitone data
       const rawSlotData = exportSlots
@@ -204,13 +228,22 @@ export default function SetlistView() {
           const capo = slot.capo || 0;
           const shapeSemitones = semitones - capo;
           const shapeKey =
-            capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
+            capo > 0 && displayKey
+              ? transposeKey(displayKey, -capo)
+              : displayKey;
           const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
           const maxChars = getMaxLineChars(slot.song.parsed_content);
-          return { slot, shapeSemitones, shapeKey, keyLabel, maxChars, globalIdx };
+          return {
+            slot,
+            shapeSemitones,
+            shapeKey,
+            keyLabel,
+            maxChars,
+            globalIdx,
+          };
         });
 
-      // Step 2: DOM measurement — render each song at exact half-column width and
+      // Step 2: DOM measurement, render each song at exact half-column width and
       // read scrollHeight. The browser layout engine handles font metrics and text
       // wrapping exactly, matching how the final PDF will be rendered.
       // Half-column: (794px - 2×24px wrapper padding - 32px column gap) / 2 = 357px
@@ -229,12 +262,12 @@ export default function SetlistView() {
               targetKey={d.shapeKey}
               keyLabel={d.keyLabel}
               songNumber={d.globalIdx + 1}
-            />
+            />,
           );
         });
         const measuredH = measureEl.scrollHeight;
         // Width is a hard constraint (long lines can't wrap cleanly in half column).
-        // Height is soft — a song slightly over PAGE_COL_HEIGHT still looks fine in a
+        // Height is soft, a song slightly over PAGE_COL_HEIGHT still looks fine in a
         // half column and is far better than wasting a full page on a short companion.
         const fitsHalfPage = d.maxChars <= MAX_HALF_COL_CHARS;
         return { ...d, estimatedH: measuredH, fitsHalfPage };
@@ -245,16 +278,26 @@ export default function SetlistView() {
 
       // Bin-pack songs left-column-first; wide-line songs break packing to full width.
       const packedPages = [];
-      let leftCol = [], rightCol = [], leftH = 0, rightH = 0;
+      let leftCol = [],
+        rightCol = [],
+        leftH = 0,
+        rightH = 0;
 
       const flushMultiPage = () => {
         if (leftCol.length === 0) return;
-        packedPages.push({ type: "multi", left: [...leftCol], right: [...rightCol] });
-        leftCol = []; rightCol = []; leftH = 0; rightH = 0;
+        packedPages.push({
+          type: "multi",
+          left: [...leftCol],
+          right: [...rightCol],
+        });
+        leftCol = [];
+        rightCol = [];
+        leftH = 0;
+        rightH = 0;
       };
 
       // Waterfall: fill left until full, then right until full, then flush.
-      // Never go back to left once right has started — preserves song order.
+      // Never go back to left once right has started, preserves song order.
       // First song always lands in left even if it overflows column height.
       let useRight = false;
 
@@ -271,7 +314,7 @@ export default function SetlistView() {
               leftCol.push(d);
               leftH = leftH === 0 ? h : newLeftH;
             } else {
-              // Left has content and this doesn't fit — switch to right column
+              // Left has content and this doesn't fit, switch to right column
               useRight = true;
               rightCol.push(d);
               rightH = h;
@@ -282,7 +325,7 @@ export default function SetlistView() {
               rightCol.push(d);
               rightH = rightH === 0 ? h : newRightH;
             } else {
-              // Both columns full — flush, start new page
+              // Both columns full, flush, start new page
               flushMultiPage();
               useRight = false;
               leftCol.push(d);
@@ -320,7 +363,7 @@ export default function SetlistView() {
             />,
           );
         } else if (page.left.length === 1 && page.right.length === 0) {
-          // Single narrow song alone on page — use PrintableSongSheet for internal
+          // Single narrow song alone on page, use PrintableSongSheet for internal
           // 2-col splitting if song is very long (> 45 non-blank lines)
           const d = page.left[0];
           root.render(
@@ -369,17 +412,30 @@ export default function SetlistView() {
     setExportingDocx(true);
     try {
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
-      await exportSetlistToDocx(setlist.name, exportSlots.filter(s => s.song), (slot) => {
-        const semitones = slot.chosen_key && slot.song.original_key
-          ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
-          : 0;
-        const displayKey = slot.chosen_key || slot.song.original_key;
-        const capo = slot.capo || 0;
-        const shapeSemitones = semitones - capo;
-        const shapeKey = capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
-        const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
-        return { song: slot.song, semitones: shapeSemitones, targetKey: shapeKey, keyLabel };
-      });
+      await exportSetlistToDocx(
+        setlist.name,
+        exportSlots.filter((s) => s.song),
+        (slot) => {
+          const semitones =
+            slot.chosen_key && slot.song.original_key
+              ? semitonesFromKeyToKey(slot.song.original_key, slot.chosen_key)
+              : 0;
+          const displayKey = slot.chosen_key || slot.song.original_key;
+          const capo = slot.capo || 0;
+          const shapeSemitones = semitones - capo;
+          const shapeKey =
+            capo > 0 && displayKey
+              ? transposeKey(displayKey, -capo)
+              : displayKey;
+          const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
+          return {
+            song: slot.song,
+            semitones: shapeSemitones,
+            targetKey: shapeKey,
+            keyLabel,
+          };
+        },
+      );
     } catch (e) {
       console.error("Docx export error:", e);
     } finally {
@@ -506,14 +562,23 @@ export default function SetlistView() {
       {shareLink && (
         <div className='flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg text-xs'>
           <Link2 size={13} className='text-[var(--color-accent)] shrink-0' />
-          <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>Public link:</span>
+          <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>
+            Public link:
+          </span>
           <input
             readOnly
             value={shareLink}
             onFocus={(e) => e.target.select()}
             className='flex-1 min-w-0 bg-transparent font-mono text-[var(--color-ink)] outline-none'
           />
-          <Button variant='ghost' size='xs' onClick={() => { navigator.clipboard?.writeText(shareLink); toast.success('Copied'); }}>
+          <Button
+            variant='ghost'
+            size='xs'
+            onClick={() => {
+              navigator.clipboard?.writeText(shareLink);
+              toast.success("Copied");
+            }}
+          >
             Copy
           </Button>
         </div>
@@ -527,7 +592,10 @@ export default function SetlistView() {
               {slots.length} {slots.length === 1 ? "song" : "songs"}
             </span>
             {slots.length > 0 && (
-              <span className='flex items-center gap-1 text-xs text-[var(--color-ink-muted)] font-mono' title='Estimated total length'>
+              <span
+                className='flex items-center gap-1 text-xs text-[var(--color-ink-muted)] font-mono'
+                title='Estimated total length'
+              >
                 <Clock size={11} /> ~{formatDuration(totalSeconds)}
               </span>
             )}
@@ -564,18 +632,25 @@ export default function SetlistView() {
                       <motion.div
                         key={slot.id}
                         initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
+                        animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={ease}
-                        style={{ overflow: 'hidden' }}
+                        style={{ overflow: "hidden" }}
                       >
                         <SortableSlot
                           slot={slot}
                           index={index}
-                          seconds={durations[slot.song_id] ?? getSongSeconds(slot.song_id)}
-                          onDurationChange={(s) => handleDurationChange(slot.song_id, s)}
+                          seconds={
+                            durations[slot.song_id] ??
+                            getSongSeconds(slot.song_id)
+                          }
+                          onDurationChange={(s) =>
+                            handleDurationChange(slot.song_id, s)
+                          }
                           onRemove={() => removeSong(slot.id)}
-                          onUpdateSlot={(updates) => updateSlot(slot.id, updates)}
+                          onUpdateSlot={(updates) =>
+                            updateSlot(slot.id, updates)
+                          }
                         />
                       </motion.div>
                     ))}
@@ -682,7 +757,14 @@ export default function SetlistView() {
 
 // ─── Sortable Slot ─────────────────────────────────────────────────────────
 
-function SortableSlot({ slot, index, seconds = 210, onDurationChange, onRemove, onUpdateSlot }) {
+function SortableSlot({
+  slot,
+  index,
+  seconds = 210,
+  onDurationChange,
+  onRemove,
+  onUpdateSlot,
+}) {
   const {
     attributes,
     listeners,
@@ -890,4 +972,3 @@ function SortableSlot({ slot, index, seconds = 210, onDurationChange, onRemove, 
     </div>
   );
 }
-

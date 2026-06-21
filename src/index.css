@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,8 +11,8 @@
   --color-ink: #111111;
   --color-ink-soft: #444444;
   --color-ink-muted: #888888;
-  --color-accent: #F59E0B;
-  --color-accent-soft: #FEF3C7;
+  --color-accent: #f59e0b;
+  --color-accent-soft: #fef3c7;
 
   /* Chord sheet specific */
   --chord-font: Arial, sans-serif;
@@ -50,7 +50,7 @@
   --section-header-color: #fcd34d;
 }
 
-/* Stage mode — pure black, maximum contrast, chord/lyric colors set via JS */
+/* Stage mode, pure black, maximum contrast, chord/lyric colors set via JS */
 .stage-mode {
   --color-bg: #000000;
   --color-bg-warm: #0a0a0a;
@@ -78,12 +78,14 @@ html {
 body {
   background-color: var(--color-bg);
   color: var(--color-ink);
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: "DM Sans", system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 /* ─── Chord Sheet Rendering ───────────────────────────────────────────── */
@@ -147,7 +149,7 @@ body {
 }
 
 /* Chord quality / extension (m, 7, 2, sus, /5…) shown small and raised so the
-   scale degree reads cleanly: a 1 with a small raised 2 — never "12". */
+   scale degree reads cleanly: a 1 with a small raised 2, never "12". */
 .chord-ext {
   font-size: 0.7em;
   vertical-align: 0.35em;
@@ -193,11 +195,11 @@ body {
   margin: 2px 0;
 }
 .chord-sheet .annotation-line::before {
-  content: '→ ';
+  content: "→ ";
   opacity: 0.7;
 }
 
-/* Inline chord-name button — click to open voicings drawer */
+/* Inline chord-name button, click to open voicings drawer */
 .chord-token-btn {
   font: inherit;
   color: inherit;
@@ -208,7 +210,10 @@ body {
   cursor: pointer;
   line-height: inherit;
   border-radius: 2px;
-  transition: background-color 0.12s, outline-color 0.12s, transform 0.1s ease-out;
+  transition:
+    background-color 0.12s,
+    outline-color 0.12s,
+    transform 0.1s ease-out;
   vertical-align: baseline;
 }
 .chord-token-btn:hover,
@@ -217,7 +222,7 @@ body {
   outline: 1px solid var(--color-accent);
   outline-offset: 0;
 }
-/* Tap feedback — quick pop when opening voicings. Off on stage / reduced-motion. */
+/* Tap feedback, quick pop when opening voicings. Off on stage / reduced-motion. */
 @media (prefers-reduced-motion: no-preference) {
   .chord-token-btn:active {
     transform: scale(1.18);
@@ -229,17 +234,17 @@ body {
 
 /* Uncertain classification highlight */
 .chord-sheet .uncertain-line {
-  background-color: #FEF3C7;
-  border-left: 2px solid #F59E0B;
+  background-color: #fef3c7;
+  border-left: 2px solid #f59e0b;
   padding-left: 4px;
 }
 
 .dark .chord-sheet .uncertain-line,
 .stage-mode .chord-sheet .uncertain-line {
   background-color: #2a1f00;
-  border-left-color: #FFD700;
+  border-left-color: #ffd700;
 }
-/* 2-column layout handled in JS via flex — sections never split across columns.
+/* 2-column layout handled in JS via flex, sections never split across columns.
    :first-child removes top margin from the first section header in each column. */
 
 /* ─── Scrollbar ───────────────────────────────────────────────────────── */
@@ -273,7 +278,7 @@ body {
   background-color: var(--color-accent-soft);
   color: var(--color-ink);
 }
-/* accent-soft is near-black in dark/stage themes — use the bright accent so
+/* accent-soft is near-black in dark/stage themes, use the bright accent so
    highlighted text is actually visible. */
 .dark ::selection,
 .stage-mode ::selection {
@@ -311,7 +316,7 @@ body {
   isolation: isolate;
 }
 .btn-shimmer::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-130%);
@@ -329,7 +334,9 @@ body {
   }
 }
 @keyframes btnShimmer {
-  to { transform: translateX(130%); }
+  to {
+    transform: translateX(130%);
+  }
 }
 
 /* ─── Skeleton shimmer ────────────────────────────────────────────────── */
@@ -339,7 +346,7 @@ body {
     overflow: hidden;
   }
   .skeleton-shimmer::after {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
     transform: translateX(-100%);
@@ -353,7 +360,9 @@ body {
   }
 }
 @keyframes skeletonShimmer {
-  100% { transform: translateX(100%); }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* ─── Shiny wordmark (hover sweep on gradient text) ───────────────────── */
@@ -376,7 +385,9 @@ body {
   }
 }
 @keyframes shinyText {
-  to { background-position: -20% 0; }
+  to {
+    background-position: -20% 0;
+  }
 }
 
 /* ─── Float (subtle bob, e.g. empty-state icon) ───────────────────────── */
@@ -385,10 +396,17 @@ body {
     animation: floatSoft 3.2s ease-in-out infinite;
   }
 }
-.stage-mode .float-soft { animation: none; }
+.stage-mode .float-soft {
+  animation: none;
+}
 @keyframes floatSoft {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 /* ─── Utility ─────────────────────────────────────────────────────────── */

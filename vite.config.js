@@ -31,7 +31,7 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {
-            // Supabase REST reads — network first, fall back to cache offline so
+            // Supabase REST reads, network first, fall back to cache offline so
             // previously-viewed songs/setlists remain available without wifi.
             urlPattern: /^https:\/\/[a-z0-9-]+\.supabase\.co\/rest\/v1\/.*/i,
             handler: "NetworkFirst",
@@ -83,7 +83,11 @@ export default defineConfig({
           if (id.includes("tonal")) {
             return "music";
           }
-          if (id.includes("framer-motion") || id.includes("motion-dom") || id.includes("motion-utils")) {
+          if (
+            id.includes("framer-motion") ||
+            id.includes("motion-dom") ||
+            id.includes("motion-utils")
+          ) {
             return "motion";
           }
           if (id.includes("mammoth")) {

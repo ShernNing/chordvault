@@ -6,18 +6,18 @@ A responsive, PWA-enabled chord sheet manager for musicians. Built with React + 
 
 ## Stack
 
-| Layer         | Technology                |
-| ------------- | ------------------------- |
-| Framework     | React 18 + Vite           |
-| Styling       | Tailwind CSS              |
-| Backend / DB  | Supabase (Postgres + Auth)|
-| Offline cache | localStorage              |
-| Music engine  | tonal                     |
-| PDF export    | jsPDF + html2canvas       |
-| DOCX export   | docx + mammoth            |
-| Drag and drop | @dnd-kit                  |
-| PWA           | vite-plugin-pwa + Workbox |
-| Hosting       | Vercel (free)             |
+| Layer         | Technology                 |
+| ------------- | -------------------------- |
+| Framework     | React 18 + Vite            |
+| Styling       | Tailwind CSS               |
+| Backend / DB  | Supabase (Postgres + Auth) |
+| Offline cache | localStorage               |
+| Music engine  | tonal                      |
+| PDF export    | jsPDF + html2canvas        |
+| DOCX export   | docx + mammoth             |
+| Drag and drop | @dnd-kit                   |
+| PWA           | vite-plugin-pwa + Workbox  |
+| Hosting       | Vercel (free)              |
 
 ---
 
@@ -58,7 +58,7 @@ Output goes to `dist/`. Deploy this folder.
 
 ## Deploy to Vercel
 
-### Option A — Vercel CLI (fastest)
+### Option A, Vercel CLI (fastest)
 
 ```bash
 npm install -g vercel
@@ -67,7 +67,7 @@ vercel
 
 Follow the prompts. Framework is auto-detected as Vite.
 
-### Option B — Vercel Dashboard
+### Option B, Vercel Dashboard
 
 1. Push your repo to GitHub
 2. Go to [vercel.com](https://vercel.com) → New Project
@@ -85,8 +85,8 @@ That's it. Free tier is more than enough.
 
 The app needs two icon files in `public/icons/` for full PWA support:
 
-- `public/icons/icon-192.png` — 192×192px
-- `public/icons/icon-512.png` — 512×512px
+- `public/icons/icon-192.png`, 192×192px
+- `public/icons/icon-512.png`, 512×512px
 
 You can generate these from `public/favicon.svg` using any SVG-to-PNG converter, or use a tool like [realfavicongenerator.net](https://realfavicongenerator.net).
 
@@ -98,9 +98,9 @@ Until you add these, the PWA will still work but won't show a custom install ico
 
 Songs and setlists live in a **Supabase** (Postgres) project, so they sync across every device signed into the same account. This means:
 
-- **Data syncs across devices** — add a song on your phone, it shows up on your laptop
-- **localStorage holds a read cache** — previously-viewed songs/setlists stay readable offline; writes need a connection
-- **Auth is handled by Supabase** — see `src/lib/AuthContext.jsx`
+- **Data syncs across devices**, add a song on your phone, it shows up on your laptop
+- **localStorage holds a read cache**, previously-viewed songs/setlists stay readable offline; writes need a connection
+- **Auth is handled by Supabase**, see `src/lib/AuthContext.jsx`
 
 ### Required environment variables
 
@@ -109,7 +109,7 @@ Set these locally (`.env`) and in your Vercel project settings:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-The Workbox service worker caches Supabase REST GETs (NetworkFirst, 5s timeout) so offline reads fall back to the last-fetched data — see `vite.config.js`.
+The Workbox service worker caches Supabase REST GETs (NetworkFirst, 5s timeout) so offline reads fall back to the last-fetched data, see `vite.config.js`.
 
 ---
 
@@ -198,31 +198,31 @@ Both are parsed and stored in the same format (chord line above lyric line).
 ```
 src/
 ├── lib/
-│   ├── supabase.js      — Supabase client
-│   ├── supabaseOps.js   — Song/setlist CRUD against Supabase
-│   ├── AuthContext.jsx  — Auth provider + session
-│   ├── ingestion.js     — Parse pipeline (classify, tokenize, key detect)
-│   ├── transposition.js — Chord/key transpose engine
-│   ├── nashville.js     — Nashville number system
-│   ├── hooks.js         — React hooks (useSongs, useSetlist, useTheme…)
-│   ├── pdf.js / docxExport.js — PDF + DOCX export
-│   └── voicings/        — Chord voicing catalog, fretboard, capo, audio
+│   ├── supabase.js     , Supabase client
+│   ├── supabaseOps.js  , Song/setlist CRUD against Supabase
+│   ├── AuthContext.jsx , Auth provider + session
+│   ├── ingestion.js    , Parse pipeline (classify, tokenize, key detect)
+│   ├── transposition.js, Chord/key transpose engine
+│   ├── nashville.js    , Nashville number system
+│   ├── hooks.js        , React hooks (useSongs, useSetlist, useTheme…)
+│   ├── pdf.js / docxExport.js, PDF + DOCX export
+│   └── voicings/       , Chord voicing catalog, fretboard, capo, audio
 ├── components/
-│   ├── ui/             — Primitives (Button, Input, Badge, Modal…)
-│   ├── song/           — SongRenderer, TransposeControls, SongCard
-│   ├── voicings/       — Fretboard diagrams, voicing grid/editor, practice
-│   ├── setlist/        — SetlistFullEditor
-│   ├── auth/           — AuthModal
-│   └── layout/         — AppShell (nav, header, footer)
+│   ├── ui/            , Primitives (Button, Input, Badge, Modal…)
+│   ├── song/          , SongRenderer, TransposeControls, SongCard
+│   ├── voicings/      , Fretboard diagrams, voicing grid/editor, practice
+│   ├── setlist/       , SetlistFullEditor
+│   ├── auth/          , AuthModal
+│   └── layout/        , AppShell (nav, header, footer)
 ├── views/
-│   ├── Dashboard.jsx   — Song library grid
-│   ├── NewSong.jsx     — Ingestion + live preview
-│   ├── SongView.jsx    — Full song with controls
-│   ├── Setlists.jsx    — Setlist list
-│   ├── SetlistView.jsx — Setlist editor with DnD
-│   ├── ImportView.jsx  — Bulk import
-│   └── ChordVoicings.jsx — Voicing library
-├── App.jsx             — Router (lazy-loaded views)
-├── main.jsx            — Entry point
-└── index.css           — CSS variables + chord sheet styles
+│   ├── Dashboard.jsx  , Song library grid
+│   ├── NewSong.jsx    , Ingestion + live preview
+│   ├── SongView.jsx   , Full song with controls
+│   ├── Setlists.jsx   , Setlist list
+│   ├── SetlistView.jsx, Setlist editor with DnD
+│   ├── ImportView.jsx , Bulk import
+│   └── ChordVoicings.jsx, Voicing library
+├── App.jsx            , Router (lazy-loaded views)
+├── main.jsx           , Entry point
+└── index.css          , CSS variables + chord sheet styles
 ```

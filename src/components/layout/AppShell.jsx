@@ -1,141 +1,207 @@
-import { useState, useEffect } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { useState, useEffect } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import {
-  Music2, ListMusic, LayoutGrid, Plus, Moon, Sun,
-  Zap, Wifi, WifiOff, Menu, X, FileUp,
-  CloudOff, LogIn, LogOut, User, ExternalLink, ArrowUp, Guitar, BarChart3
-} from 'lucide-react'
-import { useOnlineStatus, useTheme, useDisplaySettings, useLocalStorage, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
-import { useAuth } from '../../lib/AuthContext'
-import { supabase } from '../../lib/supabase'
-import { Button, Tooltip } from '../ui'
-import AuthModal from '../auth/AuthModal'
-import { WelcomeModal } from '../onboarding/Onboarding'
-import { motion, AnimatePresence, useMotionEnabled, spring, ease } from '../../lib/motion'
+  Music2,
+  ListMusic,
+  LayoutGrid,
+  Plus,
+  Moon,
+  Sun,
+  Zap,
+  Wifi,
+  WifiOff,
+  Menu,
+  X,
+  FileUp,
+  CloudOff,
+  LogIn,
+  LogOut,
+  User,
+  ExternalLink,
+  ArrowUp,
+  Guitar,
+  BarChart3,
+} from "lucide-react";
+import {
+  useOnlineStatus,
+  useTheme,
+  useDisplaySettings,
+  useLocalStorage,
+  STAGE_COLORS,
+  DARK_THEMES,
+} from "../../lib/hooks";
+import { useAuth } from "../../lib/AuthContext";
+import { supabase } from "../../lib/supabase";
+import { Button, Tooltip } from "../ui";
+import AuthModal from "../auth/AuthModal";
+import { WelcomeModal } from "../onboarding/Onboarding";
+import {
+  motion,
+  AnimatePresence,
+  useMotionEnabled,
+  spring,
+  ease,
+} from "../../lib/motion";
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Library', icon: LayoutGrid, exact: true },
-  { to: '/songs/new', label: 'Add Song', icon: Plus, requiresAdd: true },
-  { to: '/import', label: 'Import', icon: FileUp, requiresAdd: true },
-  { to: '/setlists', label: 'Setlists', icon: ListMusic },
-  { to: '/voicings', label: 'Chord Voicings', icon: Guitar },
-  { to: '/stats', label: 'Stats', icon: BarChart3 },
-]
+  { to: "/", label: "Library", icon: LayoutGrid, exact: true },
+  { to: "/songs/new", label: "Add Song", icon: Plus, requiresAdd: true },
+  { to: "/import", label: "Import", icon: FileUp, requiresAdd: true },
+  { to: "/setlists", label: "Setlists", icon: ListMusic },
+  { to: "/voicings", label: "Chord Voicings", icon: Guitar },
+  { to: "/stats", label: "Stats", icon: BarChart3 },
+];
 
-const ROLE_LABEL = { superuser: 'Superuser', leader: 'Leader' }
+const ROLE_LABEL = { superuser: "Superuser", leader: "Leader" };
 
 export default function AppShell({ children }) {
-  const isOnline = useOnlineStatus()
-  const { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId, darkThemeId, setDarkThemeId } = useTheme()
-  useDisplaySettings()
-  const { isLoggedIn, email, role, canAddSongs } = useAuth()
-  const navItems = NAV_ITEMS.filter(item => !item.requiresAdd || canAddSongs)
-  const location = useLocation()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [authOpen, setAuthOpen] = useState(false)
-  const [showScrollTop, setShowScrollTop] = useState(false)
-  const [welcomeSeen, setWelcomeSeen] = useLocalStorage('cv-welcome-seen', false)
+  const isOnline = useOnlineStatus();
+  const {
+    isDark,
+    isStage,
+    toggleDark,
+    toggleStage,
+    stageColorId,
+    setStageColorId,
+    darkThemeId,
+    setDarkThemeId,
+  } = useTheme();
+  useDisplaySettings();
+  const { isLoggedIn, email, role, canAddSongs } = useAuth();
+  const navItems = NAV_ITEMS.filter((item) => !item.requiresAdd || canAddSongs);
+  const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [welcomeSeen, setWelcomeSeen] = useLocalStorage(
+    "cv-welcome-seen",
+    false,
+  );
 
   useEffect(() => {
-    const onScroll = () => setShowScrollTop(window.scrollY > 400)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  // Public share pages render their own minimal chrome — no app nav/footer.
-  if (location.pathname.startsWith('/share/')) {
-    return <>{children}</>
+  // Public share pages render their own minimal chrome, no app nav/footer.
+  if (location.pathname.startsWith("/share/")) {
+    return <>{children}</>;
   }
 
   const handleLogout = async () => {
-    await supabase?.auth.signOut()
-  }
+    await supabase?.auth.signOut();
+  };
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] flex flex-col">
+    <div className='min-h-screen bg-[var(--color-bg)] flex flex-col'>
       {/* ── Offline Banner ────────────────────────────────────────── */}
       {!isOnline && (
-        <div className="flex items-center justify-center gap-2 py-1.5 px-4 bg-amber-50 border-b border-amber-200 text-amber-700 text-xs font-medium dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300">
+        <div className='flex items-center justify-center gap-2 py-1.5 px-4 bg-amber-50 border-b border-amber-200 text-amber-700 text-xs font-medium dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300'>
           <WifiOff size={12} />
-          Offline — showing cached data
+          Offline, showing cached data
         </div>
       )}
 
       {/* ── Top Bar ───────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-[var(--color-bg)] border-b border-[var(--color-border)] no-print">
-        <div className="max-w-6xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
+      <header className='sticky top-0 z-40 bg-[var(--color-bg)] border-b border-[var(--color-border)] no-print'>
+        <div className='max-w-6xl mx-auto px-4 h-12 flex items-center justify-between gap-4'>
           {/* Wordmark */}
-          <NavLink to="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 bg-[var(--color-ink)] rounded flex items-center justify-center">
-              <Music2 size={14} className="text-[var(--color-bg)]" />
+          <NavLink to='/' className='flex items-center gap-2 shrink-0'>
+            <div className='w-7 h-7 bg-[var(--color-ink)] rounded flex items-center justify-center'>
+              <Music2 size={14} className='text-[var(--color-bg)]' />
             </div>
-            <span className="shiny-text font-display text-base font-normal tracking-tight hidden sm:block">
+            <span className='shiny-text font-display text-base font-normal tracking-tight hidden sm:block'>
               ChordVault
             </span>
           </NavLink>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navItems.map(item => <NavItem key={item.to} {...item} />)}
+          <nav className='hidden md:flex items-center gap-1'>
+            {navItems.map((item) => (
+              <NavItem key={item.to} {...item} />
+            ))}
           </nav>
 
           {/* Right controls */}
-          <div className="flex items-center gap-1">
-            <Tooltip content={isStage ? 'Exit stage mode' : 'Stage mode'}>
-              <Button variant="ghost" size="icon-sm" onClick={toggleStage} className={isStage ? 'text-[var(--color-accent)]' : ''}>
+          <div className='flex items-center gap-1'>
+            <Tooltip content={isStage ? "Exit stage mode" : "Stage mode"}>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={toggleStage}
+                className={isStage ? "text-[var(--color-accent)]" : ""}
+              >
                 <Zap size={14} />
               </Button>
             </Tooltip>
-            {isStage && STAGE_COLORS.map(c => (
-              <button
-                key={c.id}
-                onClick={() => setStageColorId(c.id)}
-                title={c.label}
-                className={`w-3.5 h-3.5 rounded-full border-2 transition-all shrink-0 ${stageColorId === c.id ? 'border-white scale-125' : 'border-transparent opacity-50 hover:opacity-80'}`}
-                style={{ backgroundColor: c.chord }}
-              />
-            ))}
+            {isStage &&
+              STAGE_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setStageColorId(c.id)}
+                  title={c.label}
+                  className={`w-3.5 h-3.5 rounded-full border-2 transition-all shrink-0 ${stageColorId === c.id ? "border-white scale-125" : "border-transparent opacity-50 hover:opacity-80"}`}
+                  style={{ backgroundColor: c.chord }}
+                />
+              ))}
 
-            <Tooltip content={isDark ? 'Light mode' : 'Dark mode'}>
-              <Button variant="ghost" size="icon-sm" onClick={toggleDark}>
+            <Tooltip content={isDark ? "Light mode" : "Dark mode"}>
+              <Button variant='ghost' size='icon-sm' onClick={toggleDark}>
                 {isDark ? <Sun size={14} /> : <Moon size={14} />}
               </Button>
             </Tooltip>
-            {isDark && !isStage && DARK_THEMES.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setDarkThemeId(t.id)}
-                title={t.label}
-                className={`w-3.5 h-3.5 rounded-sm border transition-all shrink-0 ${darkThemeId === t.id ? 'ring-1 ring-[var(--color-ink)] ring-offset-1 ring-offset-[var(--color-bg)] opacity-100' : 'opacity-50 hover:opacity-80'}`}
-                style={{ backgroundColor: t.swatch, borderColor: '#555' }}
-              />
-            ))}
+            {isDark &&
+              !isStage &&
+              DARK_THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setDarkThemeId(t.id)}
+                  title={t.label}
+                  className={`w-3.5 h-3.5 rounded-sm border transition-all shrink-0 ${darkThemeId === t.id ? "ring-1 ring-[var(--color-ink)] ring-offset-1 ring-offset-[var(--color-bg)] opacity-100" : "opacity-50 hover:opacity-80"}`}
+                  style={{ backgroundColor: t.swatch, borderColor: "#555" }}
+                />
+              ))}
 
             {/* Auth (desktop) */}
-            <div className="hidden sm:flex items-center ml-1">
+            <div className='hidden sm:flex items-center ml-1'>
               {isLoggedIn ? (
-                <Tooltip content={`Signed in as ${email} — view profile`}>
+                <Tooltip content={`Signed in as ${email}, view profile`}>
                   <NavLink
-                    to="/profile"
-                    className="flex items-center gap-1.5 h-7 pl-1 pr-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-warm)] text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink-muted)] transition-colors"
+                    to='/profile'
+                    className='flex items-center gap-1.5 h-7 pl-1 pr-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-warm)] text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink-muted)] transition-colors'
                   >
-                    <span className="relative w-5 h-5 rounded-full bg-[var(--color-ink)] text-[var(--color-bg)] flex items-center justify-center text-[10px] font-semibold">
-                      {(email || '?').charAt(0).toUpperCase()}
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-[var(--color-bg-warm)]" />
+                    <span className='relative w-5 h-5 rounded-full bg-[var(--color-ink)] text-[var(--color-bg)] flex items-center justify-center text-[10px] font-semibold'>
+                      {(email || "?").charAt(0).toUpperCase()}
+                      <span className='absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-[var(--color-bg-warm)]' />
                     </span>
-                    <span className="max-w-[110px] truncate">{email}</span>
-                    {ROLE_LABEL[role] && <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--color-accent)]">{ROLE_LABEL[role]}</span>}
+                    <span className='max-w-[110px] truncate'>{email}</span>
+                    {ROLE_LABEL[role] && (
+                      <span className='text-[9px] font-semibold uppercase tracking-wide text-[var(--color-accent)]'>
+                        {ROLE_LABEL[role]}
+                      </span>
+                    )}
                   </NavLink>
                 </Tooltip>
               ) : (
-                <Button variant="primary" size="sm" onClick={() => setAuthOpen(true)} className="btn-shimmer">
+                <Button
+                  variant='primary'
+                  size='sm'
+                  onClick={() => setAuthOpen(true)}
+                  className='btn-shimmer'
+                >
                   <LogIn size={13} /> Sign in
                 </Button>
               )}
             </div>
 
             {/* Mobile menu */}
-            <Button variant="ghost" size="icon-sm" className="md:hidden" onClick={() => setMobileMenuOpen(o => !o)}>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              className='md:hidden'
+              onClick={() => setMobileMenuOpen((o) => !o)}
+            >
               {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
             </Button>
           </div>
@@ -143,90 +209,128 @@ export default function AppShell({ children }) {
 
         {/* Mobile Nav Dropdown */}
         <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            className="md:hidden border-t border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={ease}
-          >
-            <nav className="flex flex-col p-2 gap-1">
-              {navItems.map(item => (
-                <NavItem key={item.to} {...item} mobile onClick={() => setMobileMenuOpen(false)} />
-              ))}
-              <div className="border-t border-[var(--color-border)] mt-1 pt-1">
-                {isLoggedIn ? (
-                  <>
-                    <NavItem to="/profile" label="Profile" icon={User} mobile onClick={() => setMobileMenuOpen(false)} />
-                    <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-green-600 dark:text-green-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                      <span className="truncate">Signed in · {email}</span>
-                    </div>
+          {mobileMenuOpen && (
+            <motion.div
+              className='md:hidden border-t border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden'
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={ease}
+            >
+              <nav className='flex flex-col p-2 gap-1'>
+                {navItems.map((item) => (
+                  <NavItem
+                    key={item.to}
+                    {...item}
+                    mobile
+                    onClick={() => setMobileMenuOpen(false)}
+                  />
+                ))}
+                <div className='border-t border-[var(--color-border)] mt-1 pt-1'>
+                  {isLoggedIn ? (
+                    <>
+                      <NavItem
+                        to='/profile'
+                        label='Profile'
+                        icon={User}
+                        mobile
+                        onClick={() => setMobileMenuOpen(false)}
+                      />
+                      <div className='flex items-center gap-2 px-3 py-1.5 text-xs text-green-600 dark:text-green-400'>
+                        <span className='w-1.5 h-1.5 rounded-full bg-green-500' />
+                        <span className='truncate'>Signed in · {email}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setMobileMenuOpen(false);
+                        }}
+                        className='flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors'
+                      >
+                        <LogOut size={14} /> Sign out
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
-                      className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                      onClick={() => {
+                        setAuthOpen(true);
+                        setMobileMenuOpen(false);
+                      }}
+                      className='flex items-center gap-2 w-full h-10 px-3 rounded text-sm font-medium text-[var(--color-bg)] bg-[var(--color-ink)] hover:opacity-80 transition-opacity'
                     >
-                      <LogOut size={14} /> Sign out
+                      <LogIn size={14} /> Sign in to sync
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => { setAuthOpen(true); setMobileMenuOpen(false) }}
-                    className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm font-medium text-[var(--color-bg)] bg-[var(--color-ink)] hover:opacity-80 transition-opacity"
-                  >
-                    <LogIn size={14} /> Sign in to sync
-                  </button>
-                )}
-              </div>
-            </nav>
-          </motion.div>
-        )}
+                  )}
+                </div>
+              </nav>
+            </motion.div>
+          )}
         </AnimatePresence>
       </header>
 
       {/* ── Main Content ──────────────────────────────────────────── */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6 animate-fade-in">
+      <main className='flex-1 max-w-6xl mx-auto w-full px-4 py-6 animate-fade-in'>
         {children}
       </main>
 
       {/* ── Footer ────────────────────────────────────────────────── */}
-      <footer className="border-t border-[var(--color-border)] py-3 px-4 no-print">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[var(--color-ink-muted)] font-mono">ChordVault</span>
-            <div className="hidden sm:flex items-center gap-3">
-              <span className="text-[var(--color-border)] text-xs">·</span>
+      <footer className='border-t border-[var(--color-border)] py-3 px-4 no-print'>
+        <div className='max-w-6xl mx-auto flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <span className='text-xs text-[var(--color-ink-muted)] font-mono'>
+              ChordVault
+            </span>
+            <div className='hidden sm:flex items-center gap-3'>
+              <span className='text-[var(--color-border)] text-xs'>·</span>
               {[
-                { label: 'Workout Tracker', href: 'https://workouttracker-xi.vercel.app' },
-                { label: 'Transpose Me', href: 'https://transposeme.vercel.app/' },
+                {
+                  label: "Workout Tracker",
+                  href: "https://workouttracker-xi.vercel.app",
+                },
+                {
+                  label: "Transpose Me",
+                  href: "https://transposeme.vercel.app/",
+                },
               ].map(({ label, href }) => (
                 <a
                   key={href}
                   href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors"
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='flex items-center gap-1 text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors'
                 >
                   {label}
-                  <ExternalLink size={9} className="opacity-50" />
+                  <ExternalLink size={9} className='opacity-50' />
                 </a>
               ))}
-              <span className="text-[var(--color-border)] text-xs">·</span>
-              <span className="text-xs text-[var(--color-ink-muted)]">© {new Date().getFullYear()} Shern Ning</span>
+              <span className='text-[var(--color-border)] text-xs'>·</span>
+              <span className='text-xs text-[var(--color-ink-muted)]'>
+                © {new Date().getFullYear()} Shern Ning
+              </span>
             </div>
           </div>
-          <span className={`flex items-center gap-1 text-xs ${
-            !isLoggedIn ? 'text-[var(--color-ink-muted)]'
-            : isOnline ? 'text-green-600 dark:text-green-400'
-            : 'text-amber-600 dark:text-amber-400'
-          }`}>
-            {!isLoggedIn
-              ? <><CloudOff size={10} /> Local only</>
-              : isOnline
-              ? <><Wifi size={10} /> Synced</>
-              : <><WifiOff size={10} /> Offline</>
-            }
+          <span
+            className={`flex items-center gap-1 text-xs ${
+              !isLoggedIn
+                ? "text-[var(--color-ink-muted)]"
+                : isOnline
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {!isLoggedIn ? (
+              <>
+                <CloudOff size={10} /> Local only
+              </>
+            ) : isOnline ? (
+              <>
+                <Wifi size={10} /> Synced
+              </>
+            ) : (
+              <>
+                <WifiOff size={10} /> Offline
+              </>
+            )}
           </span>
         </div>
       </footer>
@@ -235,12 +339,15 @@ export default function AppShell({ children }) {
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
 
       {/* ── First-run welcome ─────────────────────────────────────── */}
-      <WelcomeModal isOpen={!welcomeSeen} onClose={() => setWelcomeSeen(true)} />
+      <WelcomeModal
+        isOpen={!welcomeSeen}
+        onClose={() => setWelcomeSeen(true)}
+      />
 
       {/* ── Scroll To Top ─────────────────────────────────────────── */}
       <button
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        title="Back to top"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        title='Back to top'
         className={`
           fixed bottom-6 right-6 z-50 no-print
           h-9 w-9 rounded-full
@@ -249,18 +356,18 @@ export default function AppShell({ children }) {
           flex items-center justify-center
           shadow-md hover:opacity-80 active:scale-95
           transition-all duration-200
-          ${showScrollTop ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 translate-y-4 pointer-events-none'}
+          ${showScrollTop ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"}
         `}
         aria-hidden={!showScrollTop}
       >
         <ArrowUp size={15} />
       </button>
     </div>
-  )
+  );
 }
 
 function NavItem({ to, label, icon: Icon, exact, mobile, onClick }) {
-  const enabled = useMotionEnabled()
+  const enabled = useMotionEnabled();
   return (
     <NavLink
       to={to}
@@ -268,32 +375,32 @@ function NavItem({ to, label, icon: Icon, exact, mobile, onClick }) {
       onClick={onClick}
       className={({ isActive }) => `
         relative flex items-center px-3 rounded transition-colors duration-100 font-sans text-sm
-        ${mobile ? 'h-10' : 'h-7'}
-        ${isActive
-          ? 'text-[var(--color-bg)]'
-          : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
+        ${mobile ? "h-10" : "h-7"}
+        ${
+          isActive
+            ? "text-[var(--color-bg)]"
+            : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]"
         }
       `}
     >
       {({ isActive }) => (
         <>
-          {isActive && (
-            enabled && !mobile ? (
+          {isActive &&
+            (enabled && !mobile ? (
               <motion.span
-                layoutId="navIndicator"
-                className="absolute inset-0 rounded bg-[var(--color-ink)]"
+                layoutId='navIndicator'
+                className='absolute inset-0 rounded bg-[var(--color-ink)]'
                 transition={spring}
               />
             ) : (
-              <span className="absolute inset-0 rounded bg-[var(--color-ink)]" />
-            )
-          )}
-          <span className="relative flex items-center gap-2">
+              <span className='absolute inset-0 rounded bg-[var(--color-ink)]' />
+            ))}
+          <span className='relative flex items-center gap-2'>
             <Icon size={14} />
             {label}
           </span>
         </>
       )}
     </NavLink>
-  )
+  );
 }

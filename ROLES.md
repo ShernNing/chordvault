@@ -31,7 +31,7 @@ other people's roles**.
 
 ### Superuser (you)
 
-- **Can:** everything, no restriction — add, edit, and delete **any** song, and
+- **Can:** everything, no restriction, add, edit, and delete **any** song, and
   promote/demote any user from **Profile → Admin · User management**.
 - There is no "cannot". The first superuser is set by hand in SQL (step 7 below);
   after that you create more from the app.
@@ -41,7 +41,7 @@ them to leader or superuser afterwards.
 
 > **Security note:** the app hides buttons you're not allowed to use, but that is
 > only cosmetic. The real enforcement is the Row Level Security (RLS) policies
-> below — Postgres rejects a forbidden write even if someone calls the API
+> below, Postgres rejects a forbidden write even if someone calls the API
 > directly with the anon key. Never rely on the hidden buttons alone.
 
 ---
@@ -50,13 +50,13 @@ them to leader or superuser afterwards.
 
 Dashboard → SQL Editor → New query → paste the whole block → **Run**. It is safe to
 run on a fresh project **or** on top of the original 2-role (`member`/`admin`)
-setup — it migrates old `admin` rows to `superuser` automatically.
+setup, it migrates old `admin` rows to `superuser` automatically.
 
 **Before running:** edit step 7 to use **your** email (or user id).
 
 ```sql
 -- ════════════════════════════════════════════════════════════════════════════
--- ChordVault roles — member / leader / superuser
+-- ChordVault roles, member / leader / superuser
 -- ════════════════════════════════════════════════════════════════════════════
 
 -- 1. profiles: one row per auth user, holds their role + email.
@@ -168,7 +168,7 @@ update public.profiles set role = 'superuser' where email = 'sherningtan@gmail.c
 
 1. **Reload the app.** Your account chip (top-right) should show **Superuser** and
    the **Admin · User management** panel appears on your Profile page.
-2. **Promote people** from that panel — pick Member / Leader / Superuser per user.
+2. **Promote people** from that panel, pick Member / Leader / Superuser per user.
    Changes take effect on their next page load.
 3. **Find a user id** if you need it: Authentication → Users, or
    `select id, email, role from public.profiles order by created_at;`.
@@ -177,13 +177,13 @@ update public.profiles set role = 'superuser' where email = 'sherningtan@gmail.c
 
 - **Setlists** are open to every signed-in user (members included) and are _not_
   covered by these policies. If you ever enable RLS on `setlists` /
-  `setlist_songs`, you must add policies or the app will break — ask and I'll add
+  `setlist_songs`, you must add policies or the app will break, ask and I'll add
   permissive ones.
 - **Changing the key for viewing** (transpose) never touches the database, so
   everyone can do it. **"Save key"** rewrites the song, so it follows the edit
   rule (superuser, or a leader on their own song).
 - **Any superuser can promote/demote anyone**, including demoting you. The in-app
-  "are you sure" when you demote yourself is cosmetic — Postgres still allows it.
+  "are you sure" when you demote yourself is cosmetic, Postgres still allows it.
   Don't leave yourself without a superuser; only grant it to people you trust.
 - The old `is_admin()` function from the 2-role setup is left in place but unused;
   you can `drop function if exists public.is_admin();` once nothing references it.
