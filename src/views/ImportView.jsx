@@ -1,14 +1,15 @@
 import { useState, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import {
   FileUp, CheckCircle, XCircle, Edit3,
   ChevronDown, ChevronUp, AlertTriangle, Save, X, Check,
-  Music2, Loader2, RotateCcw
+  Music2, Loader2, RotateCcw, Lock
 } from 'lucide-react'
 import { importDocument } from '../lib/docImport'
 import { ingest } from '../lib/ingestion'
 import { supabaseSongOps } from '../lib/supabaseOps'
-import { Button, Input, Textarea, TagInput, Badge } from '../components/ui'
+import { useAuth } from '../lib/AuthContext'
+import { Button, Input, Textarea, TagInput, Badge, EmptyState } from '../components/ui'
 import SongRenderer from '../components/song/SongRenderer'
 import ConflictCard from '../components/song/ConflictCard'
 import { Reveal, AnimatedNumber } from '../lib/motion'
@@ -25,6 +26,7 @@ export default function ImportView() {
   const [error, setError] = useState(null)
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 })
   const [savedCount, setSavedCount] = useState(0)
+  const { canAddSongs } = useAuth()
 
   // ── File handler ──────────────────────────────────────────────────────────
   const handleFile = useCallback(async (file) => {
@@ -56,6 +58,18 @@ export default function ImportView() {
   const updateSong = useCallback((id, updates) => {
     setSongs(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s))
   }, [])
+
+  // Importing creates songs → leader/superuser only (see ROLES.md).
+  if (!canAddSongs) {
+    return (
+      <EmptyState
+        icon={Lock}
+        title="Importing is leader-only"
+        description="Your account is a member, so you can view chords and build setlists but not import songs. Ask a superuser to make you a leader."
+        action={<Link to="/"><span className="text-xs text-[var(--color-accent)]">← Back to library</span></Link>}
+      />
+    )
+  }
 
   const acceptSong = (id) => updateSong(id, { status: 'accepted' })
   const discardSong = (id) => updateSong(id, { status: 'discarded' })

@@ -131,7 +131,7 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
 
         <div className="flex-1 overflow-y-auto p-4">
           <div ref={printRef} className="bg-[var(--color-bg)]">
-            <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(440px,1fr))]">
+            <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(440px,100%),1fr))]">
               {chordsWithVoicings.map(({ chord, voicings }, idx) => {
                 const otherSongs = songsByChord.get(chord) || []
                 return (

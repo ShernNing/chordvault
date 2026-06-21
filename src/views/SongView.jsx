@@ -34,6 +34,7 @@ import { bestTransposeFrets } from "../lib/voicings/transpose";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
 import { useToast } from "../lib/toast";
+import { useAuth } from "../lib/AuthContext";
 import { lookupArtist } from "../lib/musicbrainz";
 import {
   Button,
@@ -67,6 +68,14 @@ export default function SongView() {
   const { fontSize, setFontSize, fontFamily, setFontFamily } = useDisplaySettings();
   const { setlists } = useSetlists();
   const toast = useToast();
+  const { canEditSong, canDeleteSong } = useAuth();
+
+  // Edit / "Save key" rewrite the song: superuser edits any, a leader edits only
+  // songs they created. Delete is superuser-only. Members can do neither. Mirrors
+  // the songs RLS policies (see ROLES.md) — the UI just hides what the database
+  // would reject anyway.
+  const canEdit = canEditSong(song);
+  const canDelete = canDeleteSong();
 
   // Per-song transpose state stored in localStorage
   const [transpose, setTranspose] = useLocalStorage(`cv-transpose-${id}`, {
@@ -308,7 +317,7 @@ export default function SongView() {
       </div>
 
       {/* ── Song Header ───────────────────────────────────────────── */}
-      <div className='flex items-start justify-between gap-4'>
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4'>
         <div className='min-w-0'>
           {/* Title styled like the printed chord sheet: bold title + key in parens */}
           <div className='flex items-baseline gap-2 flex-wrap'>
@@ -338,7 +347,7 @@ export default function SongView() {
         </div>
 
         {/* Action buttons */}
-        <div className='flex items-center gap-1 shrink-0 no-print'>
+        <div className='flex flex-wrap items-center gap-1 sm:shrink-0 no-print'>
           <Tooltip content={copied ? "Copied!" : "Copy chord sheet"}>
             <Button
               variant='ghost'
@@ -481,27 +490,31 @@ export default function SongView() {
               <Zap size={14} />
             </Button>
           </Tooltip>
-          <Tooltip content='Edit song'>
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={() => setIsEditing(true)}
-              title='Edit song'
-            >
-              <Edit3 size={14} />
-            </Button>
-          </Tooltip>
-          <Tooltip content='Delete song'>
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              onClick={() => setDeleteModal(true)}
-              className='text-red-400 hover:text-red-600'
-              title='Delete song'
-            >
-              <Trash2 size={14} />
-            </Button>
-          </Tooltip>
+          {canEdit && (
+            <Tooltip content='Edit song'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={() => setIsEditing(true)}
+                title='Edit song'
+              >
+                <Edit3 size={14} />
+              </Button>
+            </Tooltip>
+          )}
+          {canDelete && (
+            <Tooltip content='Delete song'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={() => setDeleteModal(true)}
+                className='text-red-400 hover:text-red-600'
+                title='Delete song'
+              >
+                <Trash2 size={14} />
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip content='Re-detect key from chords'>
             <Button
               variant='ghost'
@@ -561,7 +574,10 @@ export default function SongView() {
       )}
 
       {/* ── Save Key Banner ───────────────────────────────────────── */}
-      {transpose.semitones !== 0 && song.original_key && (
+      {/* Save key rewrites the song → same as editing (superuser, or leader on
+          their own song). Everyone can still transpose freely for viewing;
+          only persisting it is gated. */}
+      {canEdit && transpose.semitones !== 0 && song.original_key && (
         <div className='no-print flex items-center justify-between gap-3 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg'>
           <span className='text-xs text-[var(--color-ink-soft)]'>
             Save <strong className='font-mono'>{displayKey}</strong> as this song's key?

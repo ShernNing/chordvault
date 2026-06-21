@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X, Search } from 'lucide-react'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { AlertTriangle, CheckCircle, Eye, EyeOff, Save, X, Search, Lock } from 'lucide-react'
 import { useSongs } from '../lib/hooks'
+import { useAuth } from '../lib/AuthContext'
 import { supabaseSongOps } from '../lib/supabaseOps'
 import { ingest, classifyLine, cleanArtistName } from '../lib/ingestion'
-import { Button, Input, Textarea, TagInput, Badge } from '../components/ui'
+import { Button, Input, Textarea, TagInput, Badge, EmptyState } from '../components/ui'
 import { lookupArtist } from '../lib/musicbrainz'
 import SongRenderer from '../components/song/SongRenderer'
 import ConflictCard from '../components/song/ConflictCard'
@@ -16,6 +17,7 @@ export default function NewSong() {
   const [searchParams] = useSearchParams()
   const { createSong, songs } = useSongs()
   const toast = useToast()
+  const { canAddSongs } = useAuth()
 
   const [title, setTitle] = useState(searchParams.get('title') || '')
   const [artist, setArtist] = useState(searchParams.get('artist') || '')
@@ -214,6 +216,8 @@ export default function NewSong() {
       </div>
     )
   }
+
+  if (!canAddSongs) return <NoAddPermission />
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
@@ -418,3 +422,15 @@ G
 I once was lost
 C          G
 But now am found`
+
+// Shown to members, who can't add songs (see ROLES.md).
+function NoAddPermission() {
+  return (
+    <EmptyState
+      icon={Lock}
+      title="Adding songs is leader-only"
+      description="Your account is a member, so you can view chords and build setlists but not add songs. Ask a superuser to make you a leader."
+      action={<Link to="/"><span className="text-xs text-[var(--color-accent)]">← Back to library</span></Link>}
+    />
+  )
+}

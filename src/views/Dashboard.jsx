@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw } from 'lucide-react'
 import { useSongs, useSearch, useSetlists } from '../lib/hooks'
+import { useAuth } from '../lib/AuthContext'
 import { supabaseSetlistOps } from '../lib/supabaseOps'
 import { Button, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
 import SongCard from '../components/song/SongCard'
@@ -23,7 +24,12 @@ export default function Dashboard() {
   const { query, setQuery, results } = useSearch(songs)
   const { setlists } = useSetlists()
   const toast = useToast()
+  const { canAddSongs, canDeleteSong } = useAuth()
   const [keyFilter, setKeyFilter] = useState('')
+
+  // Delete is superuser-only (see ROLES.md). Mirrors the songs RLS policy — the
+  // UI just hides what Postgres would reject anyway.
+  const canDelete = canDeleteSong()
 
   // Keys present in the library, for the key filter dropdown.
   const availableKeys = React.useMemo(
@@ -67,8 +73,11 @@ export default function Dashboard() {
         })
         toast.success(`Deleted "${deleteTarget.song.title}"`)
       } else {
-        const n = selectedIds.size
-        await bulkDeleteSongs([...selectedIds])
+        // Only delete songs this user owns (or all, if admin); RLS would reject
+        // the rest anyway.
+        const ids = deletableSelected.map(s => s.id)
+        const n = ids.length
+        await bulkDeleteSongs(ids)
         setSelectedIds(new Set())
         toast.success(`Deleted ${n} song${n === 1 ? '' : 's'}`)
       }
@@ -102,6 +111,8 @@ export default function Dashboard() {
   }
 
   const selectedSongs = songs.filter(s => selectedIds.has(s.id))
+  // Only a superuser may delete, so it's all-or-nothing for the selection.
+  const deletableSelected = canDelete ? selectedSongs : []
 
   return (
     <div className="space-y-5">
@@ -121,11 +132,13 @@ export default function Dashboard() {
               <RefreshCw size={14} />
             </Button>
           </Tooltip>
-          <Link to="/songs/new">
-            <Button variant="primary" size="sm">
-              <Plus size={14} /> Add song
-            </Button>
-          </Link>
+          {canAddSongs && (
+            <Link to="/songs/new">
+              <Button variant="primary" size="sm">
+                <Plus size={14} /> Add song
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -184,13 +197,15 @@ export default function Dashboard() {
             <Button variant="secondary" size="sm" onClick={() => setAddToSetlistOpen(true)}>
               <ListMusic size={13} /> Add to setlist
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => setDeleteTarget({ type: 'bulk' })}
-            >
-              <Trash2 size={13} /> Delete
-            </Button>
+            {deletableSelected.length > 0 && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setDeleteTarget({ type: 'bulk' })}
+              >
+                <Trash2 size={13} /> Delete{deletableSelected.length < selectedIds.size ? ` (${deletableSelected.length})` : ''}
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={clearSelection}>
               <X size={13} />
             </Button>
@@ -207,14 +222,16 @@ export default function Dashboard() {
         <EmptyState
           icon={Music2}
           title="Your library is empty"
-          description="Paste a chord sheet to add your first song."
-          action={
+          description={canAddSongs
+            ? "Paste a chord sheet to add your first song."
+            : "No songs yet. Ask a leader or superuser to add some."}
+          action={canAddSongs && (
             <Link to="/songs/new">
               <Button variant="primary" size="sm">
                 <Plus size={14} /> Add your first song
               </Button>
             </Link>
-          }
+          )}
         />
       ) : filteredResults.length === 0 ? (
         <EmptyState
@@ -236,6 +253,7 @@ export default function Dashboard() {
                 selected={selectedIds.has(song.id)}
                 onSelect={toggleSelect}
                 onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
+                canDelete={canDelete}
               />
             </Reveal>
           ))}
@@ -246,7 +264,7 @@ export default function Dashboard() {
       <Modal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title={deleteTarget?.type === 'single' ? 'Delete song' : `Delete ${selectedIds.size} songs`}
+        title={deleteTarget?.type === 'single' ? 'Delete song' : `Delete ${deletableSelected.length} songs`}
       >
         {deleteTarget?.type === 'single' ? (
           <p className="text-sm text-[var(--color-ink-soft)] mb-5">
@@ -255,10 +273,10 @@ export default function Dashboard() {
         ) : (
           <div className="mb-5">
             <p className="text-sm text-[var(--color-ink-soft)] mb-3">
-              Delete {selectedIds.size} songs? This cannot be undone.
+              Delete {deletableSelected.length} song{deletableSelected.length === 1 ? '' : 's'}? This cannot be undone.
             </p>
             <ul className="space-y-1 max-h-40 overflow-y-auto">
-              {selectedSongs.map(s => (
+              {deletableSelected.map(s => (
                 <li key={s.id} className="text-xs text-[var(--color-ink-muted)] truncate">
                   • {s.title}{s.artist ? ` — ${s.artist}` : ''}
                 </li>

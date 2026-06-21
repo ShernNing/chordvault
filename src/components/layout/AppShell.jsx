@@ -14,18 +14,21 @@ import { motion, AnimatePresence, useMotionEnabled, spring, ease } from '../../l
 
 const NAV_ITEMS = [
   { to: '/', label: 'Library', icon: LayoutGrid, exact: true },
-  { to: '/songs/new', label: 'Add Song', icon: Plus },
-  { to: '/import', label: 'Import', icon: FileUp },
+  { to: '/songs/new', label: 'Add Song', icon: Plus, requiresAdd: true },
+  { to: '/import', label: 'Import', icon: FileUp, requiresAdd: true },
   { to: '/setlists', label: 'Setlists', icon: ListMusic },
   { to: '/voicings', label: 'Chord Voicings', icon: Guitar },
   { to: '/stats', label: 'Stats', icon: BarChart3 },
 ]
 
+const ROLE_LABEL = { superuser: 'Superuser', leader: 'Leader' }
+
 export default function AppShell({ children }) {
   const isOnline = useOnlineStatus()
   const { isDark, isStage, toggleDark, toggleStage, stageColorId, setStageColorId, darkThemeId, setDarkThemeId } = useTheme()
   useDisplaySettings()
-  const { isLoggedIn, email } = useAuth()
+  const { isLoggedIn, email, role, canAddSongs } = useAuth()
+  const navItems = NAV_ITEMS.filter(item => !item.requiresAdd || canAddSongs)
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
@@ -71,7 +74,7 @@ export default function AppShell({ children }) {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
-            {NAV_ITEMS.map(item => <NavItem key={item.to} {...item} />)}
+            {navItems.map(item => <NavItem key={item.to} {...item} />)}
           </nav>
 
           {/* Right controls */}
@@ -109,22 +112,23 @@ export default function AppShell({ children }) {
             {/* Auth (desktop) */}
             <div className="hidden sm:flex items-center ml-1">
               {isLoggedIn ? (
-                <Tooltip content={`Signed in as ${email} — click to sign out`}>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-1.5 h-7 px-2 rounded text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
+                <Tooltip content={`Signed in as ${email} — view profile`}>
+                  <NavLink
+                    to="/profile"
+                    className="flex items-center gap-1.5 h-7 pl-1 pr-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-warm)] text-xs text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink-muted)] transition-colors"
                   >
-                    <User size={12} />
-                    <span className="max-w-[100px] truncate">{email}</span>
-                    <LogOut size={11} className="opacity-50" />
-                  </button>
+                    <span className="relative w-5 h-5 rounded-full bg-[var(--color-ink)] text-[var(--color-bg)] flex items-center justify-center text-[10px] font-semibold">
+                      {(email || '?').charAt(0).toUpperCase()}
+                      <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-[var(--color-bg-warm)]" />
+                    </span>
+                    <span className="max-w-[110px] truncate">{email}</span>
+                    {ROLE_LABEL[role] && <span className="text-[9px] font-semibold uppercase tracking-wide text-[var(--color-accent)]">{ROLE_LABEL[role]}</span>}
+                  </NavLink>
                 </Tooltip>
               ) : (
-                <Tooltip content="Sign in to sync across devices">
-                  <Button variant="ghost" size="icon-sm" onClick={() => setAuthOpen(true)}>
-                    <LogIn size={14} />
-                  </Button>
-                </Tooltip>
+                <Button variant="primary" size="sm" onClick={() => setAuthOpen(true)} className="btn-shimmer">
+                  <LogIn size={13} /> Sign in
+                </Button>
               )}
             </div>
 
@@ -146,21 +150,28 @@ export default function AppShell({ children }) {
             transition={ease}
           >
             <nav className="flex flex-col p-2 gap-1">
-              {NAV_ITEMS.map(item => (
+              {navItems.map(item => (
                 <NavItem key={item.to} {...item} mobile onClick={() => setMobileMenuOpen(false)} />
               ))}
               <div className="border-t border-[var(--color-border)] mt-1 pt-1">
                 {isLoggedIn ? (
-                  <button
-                    onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
-                    className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
-                  >
-                    <LogOut size={14} /> Sign out ({email})
-                  </button>
+                  <>
+                    <NavItem to="/profile" label="Profile" icon={User} mobile onClick={() => setMobileMenuOpen(false)} />
+                    <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-green-600 dark:text-green-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                      <span className="truncate">Signed in · {email}</span>
+                    </div>
+                    <button
+                      onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
+                      className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                    >
+                      <LogOut size={14} /> Sign out
+                    </button>
+                  </>
                 ) : (
                   <button
                     onClick={() => { setAuthOpen(true); setMobileMenuOpen(false) }}
-                    className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)] transition-colors"
+                    className="flex items-center gap-2 w-full h-10 px-3 rounded text-sm font-medium text-[var(--color-bg)] bg-[var(--color-ink)] hover:opacity-80 transition-opacity"
                   >
                     <LogIn size={14} /> Sign in to sync
                   </button>

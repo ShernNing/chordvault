@@ -15,7 +15,7 @@ function formatDate(iso) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-export default function SongCard({ song, selected = false, onSelect, onDelete }) {
+export default function SongCard({ song, selected = false, onSelect, onDelete, canDelete = true }) {
   const handleCheckbox = (e) => {
     e.preventDefault()
     e.stopPropagation()
@@ -46,8 +46,8 @@ export default function SongCard({ song, selected = false, onSelect, onDelete })
         </button>
       )}
 
-      {/* Delete overlay — top-right */}
-      {onDelete && (
+      {/* Delete overlay — top-right (owner/admin only) */}
+      {onDelete && canDelete && (
         <button
           onClick={handleDelete}
           aria-label="Delete song"
@@ -72,7 +72,7 @@ export default function SongCard({ song, selected = false, onSelect, onDelete })
             {song.title}
           </h3>
           {song.original_key && (
-            <span className={`shrink-0 mt-0.5 inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-bold bg-[var(--color-ink)] text-[var(--color-bg)] ${onDelete ? 'mr-5' : ''}`}>
+            <span className={`shrink-0 mt-0.5 inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-bold bg-[var(--color-ink)] text-[var(--color-bg)] ${onDelete && canDelete ? 'mr-5' : ''}`}>
               {song.original_key}
             </span>
           )}

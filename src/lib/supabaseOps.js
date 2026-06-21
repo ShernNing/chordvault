@@ -77,6 +77,40 @@ export const supabaseSongOps = {
   },
 }
 
+export const supabaseProfileOps = {
+  // The signed-in user's own profile row (id, role, created_at, email if present).
+  async getMine(userId) {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    if (error) throw error
+    return data
+  },
+
+  // All profiles. Only returns rows the RLS policies allow — for a member that's
+  // just their own row; for an admin it's everyone (once the admin SELECT policy
+  // in ROLES.md is in place). Degrades gracefully either way.
+  async listAll() {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    return data ?? []
+  },
+
+  // Promote / demote. Rejected by Postgres unless the caller is an admin and the
+  // admin UPDATE policy in ROLES.md is in place — the UI guard is cosmetic only.
+  async setRole(userId, role) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ role })
+      .eq('id', userId)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+}
+
 export const supabaseSetlistOps = {
   async getAll() {
     const { data, error } = await supabase

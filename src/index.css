@@ -69,6 +69,10 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* Off-canvas drawers (translate-x-full) and tooltips sit past the right edge.
+     `clip` removes them from the scroll region without creating a scroll
+     container, so the sticky header keeps working (unlike overflow-x: hidden). */
+  overflow-x: clip;
 }
 
 body {
