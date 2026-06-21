@@ -27,10 +27,6 @@ export default function Dashboard() {
   const { canAddSongs, canDeleteSong } = useAuth()
   const [keyFilter, setKeyFilter] = useState('')
 
-  // Delete is superuser-only (see ROLES.md). Mirrors the songs RLS policy — the
-  // UI just hides what Postgres would reject anyway.
-  const canDelete = canDeleteSong()
-
   // Keys present in the library, for the key filter dropdown.
   const availableKeys = React.useMemo(
     () => [...new Set(songs.map(s => s.original_key).filter(Boolean))].sort(),
@@ -111,8 +107,9 @@ export default function Dashboard() {
   }
 
   const selectedSongs = songs.filter(s => selectedIds.has(s.id))
-  // Only a superuser may delete, so it's all-or-nothing for the selection.
-  const deletableSelected = canDelete ? selectedSongs : []
+  // Keep only the songs this user may delete (superuser: any; leader: own).
+  // RLS would reject the rest anyway, so they're dropped from the bulk action.
+  const deletableSelected = selectedSongs.filter(s => canDeleteSong(s))
 
   return (
     <div className="space-y-5">
@@ -253,7 +250,7 @@ export default function Dashboard() {
                 selected={selectedIds.has(song.id)}
                 onSelect={toggleSelect}
                 onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
-                canDelete={canDelete}
+                canDelete={canDeleteSong(song)}
               />
             </Reveal>
           ))}

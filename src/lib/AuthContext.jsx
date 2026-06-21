@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 
 // ── Role model (see ROLES.md) ───────────────────────────────────────────────
 // member     — view-only + setlists. Cannot add/edit/delete songs.
-// leader     — add songs + edit own songs. Cannot delete, cannot edit others',
+// leader     — add songs + edit/delete own songs. Cannot edit/delete others',
 //              cannot change roles.
 // superuser  — full control: add/edit/delete any song + promote/demote users.
 // New signups default to member; a superuser promotes them afterwards.
@@ -69,8 +69,10 @@ export function AuthProvider({ children }) {
   const canEditSong = (song) =>
     isSuperuser || (isLeader && !!song?.created_by && song.created_by === userId)
 
-  // Delete: superuser only.
-  const canDeleteSong = () => isSuperuser
+  // Delete: superuser deletes anything; a leader deletes only songs they
+  // created. Members never delete. Mirrors the songs RLS policies in ROLES.md.
+  const canDeleteSong = (song) =>
+    isSuperuser || (isLeader && !!song?.created_by && song.created_by === userId)
 
   return (
     <AuthContext.Provider value={{

@@ -70,12 +70,11 @@ export default function SongView() {
   const toast = useToast();
   const { canEditSong, canDeleteSong } = useAuth();
 
-  // Edit / "Save key" rewrite the song: superuser edits any, a leader edits only
-  // songs they created. Delete is superuser-only. Members can do neither. Mirrors
-  // the songs RLS policies (see ROLES.md) — the UI just hides what the database
-  // would reject anyway.
+  // Edit / "Save key" / Delete: superuser does any; a leader does only songs they
+  // created. Members can do neither. Mirrors the songs RLS policies (see ROLES.md)
+  // — the UI just hides what the database would reject anyway.
   const canEdit = canEditSong(song);
-  const canDelete = canDeleteSong();
+  const canDelete = canDeleteSong(song);
 
   // Per-song transpose state stored in localStorage
   const [transpose, setTranspose] = useLocalStorage(`cv-transpose-${id}`, {

@@ -4,30 +4,33 @@ ChordVault has **three roles**. Everyone can read the whole shared song library;
 the role only controls **writes** (add / edit / delete songs) and **who can change
 other people's roles**.
 
-| Capability                          | Member | Leader | Superuser |
-| ----------------------------------- | :----: | :----: | :-------: |
-| View every song                     |   ✅   |   ✅   |    ✅    |
-| Transpose / change key for viewing  |   ✅   |   ✅   |    ✅    |
-| Build & edit setlists               |   ✅   |   ✅   |    ✅    |
-| Add songs                           |   ❌   |   ✅   |    ✅    |
-| Edit songs **they added**           |   ❌   |   ✅   |    ✅    |
-| Edit **anyone's** songs             |   ❌   |   ❌   |    ✅    |
-| Delete songs                        |   ❌   |   ❌   |    ✅    |
-| Promote / demote users              |   ❌   |   ❌   |    ✅    |
+| Capability                         | Member | Leader | Superuser |
+| ---------------------------------- | :----: | :----: | :-------: |
+| View every song                    |   ✅   |   ✅   |    ✅     |
+| Transpose / change key for viewing |   ✅   |   ✅   |    ✅     |
+| Build & edit setlists              |   ✅   |   ✅   |    ✅     |
+| Add songs                          |   ❌   |   ✅   |    ✅     |
+| Edit songs **they added**          |   ❌   |   ✅   |    ✅     |
+| Edit **anyone's** songs            |   ❌   |   ❌   |    ✅     |
+| Delete songs **they added**        |   ❌   |   ✅   |    ✅     |
+| Delete **anyone's** songs          |   ❌   |   ❌   |    ✅     |
+| Promote / demote users             |   ❌   |   ❌   |    ✅     |
 
 ### Member (default for every new sign-up)
+
 - **Can:** view every song, transpose/change key for their own viewing (never
   saved), and create/edit/delete setlists.
 - **Cannot:** add, edit, or delete any song; change anyone's role. The "Add Song"
   and "Import" nav links are hidden for members.
 
 ### Leader
-- **Can:** everything a member can, **plus** add songs and edit the songs they
-  added (including "Save key" on their own songs).
-- **Cannot:** edit songs *someone else* added, delete *any* song (not even their
-  own — deletion is superuser-only), or change anyone's role.
+
+- **Can:** everything a member can, **plus** add songs and edit/delete the songs
+  they added (including "Save key" on their own songs).
+- **Cannot:** edit or delete songs _someone else_ added, or change anyone's role.
 
 ### Superuser (you)
+
 - **Can:** everything, no restriction — add, edit, and delete **any** song, and
   promote/demote any user from **Profile → Admin · User management**.
 - There is no "cannot". The first superuser is set by hand in SQL (step 7 below);
@@ -130,6 +133,7 @@ drop policy if exists "owner or admin can edit songs"    on public.songs;
 drop policy if exists "edit own or superuser"            on public.songs;
 drop policy if exists "owner or admin can delete songs"  on public.songs;
 drop policy if exists "only superuser deletes"           on public.songs;
+drop policy if exists "delete own or superuser"          on public.songs;
 
 -- READ: everyone (shared band library), members included.
 create policy "songs are readable by all"
@@ -146,13 +150,13 @@ create policy "edit own or superuser"
   using (public.is_superuser() or (auth.uid() = created_by and public.can_add_songs()))
   with check (public.is_superuser() or (auth.uid() = created_by and public.can_add_songs()));
 
--- DELETE: superuser only.
-create policy "only superuser deletes"
+-- DELETE: superuser deletes any; a leader deletes only songs they created.
+create policy "delete own or superuser"
   on public.songs for delete
-  using (public.is_superuser());
+  using (public.is_superuser() or (auth.uid() = created_by and public.can_add_songs()));
 
 -- 7. ►► MAKE YOURSELF THE SUPERUSER ◄◄ (edit the email, then this is the bootstrap)
-update public.profiles set role = 'superuser' where email = 'YOUR-EMAIL@example.com';
+update public.profiles set role = 'superuser' where email = 'sherningtan@gmail.com';
 --   or by id:  update public.profiles set role = 'superuser' where id = '<your-uuid>';
 
 -- 8. Optional: give legacy songs (created_by null) an owner so a leader can edit
@@ -171,7 +175,7 @@ update public.profiles set role = 'superuser' where email = 'YOUR-EMAIL@example.
 
 ## Notes
 
-- **Setlists** are open to every signed-in user (members included) and are *not*
+- **Setlists** are open to every signed-in user (members included) and are _not_
   covered by these policies. If you ever enable RLS on `setlists` /
   `setlist_songs`, you must add policies or the app will break — ask and I'll add
   permissive ones.
