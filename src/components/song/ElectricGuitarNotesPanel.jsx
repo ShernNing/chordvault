@@ -202,7 +202,6 @@ export default function ElectricGuitarNotesPanel({ song, semitones = 0, displayK
   }
 
   const deleteEntry = async (id) => {
-    if (!confirm('Delete this voicing?')) return
     await onSave(stored.filter(e => e.id !== id))
   }
 
@@ -302,6 +301,7 @@ export default function ElectricGuitarNotesPanel({ song, semitones = 0, displayK
 
 function EntryCard({ entry, onEdit, onDelete }) {
   const type = entryType(entry)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   return (
     <article className="p-2 border border-[var(--color-border)] rounded bg-[var(--color-bg-warm)]">
       <div className="flex items-start justify-between gap-2 mb-1">
@@ -314,16 +314,34 @@ function EntryCard({ entry, onEdit, onDelete }) {
           )}
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            onClick={onEdit}
-            className="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-ink-soft)]"
-            title="Edit"
-          ><Edit3 size={12} /></button>
-          <button
-            onClick={onDelete}
-            className="p-1 rounded hover:bg-[var(--color-bg)] text-red-500"
-            title="Delete"
-          ><Trash2 size={12} /></button>
+          {confirmDelete ? (
+            <>
+              <span className="text-[10px] text-red-500 mr-0.5">Delete?</span>
+              <button
+                onClick={onDelete}
+                className="p-1 rounded hover:bg-[var(--color-bg)] text-red-500"
+                title="Confirm delete"
+              ><Check size={12} /></button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-ink-soft)]"
+                title="Cancel"
+              ><X size={12} /></button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onEdit}
+                className="p-1 rounded hover:bg-[var(--color-bg)] text-[var(--color-ink-soft)]"
+                title="Edit"
+              ><Edit3 size={12} /></button>
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="p-1 rounded hover:bg-[var(--color-bg)] text-red-500"
+                title="Delete"
+              ><Trash2 size={12} /></button>
+            </>
+          )}
         </div>
       </div>
 

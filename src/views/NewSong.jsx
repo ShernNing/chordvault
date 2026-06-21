@@ -128,6 +128,7 @@ export default function NewSong() {
       const wasEmpty = songs.length === 0
       const { song } = await createSong(rawContent, title.trim(), artist.trim(), tags)
       if (wasEmpty) toast.celebrate()
+      toast.success(`Saved "${title.trim()}"`)
       navigate(`/songs/${song.id}`)
     } catch (e) {
       setError(e.message)

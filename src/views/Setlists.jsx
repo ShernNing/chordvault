@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, ListMusic, Trash2, Calendar } from 'lucide-react'
 import { useSetlists } from '../lib/hooks'
+import { useToast } from '../lib/toast'
 import { Button, Input, EmptyState, ErrorState, Skeleton, Modal } from '../components/ui'
 
 function formatDate(iso) {
@@ -13,9 +14,11 @@ function formatDate(iso) {
 
 export default function Setlists() {
   const { setlists, loading, error, reload, createSetlist, deleteSetlist } = useSetlists()
+  const toast = useToast()
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const [formError, setFormError] = useState('')
 
   const handleCreate = async (e) => {
@@ -130,9 +133,18 @@ export default function Setlists() {
           <Button
             variant="danger"
             size="sm"
+            loading={deleting}
             onClick={async () => {
-              await deleteSetlist(deleteTarget.id)
-              setDeleteTarget(null)
+              setDeleting(true)
+              try {
+                await deleteSetlist(deleteTarget.id)
+                toast.success(`Deleted "${deleteTarget.name}"`)
+                setDeleteTarget(null)
+              } catch (e) {
+                toast.error(e.message || 'Delete failed')
+              } finally {
+                setDeleting(false)
+              }
             }}
           >
             <Trash2 size={13} /> Delete

@@ -66,11 +66,13 @@ export const supabaseSongOps = {
 
   async search(query) {
     if (!query?.trim()) return this.getAll()
-    const q = query.toLowerCase()
+    // Quote + escape the value so reserved PostgREST chars (, ( ) .) in the
+    // query can't alter the filter. % stays a LIKE wildcard inside the quotes.
+    const q = query.toLowerCase().replace(/"/g, '""')
     const { data, error } = await supabase
       .from('songs')
       .select('*')
-      .or(`title.ilike.%${q}%,artist.ilike.%${q}%`)
+      .or(`title.ilike."%${q}%",artist.ilike."%${q}%"`)
       .order('title')
     if (error) throw error
     return data ?? []

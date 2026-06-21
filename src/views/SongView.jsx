@@ -110,6 +110,8 @@ export default function SongView() {
   const [exportingDocx, setExportingDocx] = useState(false);
   const [copied, setCopied] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [confirmSaveKey, setConfirmSaveKey] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showFontPanel, setShowFontPanel] = useState(false);
   const [activeVoicingChord, setActiveVoicingChord] = useState(null);
   const [showVoicingsPanel, setShowVoicingsPanel] = useState(false);
@@ -176,6 +178,10 @@ export default function SongView() {
       }
       await update(updates);
       setTranspose({ semitones: 0, capo: transpose.capo });
+      setConfirmSaveKey(false);
+      toast.success(`Saved ${displayKey} as the song's key`);
+    } catch (e) {
+      toast.error(e.message || "Could not save key");
     } finally {
       setSavingKey(false);
     }
@@ -581,7 +587,7 @@ export default function SongView() {
           <span className='text-xs text-[var(--color-ink-soft)]'>
             Save <strong className='font-mono'>{displayKey}</strong> as this song's key?
           </span>
-          <Button variant='secondary' size='sm' loading={savingKey} onClick={handleSaveKey}>
+          <Button variant='secondary' size='sm' loading={savingKey} onClick={() => setConfirmSaveKey(true)}>
             <KeyRound size={12} /> Save key
           </Button>
         </div>
@@ -782,12 +788,52 @@ export default function SongView() {
           <Button
             variant='danger'
             size='sm'
+            loading={deleting}
             onClick={async () => {
-              await supabaseSongOps.delete(song.id);
-              navigate("/");
+              setDeleting(true);
+              try {
+                await supabaseSongOps.delete(song.id);
+                toast.success(`Deleted "${song.title}"`);
+                navigate("/");
+              } catch (e) {
+                toast.error(e.message || "Delete failed");
+                setDeleting(false);
+                setDeleteModal(false);
+              }
             }}
           >
             <Trash2 size={13} /> Delete
+          </Button>
+        </div>
+      </Modal>
+
+      {/* ── Save Key confirmation ─────────────────────────────────── */}
+      <Modal
+        isOpen={confirmSaveKey}
+        onClose={() => setConfirmSaveKey(false)}
+        title='Save key'
+      >
+        <p className='text-sm text-[var(--color-ink-soft)] mb-5'>
+          Save <strong className='font-mono'>{displayKey}</strong> as this song's
+          key? This rewrites the stored chords for everyone — it replaces the
+          original key and can't be undone (you can transpose back and save
+          again).
+        </p>
+        <div className='flex gap-2 justify-end'>
+          <Button
+            variant='secondary'
+            size='sm'
+            onClick={() => setConfirmSaveKey(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='primary'
+            size='sm'
+            loading={savingKey}
+            onClick={handleSaveKey}
+          >
+            <KeyRound size={13} /> Save key
           </Button>
         </div>
       </Modal>

@@ -7,6 +7,7 @@ import { supabase } from './supabase'
 //              cannot change roles.
 // superuser  — full control: add/edit/delete any song + promote/demote users.
 // New signups default to member; a superuser promotes them afterwards.
+// eslint-disable-next-line react-refresh/only-export-components -- ROLES constant intentionally exported alongside the provider
 export const ROLES = ['member', 'leader', 'superuser']
 
 const AuthContext = createContext({
