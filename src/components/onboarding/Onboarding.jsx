@@ -21,8 +21,11 @@ import {
   Shield,
   ShieldCheck,
   Play,
+  Lock,
+  KeyRound,
 } from "lucide-react";
 import { useAuth } from "../../lib/AuthContext";
+import { useToast } from "../../lib/toast";
 import { Modal, Button, Badge } from "../ui";
 
 // ─── Guide content ───────────────────────────────────────────────────────────
@@ -97,7 +100,9 @@ const STEPS = [
 const ROLE_NOTE = {
   member: {
     icon: Eye,
-    text: "You're a Member: view every song and build or edit setlists. Adding or editing songs needs a Leader or Superuser, ask one to promote you.",
+    text: "You're a Member: view every song and build or edit setlists. These need a Leader or Superuser, ask one to promote you.",
+    limits: ["Add songs", "Edit songs", "Delete songs", "Change user roles"],
+    requestAccess: true,
   },
   leader: {
     icon: Shield,
@@ -154,12 +159,54 @@ function StepRow({ step, onNavigate }) {
 function RoleNote({ role }) {
   const note = ROLE_NOTE[role] || ROLE_NOTE.member;
   const Icon = note.icon;
+  const { email } = useAuth();
+  const toast = useToast();
+
+  const requestAccess = () => {
+    const who = email || "my account";
+    const msg = `Hi! I'm using ChordVault as a Member (${who}) and would like Leader access so I can add and edit songs. Could you promote me? Thanks!`;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(msg)
+        .then(() =>
+          toast.success("Request copied — send it to a Leader or Superuser."),
+        )
+        .catch(() => toast.info(msg));
+    } else {
+      toast.info(msg);
+    }
+  };
+
   return (
     <div className='flex items-start gap-2 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-warm)]'>
       <Icon size={14} className='text-[var(--color-accent)] mt-0.5 shrink-0' />
-      <p className='text-xs text-[var(--color-ink-soft)] leading-relaxed'>
-        {note.text}
-      </p>
+      <div className='min-w-0 space-y-2.5'>
+        <p className='text-xs text-[var(--color-ink-soft)] leading-relaxed'>
+          {note.text}
+        </p>
+        {note.limits && (
+          <div className='space-y-1'>
+            <p className='text-[10px] font-semibold uppercase tracking-wide text-[var(--color-ink-muted)]'>
+              Needs a Leader or Superuser
+            </p>
+            <ul className='flex flex-wrap gap-1.5'>
+              {note.limits.map((l) => (
+                <li
+                  key={l}
+                  className='flex items-center gap-1 text-[11px] text-[var(--color-ink-soft)] px-1.5 py-0.5 rounded border border-[var(--color-border)] bg-[var(--color-bg)]'
+                >
+                  <Lock size={9} className='text-[var(--color-ink-muted)]' /> {l}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {note.requestAccess && (
+          <Button variant='secondary' size='sm' onClick={requestAccess}>
+            <KeyRound size={12} /> Request more access
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
