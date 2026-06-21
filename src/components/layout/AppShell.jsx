@@ -5,11 +5,12 @@ import {
   Zap, Wifi, WifiOff, Menu, X, FileUp,
   CloudOff, LogIn, LogOut, User, ExternalLink, ArrowUp, Guitar, BarChart3
 } from 'lucide-react'
-import { useOnlineStatus, useTheme, useDisplaySettings, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
+import { useOnlineStatus, useTheme, useDisplaySettings, useLocalStorage, STAGE_COLORS, DARK_THEMES } from '../../lib/hooks'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { Button, Tooltip } from '../ui'
 import AuthModal from '../auth/AuthModal'
+import { WelcomeModal } from '../onboarding/Onboarding'
 import { motion, AnimatePresence, useMotionEnabled, spring, ease } from '../../lib/motion'
 
 const NAV_ITEMS = [
@@ -33,6 +34,7 @@ export default function AppShell({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authOpen, setAuthOpen] = useState(false)
   const [showScrollTop, setShowScrollTop] = useState(false)
+  const [welcomeSeen, setWelcomeSeen] = useLocalStorage('cv-welcome-seen', false)
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 400)
@@ -231,6 +233,9 @@ export default function AppShell({ children }) {
 
       {/* ── Auth Modal ────────────────────────────────────────────── */}
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+
+      {/* ── First-run welcome ─────────────────────────────────────── */}
+      <WelcomeModal isOpen={!welcomeSeen} onClose={() => setWelcomeSeen(true)} />
 
       {/* ── Scroll To Top ─────────────────────────────────────────── */}
       <button

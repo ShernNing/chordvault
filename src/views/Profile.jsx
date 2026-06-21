@@ -11,6 +11,7 @@ import { supabaseProfileOps } from '../lib/supabaseOps'
 import { supabase } from '../lib/supabase'
 import { Badge, Button, Select, EmptyState, Skeleton } from '../components/ui'
 import AuthModal from '../components/auth/AuthModal'
+import { GuideSection } from '../components/onboarding/Onboarding'
 import { useToast } from '../lib/toast'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -99,6 +100,8 @@ export default function Profile() {
         memberSince={memberSince}
         isOnline={isOnline}
       />
+
+      <GuideSection />
 
       {/* Your numbers */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
