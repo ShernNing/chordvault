@@ -89,9 +89,9 @@ export function isChord(token) {
 function isSectionHeader(line) {
   const trimmed = line.trim()
   if (/^\[.+\]$/.test(trimmed)) return true
-  if (/^(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda)\s*\d*:?\s*$/i.test(trimmed)) return true
-  if (/^\d+(?:st|nd|rd|th)\s+(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda):?\s*$/i.test(trimmed)) return true
-  if (/^\d+\s+(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Hook|Vamp|Turnaround|Coda):?\s*$/i.test(trimmed)) return true
+  if (/^(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Instrumental|Hook|Vamp|Turnaround|Coda)\s*\d*:?\s*$/i.test(trimmed)) return true
+  if (/^\d+(?:st|nd|rd|th)\s+(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Instrumental|Hook|Vamp|Turnaround|Coda):?\s*$/i.test(trimmed)) return true
+  if (/^\d+\s+(Verse|Chorus|Bridge|Pre-Chorus|Outro|Intro|Tag|Ending|Interlude|Instrumental|Hook|Vamp|Turnaround|Coda):?\s*$/i.test(trimmed)) return true
   return false
 }
 
@@ -142,7 +142,7 @@ export function parseInlineChordFormat(line) {
   return { chordLine, lyricLine }
 }
 
-const INLINE_SECTION_RE = /^(verse|chorus|bridge|pre-?chorus|prechorus|intro|outro|tag|hook|interlude|coda|vamp|ending|turnaround)\s*(\d*)\s*(?:[-:]\s*|\s+)(.+)$/i
+const INLINE_SECTION_RE = /^(verse|chorus|bridge|pre-?chorus|prechorus|intro|outro|tag|hook|interlude|instrumental|coda|vamp|ending|turnaround)\s*(\d*)\s*(?:[-:]\s*|\s+)(.+)$/i
 
 export function parseRawContent(rawText) {
   const rawLines = rawText.split('\n')

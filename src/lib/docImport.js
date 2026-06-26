@@ -162,6 +162,7 @@ const CATEGORY_LABEL_RE = /^(?:\d+[.)]\s*)?(?:communion|post[\s-]?sermon)\s*$/i
 const SKIP_PATTERNS = [
   /^\[/,           // section header like [Verse 1]
   /^INTERLUDE/i,
+  /^INSTRUMENTAL/i,
   /^(Ayo|ayo)/,    // phonetic/vocal lines
 ]
 

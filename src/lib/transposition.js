@@ -106,15 +106,18 @@ function transposeNote(noteName, interval, targetKey) {
   try {
     let transposed = Note.transpose(noteName, interval)
 
+    // Interval.fromSemitones can yield spellings (e.g. a tritone as a diminished
+    // fifth) that, combined with flat/sharp roots, produce unreadable double
+    // accidentals like Bbb or E##. Simplify first to collapse those to a single
+    // accidental, then re-spell for the target key's preference below.
+    const simplified = Note.simplify(transposed)
+    if (simplified && simplified !== 'undefined') {
+      transposed = simplified
+    }
+
     // Apply enharmonic convention based on target key
     if (targetKey) {
       transposed = normalizeNoteForKey(transposed, targetKey)
-    } else {
-      // Default: use simpler spelling
-      const simplified = Note.simplify(transposed)
-      if (simplified && simplified !== 'undefined') {
-        transposed = simplified
-      }
     }
 
     // Remove octave number if present
