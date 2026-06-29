@@ -9,7 +9,6 @@ import {
   BarChart3,
   Music2,
   Zap,
-  Moon,
   Type,
   CloudOff,
   ArrowRightLeft,
@@ -26,7 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../lib/AuthContext";
 import { useToast } from "../../lib/toast";
-import { Modal, Button, Badge } from "../ui";
+import { Modal, Button } from "../ui";
 
 // ─── Guide content ───────────────────────────────────────────────────────────
 // One source of truth for both the first-run WelcomeModal and the always-on

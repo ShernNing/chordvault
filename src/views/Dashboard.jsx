@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw } from 'lucide-react'
-import { useSongs, useSearch, useSetlists } from '../lib/hooks'
+import { useSongs, useSearch, useSetlists, useSemanticSearch } from '../lib/hooks'
 import { useAuth } from '../lib/AuthContext'
 import { supabaseSetlistOps } from '../lib/supabaseOps'
+import { selectRelatedSongs } from '../lib/relatedSongs'
 import { Button, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
 import SongCard from '../components/song/SongCard'
 import { motion, AnimatePresence, Reveal, AnimatedNumber, ease } from '../lib/motion'
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState('title')
   const { songs, loading, error, reload, deleteSong, bulkDeleteSongs } = useSongs(sortBy)
   const { query, setQuery, results } = useSearch(songs)
+  const { relatedIds } = useSemanticSearch(query)
   const { setlists } = useSetlists()
   const toast = useToast()
   const { canAddSongs, canDeleteSong } = useAuth()
@@ -35,6 +37,14 @@ export default function Dashboard() {
   const filteredResults = keyFilter
     ? results.filter(s => s.original_key === keyFilter)
     : results
+
+  const relatedToShow = React.useMemo(
+    () => selectRelatedSongs(relatedIds, songs, {
+      excludeIds: new Set(filteredResults.map(s => s.id)),
+      keyFilter,
+    }),
+    [relatedIds, songs, filteredResults, keyFilter],
+  )
 
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [deleteTarget, setDeleteTarget] = useState(null) // null | { type: 'single', song } | { type: 'bulk' }
@@ -230,7 +240,7 @@ export default function Dashboard() {
             </Link>
           )}
         />
-      ) : filteredResults.length === 0 ? (
+      ) : filteredResults.length === 0 && relatedToShow.length === 0 ? (
         <EmptyState
           icon={Search}
           title={query ? `No results for "${query}"` : `No songs in key of ${keyFilter}`}
@@ -254,6 +264,28 @@ export default function Dashboard() {
               />
             </Reveal>
           ))}
+        </div>
+      )}
+
+      {/* ── Related songs (semantic) ─────────────────────────────── */}
+      {query && relatedToShow.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-[var(--color-ink-muted)]">
+            Related songs
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {relatedToShow.map((song, i) => (
+              <Reveal key={song.id} delay={Math.min(i, 20) * 0.03}>
+                <SongCard
+                  song={song}
+                  selected={selectedIds.has(song.id)}
+                  onSelect={toggleSelect}
+                  onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
+                  canDelete={canDeleteSong(song)}
+                />
+              </Reveal>
+            ))}
+          </div>
         </div>
       )}
 
