@@ -7,6 +7,18 @@
 import { createClient } from '@supabase/supabase-js'
 import { buildEmbedText } from '../src/lib/embedText.js'
 
+// supabase-js eagerly builds a Realtime client that needs a global WebSocket.
+// Node 22+ has one natively. On Node <22, install ws (`npm i -D ws`) and we
+// polyfill it here. (This script never uses realtime; it's just construction.)
+if (!globalThis.WebSocket) {
+  try {
+    globalThis.WebSocket = (await import('ws')).default
+  } catch {
+    console.error('No global WebSocket. Run on Node 22+, or `npm i -D ws` first.')
+    process.exit(1)
+  }
+}
+
 const url = process.env.SUPABASE_URL
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!url || !key) {
