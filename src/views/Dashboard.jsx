@@ -240,7 +240,7 @@ export default function Dashboard() {
             </Link>
           )}
         />
-      ) : filteredResults.length === 0 ? (
+      ) : filteredResults.length === 0 && relatedToShow.length === 0 ? (
         <EmptyState
           icon={Search}
           title={query ? `No results for "${query}"` : `No songs in key of ${keyFilter}`}
