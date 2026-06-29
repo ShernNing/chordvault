@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useState, useEffect, useCallback, useMemo, useSyncExternalStore, useRef } from 'react'
 import { supabaseSongOps, supabaseSetlistOps } from './supabaseOps'
 import { ingest, cleanSongTitle } from './ingestion'
 import { createResource } from './cache'
@@ -493,4 +493,34 @@ export function useSearch(allSongs) {
   }, [debouncedQuery, allSongs])
 
   return { query, setQuery, results }
+}
+
+// ─── Semantic search ─────────────────────────────────────────────────────────
+// Calls the search-songs edge function for the typed query and returns the
+// ranked matching song ids. Debounced (400ms), min length 3, per-session cache,
+// and stale responses are ignored (acts as an abort).
+export function useSemanticSearch(query) {
+  const debounced = useDebounce(query, 400)
+  const [relatedIds, setRelatedIds] = useState([])
+  const cacheRef = useRef(new Map())
+
+  useEffect(() => {
+    const q = debounced.trim()
+    if (q.length < 3) { setRelatedIds([]); return }
+    if (cacheRef.current.has(q)) { setRelatedIds(cacheRef.current.get(q)); return }
+
+    let cancelled = false
+    supabaseSongOps.semanticSearch(q)
+      .then(results => {
+        if (cancelled) return
+        const ids = results.map(r => r.id)
+        cacheRef.current.set(q, ids)
+        setRelatedIds(ids)
+      })
+      .catch(() => { if (!cancelled) setRelatedIds([]) })
+
+    return () => { cancelled = true }
+  }, [debounced])
+
+  return { relatedIds }
 }

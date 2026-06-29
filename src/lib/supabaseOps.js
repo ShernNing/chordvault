@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { buildEmbedText } from './embedText'
 
 export const supabaseSongOps = {
   async getAll() {
@@ -29,6 +30,7 @@ export const supabaseSongOps = {
       .select()
       .single()
     if (error) throw error
+    await this.embedSong(data.id, data)
     return data
   },
 
@@ -40,6 +42,7 @@ export const supabaseSongOps = {
       .select()
       .single()
     if (error) throw error
+    await this.embedSong(data.id, data)
     return data
   },
 
@@ -76,6 +79,31 @@ export const supabaseSongOps = {
       .order('title')
     if (error) throw error
     return data ?? []
+  },
+
+  // Fire the embedding for a song. Non-blocking by contract: a failure is logged
+  // and swallowed so the save itself never fails — the song just won't appear in
+  // semantic results until it is re-saved or picked up by the backfill script.
+  async embedSong(songId, song) {
+    if (!supabase) return
+    try {
+      const { error } = await supabase.functions.invoke('embed-song', {
+        body: { songId, text: buildEmbedText(song) },
+      })
+      if (error) throw error
+    } catch (e) {
+      console.warn('embed-song failed; song saved without embedding:', e)
+    }
+  },
+
+  // Semantic search: returns [{ id, similarity }] ranked most-similar first.
+  async semanticSearch(query, { threshold = 0.7, count = 8 } = {}) {
+    if (!supabase || !query?.trim()) return []
+    const { data, error } = await supabase.functions.invoke('search-songs', {
+      body: { query, threshold, count },
+    })
+    if (error) throw error
+    return data?.results ?? []
   },
 }
 
