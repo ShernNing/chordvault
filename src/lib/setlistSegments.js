@@ -69,6 +69,7 @@ export function computeSegmentDrop(slots, activeId, overId) {
   }
 
   const destArr = groups.get(destSegment)
+  if (!destArr) return null // overId encoded an unknown segment — ignore the drop
   let idx = destArr.indexOf(overId)
   if (idx === -1) idx = destArr.length // dropped on the zone, not a row → append
   destArr.splice(idx, 0, activeId)

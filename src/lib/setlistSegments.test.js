@@ -6,6 +6,7 @@ import {
   orderSlotsForExport,
   resolveSegment,
   computeSegmentDrop,
+  zoneId,
 } from './setlistSegments'
 
 // helper: minimal slot
@@ -58,6 +59,13 @@ describe('resolveSegment', () => {
   it('resolves a row id to that row\'s segment', () => {
     expect(resolveSegment('a', slots)).toBe(null)
     expect(resolveSegment('b', slots)).toBe('communion')
+  })
+})
+
+describe('zoneId', () => {
+  it('round-trips through resolveSegment', () => {
+    expect(resolveSegment(zoneId(null), [])).toBe(null)
+    expect(resolveSegment(zoneId('communion'), [])).toBe('communion')
   })
 })
 
