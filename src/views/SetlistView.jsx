@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { useParams, Link } from "react-router-dom";
-import { motion, AnimatePresence, ease } from "../lib/motion";
+import {
+  SETLIST_SEGMENTS,
+  groupSlotsBySegment,
+  computeSegmentDrop,
+  zoneId,
+} from "../lib/setlistSegments";
 import {
   ArrowLeft,
   GripVertical,
@@ -28,9 +33,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -151,7 +156,6 @@ export default function SetlistView() {
   if (!setlist) return <ErrorState message='Setlist not found' />;
 
   const slots = setlist.songs || [];
-  const slotIds = slots.map((s) => s.id);
 
   const totalSeconds = slots.reduce(
     (sum, s) =>
@@ -186,10 +190,11 @@ export default function SetlistView() {
   const handleDragEnd = async (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = slots.findIndex((s) => s.id === active.id);
-    const newIndex = slots.findIndex((s) => s.id === over.id);
-    const newOrder = arrayMove(slots, oldIndex, newIndex);
-    await reorder(newOrder.map((s) => s.id));
+    const result = computeSegmentDrop(slots, active.id, over.id);
+    if (!result) return;
+    const { orderedIds, destSegment, changedSegment } = result;
+    if (changedSegment) await updateSlot(active.id, { segment: destSegment });
+    await reorder(orderedIds);
   };
 
   const filteredSongs = allSongs.filter((song) => {
@@ -622,41 +627,19 @@ export default function SetlistView() {
               collisionDetection={closestCenter}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext
-                items={slotIds}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className='space-y-2'>
-                  <AnimatePresence initial={false}>
-                    {slots.map((slot, index) => (
-                      <motion.div
-                        key={slot.id}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={ease}
-                        style={{ overflow: "hidden" }}
-                      >
-                        <SortableSlot
-                          slot={slot}
-                          index={index}
-                          seconds={
-                            durations[slot.song_id] ??
-                            getSongSeconds(slot.song_id)
-                          }
-                          onDurationChange={(s) =>
-                            handleDurationChange(slot.song_id, s)
-                          }
-                          onRemove={() => removeSong(slot.id)}
-                          onUpdateSlot={(updates) =>
-                            updateSlot(slot.id, updates)
-                          }
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </SortableContext>
+              <div className='space-y-4'>
+                {groupSlotsBySegment(slots).map((group) => (
+                  <SegmentGroup
+                    key={group.zone}
+                    group={group}
+                    baseIndex={baseIndexFor(slots, group.key)}
+                    durations={durations}
+                    onDurationChange={handleDurationChange}
+                    removeSong={removeSong}
+                    updateSlot={updateSlot}
+                  />
+                ))}
+              </div>
             </DndContext>
           )}
         </div>
@@ -751,6 +734,76 @@ export default function SetlistView() {
           onClose={() => setPerformOpen(false)}
         />
       )}
+    </div>
+  );
+}
+
+// 1-based starting number for a segment's first row, counted across all
+// preceding segments in fixed order so numbering is continuous in export order.
+function baseIndexFor(slots, segmentKey) {
+  let n = 0;
+  for (const seg of SETLIST_SEGMENTS) {
+    if (seg.key === segmentKey) break;
+    n += slots.filter((s) => (s.segment ?? null) === seg.key).length;
+  }
+  return n;
+}
+
+// ─── Segment Group (droppable zone + its sortable rows) ─────────────────────
+
+function SegmentGroup({
+  group,
+  baseIndex,
+  durations,
+  onDurationChange,
+  removeSong,
+  updateSlot,
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: zoneId(group.key) });
+  const ids = group.slots.map((s) => s.id);
+  const isMain = group.key === null;
+
+  return (
+    <div>
+      {group.label && (
+        <div className='flex items-center gap-2 mb-1.5 mt-1'>
+          <span className='text-xs font-semibold text-[var(--color-ink)] uppercase tracking-wide'>
+            {group.label}
+          </span>
+          <span className='text-[10px] text-[var(--color-ink-muted)]'>
+            {group.slots.length || ""}
+          </span>
+        </div>
+      )}
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div
+          ref={setNodeRef}
+          className={`space-y-2 rounded-lg transition-colors ${
+            isOver ? "ring-2 ring-[var(--color-accent)] ring-offset-2" : ""
+          } ${
+            !isMain && group.slots.length === 0
+              ? "border border-dashed border-[var(--color-border)] p-3"
+              : ""
+          }`}
+        >
+          {group.slots.map((slot, index) => (
+            <SortableSlot
+              key={slot.id}
+              slot={slot}
+              index={baseIndex + index}
+              seconds={durations[slot.song_id] ?? getSongSeconds(slot.song_id)}
+              onDurationChange={(s) => onDurationChange(slot.song_id, s)}
+              onRemove={() => removeSong(slot.id)}
+              onUpdateSlot={(updates) => updateSlot(slot.id, updates)}
+            />
+          ))}
+          {!isMain && group.slots.length === 0 && (
+            <p className='text-[11px] text-[var(--color-ink-muted)] text-center py-1'>
+              Drag songs here
+            </p>
+          )}
+        </div>
+      </SortableContext>
     </div>
   );
 }
