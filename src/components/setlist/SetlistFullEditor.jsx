@@ -32,6 +32,7 @@ import {
   transposeParsedContent,
 } from "../../lib/transposition";
 import { cleanSongTitle } from "../../lib/ingestion";
+import { orderSlotsForExport } from "../../lib/setlistSegments";
 import { SingleSongForColumn } from "../song/SongRenderer";
 
 // Must match SetlistView.jsx PDF export constants exactly
@@ -143,6 +144,7 @@ async function computePageLayout(editedSlots) {
           targetKey={slot._displayKey}
           keyLabel={slot._keyLabel}
           songNumber={globalIdx + 1}
+          segmentLabel={slot._segmentLabel}
         />,
       );
     });
@@ -221,7 +223,7 @@ export default function SetlistFullEditor({
   exportingDocx,
 }) {
   const [editedSlots, setEditedSlots] = useState(() =>
-    slots
+    orderSlotsForExport(slots)
       .filter((s) => s.song)
       .map((slot) => {
         const { shapeSemitones, shapeKey, keyLabel, displayKey } =
@@ -235,6 +237,7 @@ export default function SetlistFullEditor({
           ...slot,
           _keyLabel: keyLabel,
           _displayKey: displayKey || slot.song?.original_key || "",
+          _segmentLabel: slot.segmentLabel || null,
           sections: parsedContentToSections(content),
         };
       }),
@@ -593,6 +596,23 @@ function EditableSongContent({
     <div>
       {/* Song header, matches PrintSongHeader exactly */}
       <div style={{ marginBottom: "8px" }}>
+        {slot._segmentLabel && (
+          <span
+            style={{
+              fontSize: "19px",
+              fontWeight: "700",
+              color: "#000000",
+              display: "block",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              borderBottom: "1px solid #000000",
+              marginBottom: "6px",
+              paddingBottom: "2px",
+            }}
+          >
+            {slot._segmentLabel}
+          </span>
+        )}
         <span
           style={{
             fontSize: "19px",
