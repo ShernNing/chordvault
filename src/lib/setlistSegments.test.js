@@ -78,6 +78,26 @@ describe('computeSegmentDrop', () => {
     expect(r.changedSegment).toBe(false)
   })
 
+  it('reorders DOWNWARD within a group with arrayMove semantics (lands after over)', () => {
+    const s = [slot('a'), slot('b'), slot('c'), slot('d')]
+    // drag a down onto b → a lands AFTER b, not before
+    expect(computeSegmentDrop(s, 'a', 'b').orderedIds).toEqual(['b', 'a', 'c', 'd'])
+    // drag a all the way down onto d → a lands last
+    expect(computeSegmentDrop(s, 'a', 'd').orderedIds).toEqual(['b', 'c', 'd', 'a'])
+  })
+
+  it('reorders UPWARD within a group with arrayMove semantics', () => {
+    const s = [slot('a'), slot('b'), slot('c'), slot('d')]
+    expect(computeSegmentDrop(s, 'd', 'b').orderedIds).toEqual(['a', 'd', 'b', 'c'])
+  })
+
+  it('moves a row to the end when dropped on its own group zone', () => {
+    const s = [slot('a'), slot('b'), slot('c')]
+    const r = computeSegmentDrop(s, 'a', 'segzone:main')
+    expect(r.orderedIds).toEqual(['b', 'c', 'a'])
+    expect(r.changedSegment).toBe(false)
+  })
+
   it('moves a row into a new segment when dropped on that segment\'s zone', () => {
     const r = computeSegmentDrop(slots, 'a', 'segzone:communion')
     expect(r.destSegment).toBe('communion')

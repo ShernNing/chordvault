@@ -56,28 +56,45 @@ export function zoneId(segmentKey) {
 
 // Compute the new global slot-id order and destination segment after a drop.
 // Pure: callers persist the result via reorder()/updateSlot().
+//
+// Same-segment reorders use arrayMove semantics (identical to @dnd-kit's
+// sortable arrayMove) so the drop matches what verticalListSortingStrategy
+// animates — critically, downward drags land the row *after* the over-row.
+// Cross-segment moves remove the row from its source group and insert it into
+// the destination group before the over-row (or append when dropped on a zone).
 export function computeSegmentDrop(slots, activeId, overId) {
   const active = (slots || []).find((s) => s.id === activeId)
   if (!active) return null
+  const activeSegment = segmentOf(active)
   const destSegment = resolveSegment(overId, slots)
 
-  // Build per-segment id arrays with the active row pulled out.
+  // Per-segment id arrays, active kept in place for now.
   const groups = new Map(SETLIST_SEGMENTS.map((s) => [s.key, []]))
-  for (const s of slots) {
-    if (s.id === activeId) continue
-    groups.get(segmentOf(s)).push(s.id)
-  }
+  for (const s of slots) groups.get(segmentOf(s)).push(s.id)
 
   const destArr = groups.get(destSegment)
   if (!destArr) return null // overId encoded an unknown segment — ignore the drop
-  let idx = destArr.indexOf(overId)
-  if (idx === -1) idx = destArr.length // dropped on the zone, not a row → append
-  destArr.splice(idx, 0, activeId)
+
+  if (destSegment === activeSegment) {
+    // Same group: arrayMove(from, to). `to` is the over-row's index in the
+    // still-intact array; splice-out then splice-in reproduces arrayMove exactly.
+    const from = destArr.indexOf(activeId)
+    let to = destArr.indexOf(overId)
+    if (to === -1) to = destArr.length - 1 // dropped on own zone → move to end
+    destArr.splice(to, 0, destArr.splice(from, 1)[0])
+  } else {
+    // Cross group: pull active out of its source, insert into dest before over.
+    const srcArr = groups.get(activeSegment)
+    srcArr.splice(srcArr.indexOf(activeId), 1)
+    let idx = destArr.indexOf(overId)
+    if (idx === -1) idx = destArr.length // dropped on the zone, not a row → append
+    destArr.splice(idx, 0, activeId)
+  }
 
   const orderedIds = SETLIST_SEGMENTS.flatMap((s) => groups.get(s.key))
   return {
     orderedIds,
     destSegment,
-    changedSegment: destSegment !== segmentOf(active),
+    changedSegment: destSegment !== activeSegment,
   }
 }

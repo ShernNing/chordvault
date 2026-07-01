@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import { useParams, Link } from "react-router-dom";
 import {
   SETLIST_SEGMENTS,
+  segmentOf,
   groupSlotsBySegment,
   computeSegmentDrop,
   zoneId,
@@ -195,10 +196,17 @@ export default function SetlistView() {
     const result = computeSegmentDrop(slots, active.id, over.id);
     if (!result) return;
     const { orderedIds, destSegment, changedSegment } = result;
-    if (changedSegment) {
-      await moveSlotToSegment(active.id, destSegment, orderedIds);
-    } else {
-      await reorder(orderedIds);
+    try {
+      if (changedSegment) {
+        await moveSlotToSegment(active.id, destSegment, orderedIds);
+      } else {
+        await reorder(orderedIds);
+      }
+    } catch (e) {
+      // e.g. the `segment` column not yet migrated on the live DB — resync so the
+      // UI never shows a half-applied drag.
+      toast.error(e.message || "Could not move song — reloading");
+      reload();
     }
   };
 
@@ -759,7 +767,7 @@ function baseIndexFor(slots, segmentKey) {
   let n = 0;
   for (const seg of SETLIST_SEGMENTS) {
     if (seg.key === segmentKey) break;
-    n += slots.filter((s) => (s.segment ?? null) === seg.key).length;
+    n += slots.filter((s) => segmentOf(s) === seg.key).length;
   }
   return n;
 }
@@ -871,8 +879,11 @@ function SortableSlot({
 
   const songHref = (() => {
     const params = new URLSearchParams();
-    // Only add params when the slot overrides the song's stored key/capo.
-    if (slot.chosen_key && displayKey) params.set("key", displayKey);
+    // Only add params when the slot actually overrides the song's stored key/capo.
+    // Gate on the live displayKey (not the possibly-stale slot.chosen_key) so
+    // clearing the key back to Original immediately stops forcing an override.
+    if (displayKey && displayKey !== slot.song?.original_key)
+      params.set("key", displayKey);
     if (localCapo > 0) params.set("capo", String(localCapo));
     const qs = params.toString();
     return `/songs/${slot.song_id}${qs ? `?${qs}` : ""}`;
