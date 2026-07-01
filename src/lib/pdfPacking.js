@@ -62,14 +62,23 @@ export function packPages(items, { pageHeight = 1087, gap = 16 } = {}) {
     openCols = null
   }
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
     if (!page) startPage()
 
     if (item.isDivider) {
       closeCols()
-      const needNewPage = item.pageBreak
-        ? page.bands.length > 0
-        : item.height > remaining() && page.bands.length > 0
+      // Keep a heading with the song it introduces: a flowing divider starts a
+      // new page when the heading AND its next song don't both fit the remaining
+      // height (otherwise the heading would be stranded at the bottom of a page
+      // while its songs flow onto the next one). A page-break divider always
+      // starts a new page. Never emit a leading blank page (page.bands empty).
+      const nextItem = items[i + 1]
+      const nextH = nextItem && !nextItem.isDivider ? nextItem.height : 0
+      const blockH = item.height + (nextH > 0 ? gap + nextH : 0)
+      const needNewPage =
+        page.bands.length > 0 &&
+        (item.pageBreak || blockH > remaining())
       if (needNewPage) startPage()
       page.usedAbove += (page.usedAbove > 0 ? gap : 0) + item.height
       page.bands.push({ type: 'heading', label: item.label })

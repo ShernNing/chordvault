@@ -192,6 +192,20 @@ describe('packPages', () => {
     expect(ids(pages[0].bands[1].left)).toEqual([1])
   })
 
+  it('keeps a flowing divider with its next song (no orphaned heading)', () => {
+    // full 900 -> remaining 84. The 40px heading fits alone, but heading + its
+    // song (300) do not, so the heading must travel to the next page WITH the
+    // song rather than being stranded at the bottom of page 1.
+    const pages = packPages(
+      [wide(1, 900), heading('Communion', 40), narrow(2, 300)],
+      OPTS,
+    )
+    expect(pages).toHaveLength(2)
+    expect(pages[0].bands.map((b) => b.type)).toEqual(['full'])
+    expect(pages[1].bands[0]).toEqual({ type: 'heading', label: 'Communion' })
+    expect(ids(pages[1].bands[1].left)).toEqual([2])
+  })
+
   it('pushes a flowing divider to the next page when its heading does not fit', () => {
     // left col fills to 966; a 40px heading + gap does not fit remaining ~18.
     const pages = packPages(
@@ -204,10 +218,11 @@ describe('packPages', () => {
     expect(ids(pages[1].bands[1].left)).toEqual([3])
   })
 
-  // Stability invariant: across many randomized setlists, no page may pack a
-  // band taller than the page. The single allowed exception is a page holding
-  // exactly one over-tall full song (a song simply larger than a page must
-  // overflow somewhere, but it sits alone and eats only blank space).
+  // Stability invariant: across many randomized setlists (songs AND dividers),
+  // no page may pack a band stack taller than the page. The single allowed
+  // exception is a page holding exactly one over-tall full song (a song simply
+  // larger than a page must overflow somewhere, but it sits alone and eats only
+  // blank space). Also verifies input order is preserved end to end.
   it('never packs bands past the page height (randomized invariant)', () => {
     const { pageHeight, gap } = OPTS
     // Deterministic PRNG so failures reproduce.
@@ -218,17 +233,20 @@ describe('packPages', () => {
     }
     const colH = (arr) =>
       arr.reduce((sum, it, i) => sum + it.height + (i > 0 ? gap : 0), 0)
-    const bandH = (b) =>
-      b.type === 'full'
-        ? b.item.height
-        : Math.max(colH(b.left), colH(b.right))
 
-    for (let trial = 0; trial < 2000; trial++) {
+    for (let trial = 0; trial < 3000; trial++) {
       const n = 1 + Math.floor(rand() * 14)
       const items = []
+      const headingH = new Map() // label -> height, to score heading bands
       for (let i = 0; i < n; i++) {
         const r = rand()
-        if (r < 0.18) {
+        if (r < 0.15) {
+          // divider, unique label, occasionally forcing a page break
+          const label = `H${i}`
+          const h = 30 + Math.floor(rand() * 30)
+          headingH.set(label, h)
+          items.push(heading(label, h, rand() < 0.3))
+        } else if (r < 0.3) {
           // wide song, occasionally taller than a page (allowed to overflow)
           items.push(wide(i, 120 + Math.floor(rand() * 1200)))
         } else {
@@ -236,21 +254,33 @@ describe('packPages', () => {
           items.push(narrow(i, 120 + Math.floor(rand() * (pageHeight - 120))))
         }
       }
+      const bandH = (b) =>
+        b.type === 'full'
+          ? b.item.height
+          : b.type === 'heading'
+            ? headingH.get(b.label)
+            : Math.max(colH(b.left), colH(b.right))
+
       const pages = packPages(items, OPTS)
 
-      // Order preservation: flattening every page (full item, then each cols
-      // band left-then-right) must reproduce the input id sequence.
+      // Order preservation: flattening every page (full item / heading label /
+      // each cols band left-then-right) must reproduce the input sequence.
       const flat = []
       for (const page of pages) {
         for (const b of page.bands) {
           if (b.type === 'full') flat.push(b.item.id)
+          else if (b.type === 'heading') flat.push(b.label)
           else {
             b.left.forEach((it) => flat.push(it.id))
             b.right.forEach((it) => flat.push(it.id))
           }
         }
       }
-      expect(flat).toEqual(items.map((it) => it.id))
+      const expected = items.map((it) => (it.isDivider ? it.label : it.id))
+      expect(flat).toEqual(expected)
+
+      // No emitted page may be blank.
+      for (const page of pages) expect(page.bands.length).toBeGreaterThan(0)
 
       for (const page of pages) {
         const total =
