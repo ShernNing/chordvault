@@ -111,6 +111,7 @@ export default function SetlistView() {
     removeSong,
     updateSlot,
     reorder,
+    moveSlotToSegment,
     rename,
   } = useSetlist(id);
   const { songs: allSongs } = useSongs();
@@ -193,8 +194,11 @@ export default function SetlistView() {
     const result = computeSegmentDrop(slots, active.id, over.id);
     if (!result) return;
     const { orderedIds, destSegment, changedSegment } = result;
-    if (changedSegment) await updateSlot(active.id, { segment: destSegment });
-    await reorder(orderedIds);
+    if (changedSegment) {
+      await moveSlotToSegment(active.id, destSegment, orderedIds);
+    } else {
+      await reorder(orderedIds);
+    }
   };
 
   const filteredSongs = allSongs.filter((song) => {

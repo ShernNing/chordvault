@@ -396,13 +396,24 @@ export function useSetlist(id) {
     await refresh()
   }, [id, refresh])
 
+  // Cross-segment drag: change one slot's segment AND reorder all positions in a
+  // single refetch. The two writes touch disjoint columns (segment vs position),
+  // so they run in parallel; one refresh() at the end avoids a double-render flicker.
+  const moveSlotToSegment = useCallback(async (slotId, segment, orderedSlotIds) => {
+    await Promise.all([
+      supabaseSetlistOps.updateSongSlot(slotId, { segment }),
+      supabaseSetlistOps.reorderSongs(id, orderedSlotIds),
+    ])
+    await refresh()
+  }, [id, refresh])
+
   const rename = useCallback(async (name) => {
     await supabaseSetlistOps.update(id, { name })
     await refresh()
     setlistsResource.invalidate() // name shown in the list — refetch it next time
   }, [id, refresh])
 
-  return { setlist, loading: pending && !setlist, error, reload: () => load(true), addSong, removeSong, updateSlot, reorder, rename }
+  return { setlist, loading: pending && !setlist, error, reload: () => load(true), addSong, removeSong, updateSlot, reorder, moveSlotToSegment, rename }
 }
 
 // ─── Keyboard / Pedal Controls ───────────────────────────────────────────────
