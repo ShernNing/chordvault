@@ -80,6 +80,31 @@ describe('packPages', () => {
     expect(ids(cols.left)).toEqual([2])
   })
 
+  it('reflows a right-column narrow song to a new page instead of overflowing', () => {
+    // full 300 -> remaining 684 = band budget. narrow 684 fills the left column
+    // exactly; narrow 700 cannot fit the left OR the right column within 684, so
+    // it must move to a fresh page rather than overflow the right column.
+    const pages = packPages([wide(1, 300), narrow(2, 684), narrow(3, 700)], OPTS)
+    expect(pages).toHaveLength(2)
+    expect(pages[0].bands.map((b) => b.type)).toEqual(['full', 'cols'])
+    expect(ids(pages[0].bands[1].left)).toEqual([2])
+    expect(pages[0].bands[1].right).toEqual([])
+    expect(pages[1].bands[0].type).toBe('cols')
+    expect(ids(pages[1].bands[0].left)).toEqual([3])
+  })
+
+  it('pushes a narrow song to a new page when it does not fit below a tall full band', () => {
+    // full 900 leaves only ~84px remaining; narrow 300 cannot fit and must move
+    // to a fresh full-height page instead of overflowing the shared page.
+    const pages = packPages([wide(1, 900), narrow(2, 300)], OPTS)
+    expect(pages).toHaveLength(2)
+    expect(pages[0].bands).toHaveLength(1)
+    expect(pages[0].bands[0].type).toBe('full')
+    expect(pages[0].bands[0].item.id).toBe(1)
+    expect(pages[1].bands[0].type).toBe('cols')
+    expect(ids(pages[1].bands[0].left)).toEqual([2])
+  })
+
   it('starts a new page when both columns are full', () => {
     // Each 400 tall; left: 400+16+400=816 (fits 2), third would be 1232 > 1000.
     const pages = packPages(
@@ -177,5 +202,66 @@ describe('packPages', () => {
     expect(ids(pages[0].bands[0].left)).toEqual([1, 2])
     expect(pages[1].bands[0]).toEqual({ type: 'heading', label: 'Communion' })
     expect(ids(pages[1].bands[1].left)).toEqual([3])
+  })
+
+  // Stability invariant: across many randomized setlists, no page may pack a
+  // band taller than the page. The single allowed exception is a page holding
+  // exactly one over-tall full song (a song simply larger than a page must
+  // overflow somewhere, but it sits alone and eats only blank space).
+  it('never packs bands past the page height (randomized invariant)', () => {
+    const { pageHeight, gap } = OPTS
+    // Deterministic PRNG so failures reproduce.
+    let seed = 0x9e3779b9
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0
+      return seed / 0x100000000
+    }
+    const colH = (arr) =>
+      arr.reduce((sum, it, i) => sum + it.height + (i > 0 ? gap : 0), 0)
+    const bandH = (b) =>
+      b.type === 'full'
+        ? b.item.height
+        : Math.max(colH(b.left), colH(b.right))
+
+    for (let trial = 0; trial < 2000; trial++) {
+      const n = 1 + Math.floor(rand() * 14)
+      const items = []
+      for (let i = 0; i < n; i++) {
+        const r = rand()
+        if (r < 0.18) {
+          // wide song, occasionally taller than a page (allowed to overflow)
+          items.push(wide(i, 120 + Math.floor(rand() * 1200)))
+        } else {
+          // narrow song: measurement guarantees height <= pageHeight
+          items.push(narrow(i, 120 + Math.floor(rand() * (pageHeight - 120))))
+        }
+      }
+      const pages = packPages(items, OPTS)
+
+      // Order preservation: flattening every page (full item, then each cols
+      // band left-then-right) must reproduce the input id sequence.
+      const flat = []
+      for (const page of pages) {
+        for (const b of page.bands) {
+          if (b.type === 'full') flat.push(b.item.id)
+          else {
+            b.left.forEach((it) => flat.push(it.id))
+            b.right.forEach((it) => flat.push(it.id))
+          }
+        }
+      }
+      expect(flat).toEqual(items.map((it) => it.id))
+
+      for (const page of pages) {
+        const total =
+          page.bands.reduce((s, b) => s + bandH(b), 0) +
+          (page.bands.length - 1) * gap
+        if (total <= pageHeight) continue
+        // Only tolerated overflow: a lone over-tall full song.
+        expect(page.bands).toHaveLength(1)
+        expect(page.bands[0].type).toBe('full')
+        expect(page.bands[0].item.height).toBeGreaterThan(pageHeight)
+      }
+    }
   })
 })

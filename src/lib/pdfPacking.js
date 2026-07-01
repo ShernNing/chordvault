@@ -76,11 +76,28 @@ export function packPages(items, { pageHeight = 1087, gap = 16 } = {}) {
     } else if (item.fitsHalf) {
       if (!openCols) openColsBand()
       if (!placeNarrow(openCols, item, gap)) {
-        // Both columns of the open band are full — flush it and start fresh.
-        closeCols()
-        startPage()
-        openColsBand()
-        placeNarrow(openCols, item, gap) // first item on a fresh band always lands
+        // The song does not fit either column of the current band (its column
+        // budget = the page height that was still free when the band opened).
+        // If this page already holds anything, retry on a fresh full-height
+        // page where the whole page height is available.
+        const pageHasContent =
+          page.bands.length > 0 ||
+          openCols.left.length > 0 ||
+          openCols.right.length > 0
+        if (pageHasContent) {
+          closeCols()
+          startPage()
+          openColsBand()
+        }
+        if (!placeNarrow(openCols, item, gap)) {
+          // Still doesn't fit an entirely empty page — i.e. the song is taller
+          // than a full page. Measurement makes this impossible for real songs
+          // (fitsHalf requires height <= pageHeight), but guard it anyway: place
+          // it alone so its unavoidable overflow only spills into blank space,
+          // never on top of the next song.
+          openCols.left.push(item)
+          openCols.leftH = item.height
+        }
       }
     } else {
       closeCols()
@@ -101,25 +118,27 @@ export function packPages(items, { pageHeight = 1087, gap = 16 } = {}) {
 
 /**
  * Waterfall a narrow song into an open cols band: fill the left column until the
- * next song would exceed the band height, then the right column. The first song
- * in either empty column is always accepted (prevents an oversized song looping
- * forever). Returns false only when both columns are non-empty and full.
+ * next song would exceed the band's column budget (`band.avail`), then spill to
+ * the right column under the same budget. Never places a song that would push a
+ * column past `avail`, so a band can never overflow the space it was opened in.
+ * Returns false when neither column has room; the caller then reflows onto a
+ * fresh page (see packPages).
  */
 function placeNarrow(band, item, gap) {
   const h = item.height
   if (!band.useRight) {
-    const next = band.leftH + (band.leftH > 0 ? gap : 0) + h
-    if (band.leftH === 0 || next <= band.avail) {
+    const next = band.leftH === 0 ? h : band.leftH + gap + h
+    if (next <= band.avail) {
       band.left.push(item)
-      band.leftH = band.leftH === 0 ? h : next
+      band.leftH = next
       return true
     }
     band.useRight = true
   }
-  const next = band.rightH + (band.rightH > 0 ? gap : 0) + h
-  if (band.rightH === 0 || next <= band.avail) {
+  const next = band.rightH === 0 ? h : band.rightH + gap + h
+  if (next <= band.avail) {
     band.right.push(item)
-    band.rightH = band.rightH === 0 ? h : next
+    band.rightH = next
     return true
   }
   return false
