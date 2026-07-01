@@ -428,7 +428,9 @@ export default function SetlistView() {
   const handleExportDocx = async (slotsOverride) => {
     setExportingDocx(true);
     try {
-      const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
+      const exportSlots = orderSlotsForExport(
+        Array.isArray(slotsOverride) ? slotsOverride : slots,
+      );
       await exportSetlistToDocx(
         setlist.name,
         exportSlots.filter((s) => s.song),
@@ -450,6 +452,7 @@ export default function SetlistView() {
             semitones: shapeSemitones,
             targetKey: shapeKey,
             keyLabel,
+            segmentLabel: slot.segmentLabel || null,
           };
         },
       );

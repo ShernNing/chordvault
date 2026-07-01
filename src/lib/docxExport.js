@@ -21,7 +21,7 @@ function stripBlanks(lines) {
   })
 }
 
-function songToParagraphs(song, semitones, targetKey, keyLabel, songNumber) {
+function songToParagraphs(song, semitones, targetKey, keyLabel, songNumber, segmentLabel) {
   const raw = semitones !== 0
     ? transposeParsedContent(song.parsed_content, semitones, targetKey)
     : song.parsed_content
@@ -34,12 +34,18 @@ function songToParagraphs(song, semitones, targetKey, keyLabel, songNumber) {
     keyLabel ? `(${keyLabel})` : null,
   ].filter(Boolean).join(' ')
 
-  const paragraphs = [
-    new Paragraph({
-      children: [new TextRun({ text: titleParts, bold: true, size: 28, font: 'Calibri' })],
-      spacing: { after: 120 },
-    }),
-  ]
+  const paragraphs = []
+  if (segmentLabel) {
+    // Segment header, same point-size (28 = 14pt) as the title run.
+    paragraphs.push(new Paragraph({
+      children: [new TextRun({ text: segmentLabel.toUpperCase(), bold: true, size: 28, font: 'Calibri' })],
+      spacing: { after: 80 },
+    }))
+  }
+  paragraphs.push(new Paragraph({
+    children: [new TextRun({ text: titleParts, bold: true, size: 28, font: 'Calibri' })],
+    spacing: { after: 120 },
+  }))
 
   for (const line of content) {
     if (line.type === 'blank') {
@@ -87,12 +93,12 @@ export async function exportSetlistToDocx(setlistName, slots, getSongData) {
   const allParagraphs = []
 
   for (let i = 0; i < slots.length; i++) {
-    const { song, semitones, targetKey, keyLabel } = getSongData(slots[i])
+    const { song, semitones, targetKey, keyLabel, segmentLabel } = getSongData(slots[i])
     if (!song) continue
     if (allParagraphs.length > 0) {
       allParagraphs.push(new Paragraph({ pageBreakBefore: true, children: [] }))
     }
-    allParagraphs.push(...songToParagraphs(song, semitones, targetKey, keyLabel, i + 1))
+    allParagraphs.push(...songToParagraphs(song, semitones, targetKey, keyLabel, i + 1, segmentLabel))
   }
 
   const doc = new Document({
