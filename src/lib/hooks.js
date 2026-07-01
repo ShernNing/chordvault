@@ -381,6 +381,11 @@ export function useSetlist(id) {
     await refresh()
   }, [id, refresh])
 
+  const addDivider = useCallback(async (label, pageBreak = false) => {
+    await supabaseSetlistOps.addDivider(id, label, pageBreak)
+    await refresh()
+  }, [id, refresh])
+
   const removeSong = useCallback(async (slotId) => {
     await supabaseSetlistOps.removeSong(slotId)
     await refresh()
@@ -392,6 +397,27 @@ export function useSetlist(id) {
   }, [refresh])
 
   const reorder = useCallback(async (orderedSlotIds) => {
+    const r = setlistResource(id)
+    const current = r.getSnapshot()
+    // Optimistic: reorder the cached snapshot immediately so the list settles
+    // the moment the user drops, then persist in the background.
+    if (current?.songs) {
+      const byId = new Map(current.songs.map((s) => [s.id, s]))
+      const songs = orderedSlotIds
+        .map((sid, position) => {
+          const s = byId.get(sid)
+          return s ? { ...s, position } : null
+        })
+        .filter(Boolean)
+      r.set({ ...current, songs })
+      try {
+        await supabaseSetlistOps.reorderSongs(id, orderedSlotIds)
+      } catch (e) {
+        r.set(current) // rollback on failure
+        throw e
+      }
+      return
+    }
     await supabaseSetlistOps.reorderSongs(id, orderedSlotIds)
     await refresh()
   }, [id, refresh])
@@ -402,7 +428,7 @@ export function useSetlist(id) {
     setlistsResource.invalidate() // name shown in the list — refetch it next time
   }, [id, refresh])
 
-  return { setlist, loading: pending && !setlist, error, reload: () => load(true), addSong, removeSong, updateSlot, reorder, rename }
+  return { setlist, loading: pending && !setlist, error, reload: () => load(true), addSong, addDivider, removeSong, updateSlot, reorder, rename }
 }
 
 // ─── Keyboard / Pedal Controls ───────────────────────────────────────────────

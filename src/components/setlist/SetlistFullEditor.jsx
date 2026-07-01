@@ -34,10 +34,16 @@ import {
 import { cleanSongTitle } from "../../lib/ingestion";
 import { SingleSongForColumn } from "../song/SongRenderer";
 
-// Must match SetlistView.jsx PDF export constants exactly
 const MAX_HALF_COL_CHARS = 45;
 const PAGE_COL_HEIGHT = 1087; // A4 (1123px) − 12px top − 24px bottom padding
 const SONG_GAP = 16;
+
+// NOTE: computePageLayout below is an APPROXIMATE inline preview only. The real
+// PDF export uses packPages() (src/lib/pdfPacking.js), which supports mixed
+// bands (a wide song stacked below a 2-column region) and segment-divider
+// headings that this preview does not render. Segment dividers are filtered out
+// before this runs; per-segment numbering and mixed-layout preview parity are a
+// tracked follow-up.
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -221,31 +227,35 @@ export default function SetlistFullEditor({
   exportingDocx,
 }) {
   const [editedSlots, setEditedSlots] = useState(() =>
-    slots
-      .filter((s) => s.song)
-      .map((slot) => {
-        const { shapeSemitones, shapeKey, keyLabel, displayKey } =
-          getTransposeData(slot);
-        const raw = slot.song.parsed_content || [];
-        const content =
-          shapeSemitones !== 0
-            ? transposeParsedContent(raw, shapeSemitones, shapeKey)
-            : raw;
-        return {
-          ...slot,
-          _keyLabel: keyLabel,
-          _displayKey: displayKey || slot.song?.original_key || "",
-          sections: parsedContentToSections(content),
-        };
-      }),
+    slots.map((slot) => {
+      // Segment dividers (no song) pass through untouched so they survive the
+      // editor's export; they aren't shown in the inline page preview.
+      if (!slot.song) return { ...slot, _divider: true };
+      const { shapeSemitones, shapeKey, keyLabel, displayKey } =
+        getTransposeData(slot);
+      const raw = slot.song.parsed_content || [];
+      const content =
+        shapeSemitones !== 0
+          ? transposeParsedContent(raw, shapeSemitones, shapeKey)
+          : raw;
+      return {
+        ...slot,
+        _keyLabel: keyLabel,
+        _displayKey: displayKey || slot.song?.original_key || "",
+        sections: parsedContentToSections(content),
+      };
+    }),
   );
 
   const [pages, setPages] = useState(null);
   const [layoutBusy, setLayoutBusy] = useState(true);
   const [clipboard, setClipboard] = useState(null);
 
+  // Divider rows aren't part of the inline song page preview.
+  const songSlots = editedSlots.filter((s) => !s._divider);
+
   useEffect(() => {
-    computePageLayout(editedSlots)
+    computePageLayout(songSlots)
       .then(setPages)
       .finally(() => setLayoutBusy(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: layout computed once on open, not on every editedSlots change
@@ -253,7 +263,7 @@ export default function SetlistFullEditor({
 
   const refreshLayout = async () => {
     setLayoutBusy(true);
-    const p = await computePageLayout(editedSlots);
+    const p = await computePageLayout(songSlots);
     setPages(p);
     setLayoutBusy(false);
   };
@@ -333,16 +343,20 @@ export default function SetlistFullEditor({
 
   const buildExportSlots = useCallback(
     () =>
-      editedSlots.map((slot) => ({
-        ...slot,
-        chosen_key: null,
-        capo: 0,
-        song: {
-          ...slot.song,
-          original_key: slot._displayKey,
-          parsed_content: sectionsToParsedContent(slot.sections),
-        },
-      })),
+      editedSlots.map((slot) =>
+        slot._divider
+          ? slot // segment dividers pass straight through to the exporter
+          : {
+              ...slot,
+              chosen_key: null,
+              capo: 0,
+              song: {
+                ...slot.song,
+                original_key: slot._displayKey,
+                parsed_content: sectionsToParsedContent(slot.sections),
+              },
+            },
+      ),
     [editedSlots],
   );
 

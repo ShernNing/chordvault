@@ -597,7 +597,12 @@ function PrintSection({ section, sectionKey }) {
   );
 }
 
-export function PrintableSongSheet({
+// A full-width song sheet with no page wrapper. Splits into two internal
+// columns when the song has more non-blank lines than the threshold. Used both
+// as a `full` band inside PrintPage and (wrapped) as a standalone sheet.
+export const PRINT_TWO_COL_LINE_THRESHOLD = 45;
+
+export function SongSheetBody({
   song,
   semitones,
   targetKey,
@@ -613,11 +618,11 @@ export function PrintableSongSheet({
   const nonBlankLines = (content || []).filter(
     (l) => l.type !== "blank",
   ).length;
-  const useColumns = nonBlankLines > 45;
+  const useColumns = nonBlankLines > PRINT_TWO_COL_LINE_THRESHOLD;
 
   if (!useColumns) {
     return (
-      <div style={PRINT_WRAPPER_STYLE}>
+      <>
         <PrintSongHeader
           song={song}
           keyLabel={keyLabel}
@@ -626,13 +631,13 @@ export function PrintableSongSheet({
         {sections.map((s, si) => (
           <PrintSection key={si} section={s} sectionKey={si} />
         ))}
-      </div>
+      </>
     );
   }
 
   const { left, right } = _splitPrintSections(sections);
   return (
-    <div style={PRINT_WRAPPER_STYLE}>
+    <>
       <PrintSongHeader
         song={song}
         keyLabel={keyLabel}
@@ -650,6 +655,14 @@ export function PrintableSongSheet({
           ))}
         </div>
       </div>
+    </>
+  );
+}
+
+export function PrintableSongSheet(props) {
+  return (
+    <div style={PRINT_WRAPPER_STYLE}>
+      <SongSheetBody {...props} />
     </div>
   );
 }
@@ -724,39 +737,69 @@ export function SingleSongForColumn({
   );
 }
 
-// Page with bin-packed songs in up to 2 columns, left filled first
-export function MultiSongPage({ leftColumn, rightColumn }) {
-  const hasTwoColumns = rightColumn && rightColumn.length > 0;
+// A `cols` band: narrow songs in up to two half-width columns, left filled
+// first. Renders a single column (no flex split) when the right column is empty.
+function ColsBand({ left, right }) {
+  const hasTwoColumns = right && right.length > 0;
+  const columnStyle = {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+  };
   return (
-    <div style={PRINT_WRAPPER_STYLE}>
-      <div style={hasTwoColumns ? { display: "flex", gap: "32px" } : {}}>
-        <div
-          style={{
-            ...(hasTwoColumns ? { flex: 1, minWidth: 0 } : {}),
-            display: "flex",
-            flexDirection: "column",
-            gap: "16px",
-          }}
-        >
-          {leftColumn.map((item, i) => (
+    <div style={hasTwoColumns ? { display: "flex", gap: "32px" } : {}}>
+      <div style={{ ...(hasTwoColumns ? { flex: 1 } : {}), ...columnStyle }}>
+        {left.map((item, i) => (
+          <SingleSongForColumn key={i} {...item} />
+        ))}
+      </div>
+      {hasTwoColumns && (
+        <div style={{ flex: 1, ...columnStyle }}>
+          {right.map((item, i) => (
             <SingleSongForColumn key={i} {...item} />
           ))}
         </div>
-        {hasTwoColumns && (
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-            }}
-          >
-            {rightColumn.map((item, i) => (
-              <SingleSongForColumn key={i} {...item} />
-            ))}
-          </div>
-        )}
+      )}
+    </div>
+  );
+}
+
+// A segment divider heading printed above the songs of a new segment.
+export function SegmentHeading({ label }) {
+  return (
+    <div
+      style={{
+        fontFamily: "Arial, sans-serif",
+        fontSize: "18px",
+        fontWeight: "700",
+        color: "#000000",
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
+        borderBottom: "2px solid #000000",
+        paddingBottom: "4px",
+        marginTop: "4px",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+// One printed A4 page: an ordered vertical stack of bands from packPages().
+// `cols` bands render as two-column regions; `full` bands render one wide song;
+// `heading` bands render a segment divider heading.
+export function PrintPage({ bands }) {
+  return (
+    <div style={PRINT_WRAPPER_STYLE}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        {bands.map((band, bi) => {
+          if (band.type === "heading")
+            return <SegmentHeading key={bi} label={band.label} />;
+          if (band.type === "full")
+            return <SongSheetBody key={bi} {...band.item} />;
+          return <ColsBand key={bi} left={band.left} right={band.right} />;
+        })}
       </div>
     </div>
   );

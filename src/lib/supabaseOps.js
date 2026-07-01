@@ -168,6 +168,8 @@ export const supabaseSetlistOps = {
     if (e2) throw e2
     const songs = await Promise.all(
       (slots ?? []).map(async slot => {
+        // Divider rows have no song_id — skip the lookup, keep the row as-is.
+        if (!slot.song_id) return { ...slot, song: null }
         const { data: song } = await supabase.from('songs').select('*').eq('id', slot.song_id).single()
         return { ...slot, song }
       })
@@ -209,6 +211,18 @@ export const supabaseSetlistOps = {
     const { data, error } = await supabase
       .from('setlist_songs')
       .insert({ setlist_id: setlistId, song_id: songId, position, chosen_key: chosenKey, capo })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  async addDivider(setlistId, label, pageBreak = false) {
+    const { data: existing } = await supabase.from('setlist_songs').select('id').eq('setlist_id', setlistId)
+    const position = (existing ?? []).length
+    const { data, error } = await supabase
+      .from('setlist_songs')
+      .insert({ setlist_id: setlistId, song_id: null, label, page_break: pageBreak, position })
       .select()
       .single()
     if (error) throw error
