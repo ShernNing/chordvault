@@ -124,20 +124,24 @@ export default function SongView() {
     return extractChords(content);
   }, [song?.parsed_content, song?.original_key, transpose.semitones]);
 
-  // When navigated from a setlist with ?key=/?capo=, open in that key/capo once
-  // per navigation. Overrides the stored transpose for this visit; the user can
-  // still transpose freely afterward without it snapping back.
+  // When navigated from a setlist with ?key= and/or ?capo=, open in that key/capo
+  // once per navigation. Writes (and persists) the transpose for this song; the
+  // user can still transpose freely afterward without it snapping back. A slot may
+  // override capo alone (key left at original), so handle capo independently of key.
   useEffect(() => {
-    if (!song?.original_key) return;
+    if (!song) return;
     const keyParam = searchParams.get("key");
     const capoParam = searchParams.get("capo");
-    if (!keyParam) return;
-    const sig = `${id}:${keyParam}:${capoParam || 0}`;
+    if (!keyParam && !capoParam) return;
+    const sig = `${id}:${keyParam || ""}:${capoParam || 0}`;
     if (seededKeyRef.current === sig) return; // already applied for this nav
     seededKeyRef.current = sig;
-    const semitones = semitonesFromKeyToKey(song.original_key, keyParam);
+    const semitones =
+      keyParam && song.original_key
+        ? semitonesFromKeyToKey(song.original_key, keyParam)
+        : 0;
     setTranspose({ semitones, capo: Number(capoParam) || 0 });
-  }, [song?.original_key, id, searchParams, setTranspose]);
+  }, [song, id, searchParams, setTranspose]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
