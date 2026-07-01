@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Edit3,
@@ -38,6 +38,7 @@ import {
   getCapoShapeKey,
   transposeParsedContent,
   transposeChord,
+  semitonesFromKeyToKey,
 } from "../lib/transposition";
 import {
   extractChords,
@@ -98,6 +99,8 @@ export default function SongView() {
     semitones: 0,
     capo: 0,
   });
+  const [searchParams] = useSearchParams();
+  const seededKeyRef = useRef(null);
   const [twoColumn, setTwoColumn] = useLocalStorage(`cv-2col-${id}`, "auto");
   const [nashville, setNashville] = useLocalStorage("cv-nashville", false);
   const [bpm, setBpm] = useLocalStorage(`cv-bpm-${id}`, 100);
@@ -120,6 +123,21 @@ export default function SongView() {
         : song.parsed_content;
     return extractChords(content);
   }, [song?.parsed_content, song?.original_key, transpose.semitones]);
+
+  // When navigated from a setlist with ?key=/?capo=, open in that key/capo once
+  // per navigation. Overrides the stored transpose for this visit; the user can
+  // still transpose freely afterward without it snapping back.
+  useEffect(() => {
+    if (!song?.original_key) return;
+    const keyParam = searchParams.get("key");
+    const capoParam = searchParams.get("capo");
+    if (!keyParam) return;
+    const sig = `${id}:${keyParam}:${capoParam || 0}`;
+    if (seededKeyRef.current === sig) return; // already applied for this nav
+    seededKeyRef.current = sig;
+    const semitones = semitonesFromKeyToKey(song.original_key, keyParam);
+    setTranspose({ semitones, capo: Number(capoParam) || 0 });
+  }, [song?.original_key, id, searchParams, setTranspose]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);

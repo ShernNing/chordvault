@@ -858,6 +858,15 @@ function SortableSlot({
     onUpdateSlot({ capo: c });
   };
 
+  const songHref = (() => {
+    const params = new URLSearchParams();
+    // Only add params when the slot overrides the song's stored key/capo.
+    if (slot.chosen_key && displayKey) params.set("key", displayKey);
+    if (localCapo > 0) params.set("capo", String(localCapo));
+    const qs = params.toString();
+    return `/songs/${slot.song_id}${qs ? `?${qs}` : ""}`;
+  })();
+
   return (
     <div
       ref={setNodeRef}
@@ -889,7 +898,7 @@ function SortableSlot({
         <div className='flex items-start justify-between gap-2'>
           <div className='min-w-0'>
             <Link
-              to={`/songs/${slot.song_id}`}
+              to={songHref}
               className='text-sm font-semibold text-[var(--color-ink)] hover:underline truncate block'
             >
               {slot.song?.title || "Unknown song"}
