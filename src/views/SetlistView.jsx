@@ -7,6 +7,7 @@ import {
   groupSlotsBySegment,
   computeSegmentDrop,
   zoneId,
+  orderSlotsForExport,
 } from "../lib/setlistSegments";
 import {
   ArrowLeft,
@@ -220,7 +221,9 @@ export default function SetlistView() {
     try {
       const containers = [];
       const roots = [];
-      const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
+      const exportSlots = orderSlotsForExport(
+        Array.isArray(slotsOverride) ? slotsOverride : slots,
+      );
 
       const PAGE_COL_HEIGHT = 1087; // A4 (1123px) minus 12px top + 24px bottom padding
       const SONG_GAP = 16; // vertical gap between songs in same column
@@ -249,6 +252,7 @@ export default function SetlistView() {
             keyLabel,
             maxChars,
             globalIdx,
+            segmentLabel: slot.segmentLabel || null,
           };
         });
 
@@ -271,6 +275,7 @@ export default function SetlistView() {
               targetKey={d.shapeKey}
               keyLabel={d.keyLabel}
               songNumber={d.globalIdx + 1}
+              segmentLabel={d.segmentLabel}
             />,
           );
         });
@@ -357,6 +362,7 @@ export default function SetlistView() {
             targetKey: d.shapeKey,
             keyLabel: d.keyLabel,
             songNumber: d.globalIdx + 1,
+            segmentLabel: d.segmentLabel,
           }));
 
         if (page.type === "single") {
@@ -369,6 +375,7 @@ export default function SetlistView() {
               targetKey={d.shapeKey}
               keyLabel={d.keyLabel}
               songNumber={d.globalIdx + 1}
+              segmentLabel={d.segmentLabel}
             />,
           );
         } else if (page.left.length === 1 && page.right.length === 0) {
@@ -382,6 +389,7 @@ export default function SetlistView() {
               targetKey={d.shapeKey}
               keyLabel={d.keyLabel}
               songNumber={d.globalIdx + 1}
+              segmentLabel={d.segmentLabel}
             />,
           );
         } else {

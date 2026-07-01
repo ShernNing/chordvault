@@ -561,9 +561,26 @@ const PRINT_WRAPPER_STYLE = {
   fontSize: "16px",
 };
 
-function PrintSongHeader({ song, keyLabel, songNumber }) {
+function PrintSongHeader({ song, keyLabel, songNumber, segmentLabel }) {
   return (
     <div style={{ marginBottom: "8px" }}>
+      {segmentLabel && (
+        <span
+          style={{
+            fontSize: "19px",
+            fontWeight: "700",
+            color: "#000000",
+            display: "block",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            borderBottom: "1px solid #000000",
+            marginBottom: "6px",
+            paddingBottom: "2px",
+          }}
+        >
+          {segmentLabel}
+        </span>
+      )}
       <span
         style={{
           fontSize: "19px",
@@ -603,6 +620,7 @@ export function PrintableSongSheet({
   targetKey,
   keyLabel,
   songNumber,
+  segmentLabel,
 }) {
   const content =
     semitones !== 0
@@ -622,6 +640,7 @@ export function PrintableSongSheet({
           song={song}
           keyLabel={keyLabel}
           songNumber={songNumber}
+          segmentLabel={segmentLabel}
         />
         {sections.map((s, si) => (
           <PrintSection key={si} section={s} sectionKey={si} />
@@ -637,6 +656,7 @@ export function PrintableSongSheet({
         song={song}
         keyLabel={keyLabel}
         songNumber={songNumber}
+        segmentLabel={segmentLabel}
       />
       <div style={{ display: "flex", gap: "32px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -704,6 +724,7 @@ export function SingleSongForColumn({
   targetKey,
   keyLabel,
   songNumber,
+  segmentLabel,
 }) {
   const content =
     semitones !== 0
@@ -716,6 +737,7 @@ export function SingleSongForColumn({
         song={song}
         keyLabel={keyLabel}
         songNumber={songNumber}
+        segmentLabel={segmentLabel}
       />
       {sections.map((s, si) => (
         <PrintSection key={si} section={s} sectionKey={si} />
