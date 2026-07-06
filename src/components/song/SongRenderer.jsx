@@ -797,7 +797,7 @@ export function SegmentHeading({ label }) {
           textTransform: "uppercase",
           letterSpacing: "0.06em",
           borderBottom: "4px solid #000000",
-          paddingBottom: "3px",
+          paddingBottom: "8px",
         }}
       >
         {label}

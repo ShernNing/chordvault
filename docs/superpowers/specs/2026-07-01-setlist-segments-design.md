@@ -93,12 +93,16 @@ already handled upstream so packer ignores numbers.
 
 - New `SegmentHeading({ label })`: big bold uppercase (20px) with a thick 4px
   rule under the TEXT only, not full page width (restyled 2026-07-07 by user
-  choice — the original full-width underline read as a stray line). Structure:
-  block div root wrapping an inline-block span that carries the border — the
-  root must stay a block div because flex items blockify an inline-block root,
-  which would stretch the rule back across the page. DOCX mirror
+  choice — the original full-width underline read as a stray line). `8px`
+  `paddingBottom` sets the gap between text and rule. Structure: block div root
+  wrapping an inline-block span that carries the border — the root must stay a
+  block div because flex items blockify an inline-block root, which would
+  stretch the rule back across the page. DOCX mirror
   (`segmentHeadingParagraph`) uses a THICK text underline, not a paragraph
-  border, for the same reason.
+  border, for the same reason. NOTE: Word's text underline hugs the text and
+  has no gap control, so the DOCX rule sits tighter than the PDF's 8px gap; the
+  only way to add a DOCX gap is a full-width paragraph bottom border (rejected
+  style).
 - `PrintPage`: render `heading` bands via `SegmentHeading`.
 - Measurement in `SetlistView.handleExportPDF`: measure divider heading height at
   full width (746px) via `SegmentHeading`, songs as before.
