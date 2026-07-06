@@ -91,8 +91,14 @@ already handled upstream so packer ignores numbers.
 
 ## Rendering (`src/components/song/SongRenderer.jsx`)
 
-- New `SegmentHeading({ label })`: bold, full-width, with a bottom rule
-  (`border-bottom`), sized to read as a section break.
+- New `SegmentHeading({ label })`: big bold uppercase (20px) with a thick 4px
+  rule under the TEXT only, not full page width (restyled 2026-07-07 by user
+  choice — the original full-width underline read as a stray line). Structure:
+  block div root wrapping an inline-block span that carries the border — the
+  root must stay a block div because flex items blockify an inline-block root,
+  which would stretch the rule back across the page. DOCX mirror
+  (`segmentHeadingParagraph`) uses a THICK text underline, not a paragraph
+  border, for the same reason.
 - `PrintPage`: render `heading` bands via `SegmentHeading`.
 - Measurement in `SetlistView.handleExportPDF`: measure divider heading height at
   full width (746px) via `SegmentHeading`, songs as before.

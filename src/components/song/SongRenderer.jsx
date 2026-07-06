@@ -777,23 +777,31 @@ function ColsBand({ left, right }) {
   );
 }
 
-// A segment divider heading printed above the songs of a new segment.
+// A segment divider heading printed above the songs of a new segment: big
+// bold uppercase label with a thick rule under the text only (not full page
+// width). Root must stay a block div — flex items blockify an inline-block
+// root, which would stretch the rule across the page again — with the
+// inline-block span carrying the border (single-root invariant, see
+// printLayout.test.jsx).
 export function SegmentHeading({ label }) {
   return (
-    <div
-      style={{
-        fontFamily: "Arial, sans-serif",
-        fontSize: "18px",
-        fontWeight: "700",
-        color: "#000000",
-        textTransform: "uppercase",
-        letterSpacing: "0.04em",
-        borderBottom: "2px solid #000000",
-        paddingBottom: "4px",
-        marginTop: "4px",
-      }}
-    >
-      {label}
+    <div style={{ marginTop: "4px" }}>
+      <span
+        style={{
+          display: "inline-block",
+          fontFamily: "Arial, sans-serif",
+          fontSize: "20px",
+          fontWeight: "700",
+          lineHeight: "1.3",
+          color: "#000000",
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          borderBottom: "4px solid #000000",
+          paddingBottom: "3px",
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Document, Paragraph, TextRun, Packer, BorderStyle } from 'docx'
+import { Document, Paragraph, TextRun, Packer, UnderlineType } from 'docx'
 import { transposeParsedContent } from './transposition'
 import { normalizeSectionHeader, cleanSongTitle } from './ingestion'
 import { numberSlots } from './setlistSegments'
@@ -66,11 +66,20 @@ function songToParagraphs(song, semitones, targetKey, keyLabel, songNumber) {
   return paragraphs
 }
 
-// Mirrors the PDF SegmentHeading: bold uppercase with a rule underneath.
+// Mirrors the PDF SegmentHeading: big bold uppercase with a thick rule under
+// the text only (thick underline, NOT a paragraph border — a paragraph border
+// would span the full page width).
 function segmentHeadingParagraph(label) {
   return new Paragraph({
-    children: [new TextRun({ text: (label || '').toUpperCase(), bold: true, size: 32, font: 'Arial' })],
-    border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 2 } },
+    children: [
+      new TextRun({
+        text: (label || '').toUpperCase(),
+        bold: true,
+        size: 30, // half-points: 15pt ≈ the PDF's 20px
+        font: 'Arial',
+        underline: { type: UnderlineType.THICK, color: '000000' },
+      }),
+    ],
     spacing: { after: 240 },
   })
 }
