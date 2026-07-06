@@ -20,6 +20,7 @@ import {
   SongSheetBody,
   SingleSongForColumn,
   SegmentHeading,
+  PRINT_SONG_GAP,
 } from "./SongRenderer";
 import { parseRawContent } from "../../lib/ingestion";
 
@@ -108,6 +109,31 @@ describe("PrintPage band stack invariant (one flex child per band)", () => {
         { type: "cols", left: [songProps(SHORT_SONG)], right: [] },
       ]),
     ).toBe(3);
+  });
+});
+
+describe("between-song gap uses PRINT_SONG_GAP everywhere", () => {
+  // packPages callers pass PRINT_SONG_GAP as `gap`; the rendered band stack
+  // and the columns inside a cols band must use the exact same value or the
+  // packer's height math diverges from the render (→ sliced songs).
+  it("PrintPage band stack and ColsBand columns render gap:PRINT_SONG_GAP", () => {
+    const markup = renderToStaticMarkup(
+      <PrintPage
+        bands={[
+          {
+            type: "cols",
+            left: [songProps(SHORT_SONG)],
+            right: [songProps(SHORT_SONG)],
+          },
+          { type: "full", item: songProps(SHORT_SONG) },
+        ]}
+      />,
+    );
+    const gaps = [...markup.matchAll(/gap:(\d+)px/g)].map((m) => Number(m[1]));
+    // band stack + two column stacks use the song gap; the 32px horizontal
+    // column gutter is the only other gap allowed.
+    expect(gaps.filter((g) => g === PRINT_SONG_GAP)).toHaveLength(3);
+    expect(gaps.every((g) => g === PRINT_SONG_GAP || g === 32)).toBe(true);
   });
 });
 

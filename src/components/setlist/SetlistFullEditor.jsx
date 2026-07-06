@@ -32,7 +32,11 @@ import {
   transposeParsedContent,
 } from "../../lib/transposition";
 import { cleanSongTitle } from "../../lib/ingestion";
-import { SingleSongForColumn, SegmentHeading } from "../song/SongRenderer";
+import {
+  SingleSongForColumn,
+  SegmentHeading,
+  PRINT_SONG_GAP,
+} from "../song/SongRenderer";
 import { packPages } from "../../lib/pdfPacking";
 import { numberSlots } from "../../lib/setlistSegments";
 
@@ -41,7 +45,7 @@ const MAX_HALF_COL_CHARS = 45;
 // true budget 1086.5px. Must stay in sync with PAGE_HEIGHT in SetlistView's
 // handleExportPDF, or preview pagination diverges from the exported PDF.
 const PAGE_COL_HEIGHT = 1086;
-const SONG_GAP = 16;
+const SONG_GAP = PRINT_SONG_GAP; // must match the print renderer's band gap
 const HALF_COL_WIDTH = 357; // (746 content - 32 gap) / 2
 const FULL_WIDTH = 746; // 794 wrapper - 2×24 padding
 

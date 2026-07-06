@@ -561,6 +561,11 @@ const PRINT_WRAPPER_STYLE = {
   fontSize: "16px",
 };
 
+// Vertical gap between songs on a printed page (band stack and within a
+// column). packPages callers MUST pass this same value as `gap`, or measured
+// page heights diverge from the render and songs get sliced across PDF pages.
+export const PRINT_SONG_GAP = 28;
+
 function PrintSongHeader({ song, keyLabel, songNumber }) {
   return (
     <div style={{ marginBottom: "8px" }}>
@@ -752,7 +757,7 @@ function ColsBand({ left, right }) {
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    gap: "16px",
+    gap: `${PRINT_SONG_GAP}px`,
   };
   return (
     <div style={hasTwoColumns ? { display: "flex", gap: "32px" } : {}}>
@@ -799,7 +804,13 @@ export function SegmentHeading({ label }) {
 export function PrintPage({ bands }) {
   return (
     <div style={PRINT_WRAPPER_STYLE}>
-      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: `${PRINT_SONG_GAP}px`,
+        }}
+      >
         {bands.map((band, bi) => {
           if (band.type === "heading")
             return <SegmentHeading key={bi} label={band.label} />;

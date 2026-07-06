@@ -22,12 +22,17 @@ and html2canvas slices songs mid-line across PDF page boundaries.
 
 1. **One root element per print component.** `SongSheetBody`,
    `SingleSongForColumn`, `SegmentHeading` must render a SINGLE root element
-   (never a fragment). `PrintPage`'s band stack is `flex` with `gap:16px`;
-   fragment children become separate flex items, injecting the gap INSIDE a
-   song (between title and chords) and breaking height parity.
-2. **Gap only between songs.** `SONG_GAP` (16px) lives in the band stack and
-   column flex `gap` only. Title→content spacing inside a song is the 8px
-   `PrintSongHeader` margin — do not add more.
+   (never a fragment). `PrintPage`'s band stack is `flex` with a
+   `PRINT_SONG_GAP` gap; fragment children become separate flex items,
+   injecting the gap INSIDE a song (between title and chords) and breaking
+   height parity.
+2. **Gap only between songs, via ONE constant.** `PRINT_SONG_GAP` (exported
+   from `SongRenderer.jsx`) is the single source of truth for between-song
+   spacing: the band stack gap, the within-column gap, AND the `gap` passed to
+   `packPages` by `SetlistView`, `SetlistFullEditor`, and `printLab`. Never
+   hardcode it, never let renderer and packer values differ. Title→content
+   spacing inside a song is the 8px `PrintSongHeader` margin — do not add
+   more.
 3. **Measure in the render's font context.** The hidden measure div sets
    `font-family:Arial,sans-serif;font-size:14px` (mirrors
    `createPrintContainer`); print components pin `font-family`/`line-height`

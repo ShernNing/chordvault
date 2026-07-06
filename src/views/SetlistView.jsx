@@ -58,6 +58,7 @@ import {
   SingleSongForColumn,
   SegmentHeading,
   PRINT_TWO_COL_LINE_THRESHOLD,
+  PRINT_SONG_GAP,
 } from "../components/song/SongRenderer";
 import { packPages } from "../lib/pdfPacking";
 import { numberSlots } from "../lib/setlistSegments";
@@ -261,7 +262,9 @@ export default function SetlistView() {
       // rendered page overrunning the PDF page and html2canvas slicing songs
       // mid-line across page boundaries.
       const PAGE_HEIGHT = 1086;
-      const SONG_GAP = 16; // vertical gap between bands / stacked songs
+      // Vertical gap between bands / stacked songs. Shared with the print
+      // renderer so the packer's math always matches the rendered page.
+      const SONG_GAP = PRINT_SONG_GAP;
       const HALF_COL_WIDTH = 357; // (746 content - 32 gap) / 2
       const FULL_WIDTH = 746; // 794 wrapper - 2×24 padding
 

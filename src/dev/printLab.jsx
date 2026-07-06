@@ -16,10 +16,11 @@ import {
   SongSheetBody,
   PrintPage,
   PRINT_TWO_COL_LINE_THRESHOLD,
+  PRINT_SONG_GAP,
 } from "../components/song/SongRenderer";
 
 const PAGE_HEIGHT = 1086;
-const SONG_GAP = 16;
+const SONG_GAP = PRINT_SONG_GAP;
 const HALF_COL_WIDTH = 357;
 const FULL_WIDTH = 746;
 const MAX_HALF_COL_CHARS = 45;
