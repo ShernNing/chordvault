@@ -256,7 +256,11 @@ export default function SetlistView() {
       const roots = [];
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
 
-      const PAGE_HEIGHT = 1087; // A4 (1123px) minus 12px top + 24px bottom padding
+      // A4 at 96dpi is 1122.5px; the print wrapper eats 12px top + 24px bottom
+      // padding, so the true budget is 1086.5px. Anything above 1086 risks the
+      // rendered page overrunning the PDF page and html2canvas slicing songs
+      // mid-line across page boundaries.
+      const PAGE_HEIGHT = 1086;
       const SONG_GAP = 16; // vertical gap between bands / stacked songs
       const HALF_COL_WIDTH = 357; // (746 content - 32 gap) / 2
       const FULL_WIDTH = 746; // 794 wrapper - 2×24 padding
@@ -302,15 +306,19 @@ export default function SetlistView() {
       // decide whether a song packs into a half-page column (narrow) or takes a
       // full-width band. The browser layout engine handles font metrics and
       // wrapping exactly, matching the final PDF.
+      // Font/size must mirror createPrintContainer so measured metrics match
+      // the final render; Math.ceil keeps sub-pixel heights from under-counting
+      // (scrollHeight rounds to nearest, which can round DOWN and overfill).
       const measureEl = document.createElement("div");
       measureEl.style.cssText =
-        "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;";
+        "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;" +
+        "font-family:Arial,sans-serif;font-size:14px;";
       document.body.appendChild(measureEl);
       const measureRoot = createRoot(measureEl);
       const measure = (width, node) => {
         measureEl.style.width = `${width}px`;
         flushSync(() => measureRoot.render(node));
-        return measureEl.scrollHeight;
+        return Math.ceil(measureEl.getBoundingClientRect().height);
       };
 
       const items = rawEntries.map((d, id) => {

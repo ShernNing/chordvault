@@ -566,8 +566,10 @@ function PrintSongHeader({ song, keyLabel, songNumber }) {
     <div style={{ marginBottom: "8px" }}>
       <span
         style={{
+          fontFamily: "Arial, sans-serif",
           fontSize: "19px",
           fontWeight: "700",
+          lineHeight: "1.3",
           color: "#000000",
           display: "block",
           wordBreak: "break-word",
@@ -602,6 +604,11 @@ function PrintSection({ section, sectionKey }) {
 // as a `full` band inside PrintPage and (wrapped) as a standalone sheet.
 export const PRINT_TWO_COL_LINE_THRESHOLD = 45;
 
+// INVARIANT (printLayout.test.jsx): must return a SINGLE root element. As a
+// fragment, its children become separate flex items inside PrintPage's
+// gap:16px band stack — the gap lands between the song title and its first
+// chords, and the rendered height exceeds the block-context measurement, so
+// packPages overfills pages and songs get sliced across PDF page boundaries.
 export function SongSheetBody({
   song,
   semitones,
@@ -622,7 +629,7 @@ export function SongSheetBody({
 
   if (!useColumns) {
     return (
-      <>
+      <div>
         <PrintSongHeader
           song={song}
           keyLabel={keyLabel}
@@ -631,13 +638,13 @@ export function SongSheetBody({
         {sections.map((s, si) => (
           <PrintSection key={si} section={s} sectionKey={si} />
         ))}
-      </>
+      </div>
     );
   }
 
   const { left, right } = _splitPrintSections(sections);
   return (
-    <>
+    <div>
       <PrintSongHeader
         song={song}
         keyLabel={keyLabel}
@@ -655,7 +662,7 @@ export function SongSheetBody({
           ))}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

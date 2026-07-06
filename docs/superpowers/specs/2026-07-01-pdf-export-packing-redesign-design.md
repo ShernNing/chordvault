@@ -148,3 +148,41 @@ rely on unit tests + `npm run test:run`, lint, and build.
 
 - Segment divider rows (data model, editor UI, per-segment numbering reset).
 - DOCX export path (`exportSetlistToDocx`) — untouched.
+
+## Measure/render parity invariants (added 2026-07-07 — regression: sliced songs + title gap)
+
+A song was sliced mid-verse across PDF pages and every song title had a
+phantom ~24px gap above its first chords. Root cause: `SongSheetBody` returned
+a **fragment** (header + sections as separate top-level children). Inside
+`PrintPage`'s `display:flex; flex-direction:column; gap:16px` band stack, each
+fragment child became its own flex item, so:
+
+1. the 16px band gap was injected INSIDE the song (title → chords, and between
+   sections for single-column full-width songs), and
+2. rendered height exceeded the measurement pass (which renders into a plain
+   block div where no gaps exist and margins collapse), so `packPages`
+   overfilled pages and `html2canvas`/`jsPDF` sliced the overflow mid-song
+   onto the next PDF page.
+
+These invariants are locked by `src/components/song/printLayout.test.jsx` —
+do not weaken them:
+
+1. **Single root element.** `SongSheetBody`, `SingleSongForColumn`, and
+   `SegmentHeading` must each render exactly ONE root element, so each band is
+   exactly one flex item and internal layout is identical in measure (block)
+   and render (flex-item) contexts. `SONG_GAP` may appear only BETWEEN bands.
+2. **Measure in the same font context as the render.** The hidden measure div
+   sets `font-family:Arial,sans-serif;font-size:14px` (mirroring
+   `createPrintContainer`); print components pin `font-family` and
+   `line-height` inline (`PrintSongHeader` included).
+3. **Never under-measure.** Heights use
+   `Math.ceil(measureEl.getBoundingClientRect().height)`, not `scrollHeight`
+   (which rounds to nearest and can round DOWN, accumulating overflow).
+4. **Page budget ≤ 1086px.** A4 at 96dpi = 1122.5px minus wrapper padding
+   (12 top + 24 bottom) = 1086.5px. `PAGE_HEIGHT` (SetlistView) and
+   `PAGE_COL_HEIGHT` (SetlistFullEditor) are 1086 and must stay in sync.
+
+Diagnostic harness: `print-lab.html` + `src/dev/printLab.jsx` renders the
+measure→pack→render pipeline with visible page outlines, an A4-height marker,
+and a measured-vs-rendered height report (`window.__printLabReport`). Use it
+before touching any print component or packing constant.

@@ -37,7 +37,10 @@ import { packPages } from "../../lib/pdfPacking";
 import { numberSlots } from "../../lib/setlistSegments";
 
 const MAX_HALF_COL_CHARS = 45;
-const PAGE_COL_HEIGHT = 1087; // A4 (1123px) − 12px top − 24px bottom padding
+// A4 at 96dpi is 1122.5px; print wrapper eats 12px top + 24px bottom padding →
+// true budget 1086.5px. Must stay in sync with PAGE_HEIGHT in SetlistView's
+// handleExportPDF, or preview pagination diverges from the exported PDF.
+const PAGE_COL_HEIGHT = 1086;
 const SONG_GAP = 16;
 const HALF_COL_WIDTH = 357; // (746 content - 32 gap) / 2
 const FULL_WIDTH = 746; // 794 wrapper - 2×24 padding
@@ -139,15 +142,19 @@ async function computePageLayout(editedSlots) {
   const entries = numberSlots(editedSlots);
   if (entries.length === 0) return [];
 
+  // Mirrors the export measurement pass in SetlistView.handleExportPDF: same
+  // font context as createPrintContainer, Math.ceil so sub-pixel heights never
+  // under-count (scrollHeight rounds to nearest and can round down).
   const measureEl = document.createElement("div");
   measureEl.style.cssText =
-    "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;";
+    "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;" +
+    "font-family:Arial,sans-serif;font-size:14px;";
   document.body.appendChild(measureEl);
   const measureRoot = createRoot(measureEl);
   const measure = (width, node) => {
     measureEl.style.width = `${width}px`;
     flushSync(() => measureRoot.render(node));
-    return measureEl.scrollHeight;
+    return Math.ceil(measureEl.getBoundingClientRect().height);
   };
 
   const items = entries.map((entry, id) => {
