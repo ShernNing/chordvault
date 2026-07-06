@@ -94,7 +94,11 @@ already handled upstream so packer ignores numbers.
 - New `SegmentHeading({ label })`: big bold uppercase (20px) with a thick 4px
   rule under the TEXT only, not full page width (restyled 2026-07-07 by user
   choice — the original full-width underline read as a stray line). `8px`
-  `paddingBottom` sets the gap between text and rule. Structure: block div root
+  `paddingBottom` sets the gap between text and rule; `-16px` `marginBottom`
+  pulls the heading's own song up so the heading→song gap (~12px) is tighter
+  than the full 28px `PRINT_SONG_GAP` between songs (a heading belongs WITH its
+  segment's first song). The negative margin only shrinks rendered height vs
+  the packer estimate — the safe direction, so parity holds. Structure: block div root
   wrapping an inline-block span that carries the border — the root must stay a
   block div because flex items blockify an inline-block root, which would
   stretch the rule back across the page. DOCX mirror

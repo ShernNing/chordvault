@@ -784,8 +784,12 @@ function ColsBand({ left, right }) {
 // inline-block span carrying the border (single-root invariant, see
 // printLayout.test.jsx).
 export function SegmentHeading({ label }) {
+  // Negative marginBottom pulls the heading's own song closer than the full
+  // PRINT_SONG_GAP band gap (a heading belongs WITH its segment's first song).
+  // This only shrinks the rendered height vs the packer's estimate — the safe
+  // direction (a page can never overflow), so measure/render parity holds.
   return (
-    <div style={{ marginTop: "4px" }}>
+    <div style={{ marginTop: "4px", marginBottom: "-16px" }}>
       <span
         style={{
           display: "inline-block",
