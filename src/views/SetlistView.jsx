@@ -389,7 +389,7 @@ export default function SetlistView() {
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
       await exportSetlistToDocx(
         setlist.name,
-        exportSlots.filter((s) => s.song),
+        exportSlots,
         (slot) => {
           const semitones =
             slot.chosen_key && slot.song.original_key

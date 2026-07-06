@@ -1,6 +1,7 @@
-import { Document, Paragraph, TextRun, Packer } from 'docx'
+import { Document, Paragraph, TextRun, Packer, BorderStyle } from 'docx'
 import { transposeParsedContent } from './transposition'
 import { normalizeSectionHeader, cleanSongTitle } from './ingestion'
+import { numberSlots } from './setlistSegments'
 
 function chordLineToText(line) {
   if (line.tokens) {
@@ -65,6 +66,15 @@ function songToParagraphs(song, semitones, targetKey, keyLabel, songNumber) {
   return paragraphs
 }
 
+// Mirrors the PDF SegmentHeading: bold uppercase with a rule underneath.
+function segmentHeadingParagraph(label) {
+  return new Paragraph({
+    children: [new TextRun({ text: (label || '').toUpperCase(), bold: true, size: 32, font: 'Arial' })],
+    border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: '000000', space: 2 } },
+    spacing: { after: 240 },
+  })
+}
+
 async function triggerDownload(doc, filename) {
   const blob = await Packer.toBlob(doc)
   const url = URL.createObjectURL(blob)
@@ -85,14 +95,40 @@ export async function exportSongToDocx(song, semitones, targetKey, keyLabel) {
 
 export async function exportSetlistToDocx(setlistName, slots, getSongData) {
   const allParagraphs = []
+  // A divider's heading is emitted with the first song of its segment so they
+  // share a page (songs are one-per-page in docx, unlike the packed PDF).
+  let pendingHeading = null
 
-  for (let i = 0; i < slots.length; i++) {
-    const { song, semitones, targetKey, keyLabel } = getSongData(slots[i])
-    if (!song) continue
+  const pushPageBreak = () => {
     if (allParagraphs.length > 0) {
       allParagraphs.push(new Paragraph({ pageBreakBefore: true, children: [] }))
     }
-    allParagraphs.push(...songToParagraphs(song, semitones, targetKey, keyLabel, i + 1))
+  }
+
+  for (const entry of numberSlots(slots)) {
+    if (entry.kind === 'divider') {
+      // A divider directly after another divider would otherwise be lost.
+      if (pendingHeading != null) {
+        pushPageBreak()
+        allParagraphs.push(segmentHeadingParagraph(pendingHeading))
+      }
+      pendingHeading = entry.label
+      continue
+    }
+    const { song, semitones, targetKey, keyLabel } = getSongData(entry.slot)
+    if (!song) continue
+    pushPageBreak()
+    if (pendingHeading != null) {
+      allParagraphs.push(segmentHeadingParagraph(pendingHeading))
+      pendingHeading = null
+    }
+    allParagraphs.push(...songToParagraphs(song, semitones, targetKey, keyLabel, entry.songNumber))
+  }
+
+  // Trailing divider with no songs after it still shows up in the export.
+  if (pendingHeading != null) {
+    pushPageBreak()
+    allParagraphs.push(segmentHeadingParagraph(pendingHeading))
   }
 
   const doc = new Document({

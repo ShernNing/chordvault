@@ -32,11 +32,15 @@ import {
   transposeParsedContent,
 } from "../../lib/transposition";
 import { cleanSongTitle } from "../../lib/ingestion";
-import { SingleSongForColumn } from "../song/SongRenderer";
+import { SingleSongForColumn, SegmentHeading } from "../song/SongRenderer";
+import { packPages } from "../../lib/pdfPacking";
+import { numberSlots } from "../../lib/setlistSegments";
 
 const MAX_HALF_COL_CHARS = 45;
 const PAGE_COL_HEIGHT = 1087; // A4 (1123px) − 12px top − 24px bottom padding
 const SONG_GAP = 16;
+const HALF_COL_WIDTH = 357; // (746 content - 32 gap) / 2
+const FULL_WIDTH = 746; // 794 wrapper - 2×24 padding
 
 // NOTE: computePageLayout below is an APPROXIMATE inline preview only. The real
 // PDF export uses packPages() (src/lib/pdfPacking.js), which supports mixed
@@ -130,89 +134,70 @@ function getTransposeData(slot) {
 // ── page layout computation (mirrors SetlistView handleExportPDF bin-packing) ─
 
 async function computePageLayout(editedSlots) {
-  if (editedSlots.length === 0) return [];
+  // numberSlots keeps segment dividers and restarts song numbering after each
+  // one, matching the exported PDF exactly.
+  const entries = numberSlots(editedSlots);
+  if (entries.length === 0) return [];
 
   const measureEl = document.createElement("div");
   measureEl.style.cssText =
-    "position:absolute;top:-9999px;left:-9999px;width:357px;visibility:hidden;pointer-events:none;";
+    "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;";
   document.body.appendChild(measureEl);
   const measureRoot = createRoot(measureEl);
+  const measure = (width, node) => {
+    measureEl.style.width = `${width}px`;
+    flushSync(() => measureRoot.render(node));
+    return measureEl.scrollHeight;
+  };
 
-  const measured = editedSlots.map((slot, globalIdx) => {
+  const items = entries.map((entry, id) => {
+    if (entry.kind === "divider") {
+      const height = measure(FULL_WIDTH, <SegmentHeading label={entry.label} />);
+      return {
+        id,
+        isDivider: true,
+        label: entry.label,
+        pageBreak: entry.pageBreak,
+        height,
+      };
+    }
+    const slot = entry.slot;
     const parsedContent = sectionsToParsedContent(slot.sections);
-    const maxChars = getMaxLineChars(parsedContent);
-    flushSync(() => {
-      measureRoot.render(
-        <SingleSongForColumn
-          song={{ ...slot.song, parsed_content: parsedContent }}
-          semitones={0}
-          targetKey={slot._displayKey}
-          keyLabel={slot._keyLabel}
-          songNumber={globalIdx + 1}
-        />,
-      );
-    });
-    const h = measureEl.scrollHeight;
+    const songNode = (
+      <SingleSongForColumn
+        song={{ ...slot.song, parsed_content: parsedContent }}
+        semitones={0}
+        targetKey={slot._displayKey}
+        keyLabel={slot._keyLabel}
+        songNumber={entry.songNumber}
+      />
+    );
+    if (getMaxLineChars(parsedContent) <= MAX_HALF_COL_CHARS) {
+      const h = measure(HALF_COL_WIDTH, songNode);
+      if (h <= PAGE_COL_HEIGHT) {
+        return {
+          id,
+          fitsHalf: true,
+          height: h,
+          slotId: slot.id,
+          songNumber: entry.songNumber,
+        };
+      }
+    }
+    const h = measure(FULL_WIDTH, songNode);
     return {
+      id,
+      fitsHalf: false,
+      height: h,
       slotId: slot.id,
-      globalIdx,
-      estimatedH: h,
-      fitsHalfPage: maxChars <= MAX_HALF_COL_CHARS,
+      songNumber: entry.songNumber,
     };
   });
 
   measureRoot.unmount();
   document.body.removeChild(measureEl);
 
-  // Bin-pack: same waterfall algorithm as SetlistView handleExportPDF
-  const pages = [];
-  let leftCol = [],
-    rightCol = [],
-    leftH = 0,
-    rightH = 0,
-    useRight = false;
-
-  const flushPage = () => {
-    if (!leftCol.length) return;
-    pages.push({ type: "multi", left: [...leftCol], right: [...rightCol] });
-    leftCol = [];
-    rightCol = [];
-    leftH = 0;
-    rightH = 0;
-    useRight = false;
-  };
-
-  for (const d of measured) {
-    if (!d.fitsHalfPage || d.estimatedH > PAGE_COL_HEIGHT) {
-      flushPage();
-      pages.push({ type: "single", slotId: d.slotId, globalIdx: d.globalIdx });
-    } else {
-      const h = d.estimatedH;
-      if (!useRight) {
-        const newH = leftH + (leftH > 0 ? SONG_GAP : 0) + h;
-        if (leftH === 0 || newH <= PAGE_COL_HEIGHT) {
-          leftCol.push(d);
-          leftH = leftH === 0 ? h : newH;
-        } else {
-          useRight = true;
-          rightCol.push(d);
-          rightH = h;
-        }
-      } else {
-        const newH = rightH + (rightH > 0 ? SONG_GAP : 0) + h;
-        if (rightH === 0 || newH <= PAGE_COL_HEIGHT) {
-          rightCol.push(d);
-          rightH = rightH === 0 ? h : newH;
-        } else {
-          flushPage();
-          leftCol.push(d);
-          leftH = h;
-        }
-      }
-    }
-  }
-  flushPage();
-  return pages;
+  return packPages(items, { pageHeight: PAGE_COL_HEIGHT, gap: SONG_GAP });
 }
 
 // ── main component ────────────────────────────────────────────────────────────
@@ -251,11 +236,8 @@ export default function SetlistFullEditor({
   const [layoutBusy, setLayoutBusy] = useState(true);
   const [clipboard, setClipboard] = useState(null);
 
-  // Divider rows aren't part of the inline song page preview.
-  const songSlots = editedSlots.filter((s) => !s._divider);
-
   useEffect(() => {
-    computePageLayout(songSlots)
+    computePageLayout(editedSlots)
       .then(setPages)
       .finally(() => setLayoutBusy(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: layout computed once on open, not on every editedSlots change
@@ -263,7 +245,7 @@ export default function SetlistFullEditor({
 
   const refreshLayout = async () => {
     setLayoutBusy(true);
-    const p = await computePageLayout(songSlots);
+    const p = await computePageLayout(editedSlots);
     setPages(p);
     setLayoutBusy(false);
   };
@@ -489,75 +471,56 @@ function EditorPage({
     boxSizing: "border-box",
   };
 
-  if (page.type === "single") {
-    const slot = slotById[page.slotId];
+  const renderSong = (d) => {
+    const slot = slotById[d.slotId];
     if (!slot) return null;
     return (
-      <div style={pageStyle}>
-        <PageLabel num={pageNum} />
-        <EditableSongContent
-          slot={slot}
-          songNumber={page.globalIdx + 1}
-          clipboard={clipboard}
-          onReorderSections={(aId, oId) => onReorderSections(slot.id, aId, oId)}
-          onEditLine={(secId, li, text) => onEditLine(slot.id, secId, li, text)}
-          onCutSection={(secId) => onCutSection(slot.id, secId)}
-          onPasteAfter={(afterId) => onPasteAfter(slot.id, afterId)}
-        />
-      </div>
+      <EditableSongContent
+        key={slot.id}
+        slot={slot}
+        songNumber={d.songNumber}
+        clipboard={clipboard}
+        onReorderSections={(aId, oId) => onReorderSections(slot.id, aId, oId)}
+        onEditLine={(secId, li, text) => onEditLine(slot.id, secId, li, text)}
+        onCutSection={(secId) => onCutSection(slot.id, secId)}
+        onPasteAfter={(afterId) => onPasteAfter(slot.id, afterId)}
+      />
     );
-  }
+  };
 
-  // multi-column page
-  const leftData = page.left || [];
-  const rightData = page.right || [];
-  const hasTwoColumns = rightData.length > 0;
-
-  const makeCol = (colData) =>
-    colData.map((d) => {
-      const slot = slotById[d.slotId];
-      if (!slot) return null;
-      return (
-        <EditableSongContent
-          key={slot.id}
-          slot={slot}
-          songNumber={d.globalIdx + 1}
-          clipboard={clipboard}
-          onReorderSections={(aId, oId) => onReorderSections(slot.id, aId, oId)}
-          onEditLine={(secId, li, text) => onEditLine(slot.id, secId, li, text)}
-          onCutSection={(secId) => onCutSection(slot.id, secId)}
-          onPasteAfter={(afterId) => onPasteAfter(slot.id, afterId)}
-        />
-      );
-    });
+  const colStyle = {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: `${SONG_GAP}px`,
+  };
 
   return (
     <div style={pageStyle}>
       <PageLabel num={pageNum} />
-      <div style={hasTwoColumns ? { display: "flex", gap: "32px" } : {}}>
-        <div
-          style={{
-            ...(hasTwoColumns ? { flex: 1, minWidth: 0 } : {}),
-            display: "flex",
-            flexDirection: "column",
-            gap: `${SONG_GAP}px`,
-          }}
-        >
-          {makeCol(leftData)}
-        </div>
-        {hasTwoColumns && (
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              display: "flex",
-              flexDirection: "column",
-              gap: `${SONG_GAP}px`,
-            }}
-          >
-            {makeCol(rightData)}
-          </div>
-        )}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: `${SONG_GAP}px`,
+        }}
+      >
+        {(page.bands || []).map((band, bi) => {
+          if (band.type === "heading")
+            return <SegmentHeading key={bi} label={band.label} />;
+          if (band.type === "full") return <div key={bi}>{renderSong(band.item)}</div>;
+          const hasTwoColumns = band.right.length > 0;
+          return (
+            <div key={bi} style={hasTwoColumns ? { display: "flex", gap: "32px" } : {}}>
+              <div style={hasTwoColumns ? { flex: 1, ...colStyle } : colStyle}>
+                {band.left.map(renderSong)}
+              </div>
+              {hasTwoColumns && (
+                <div style={{ flex: 1, ...colStyle }}>{band.right.map(renderSong)}</div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

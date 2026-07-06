@@ -30,7 +30,11 @@ export default function Setlists() {
       await createSetlist(newName.trim())
       setNewName('')
     } catch (err) {
-      setFormError(err.message)
+      // Unauthenticated inserts surface as a raw Postgres RLS violation.
+      const msg = /row-level security/i.test(err?.message || '')
+        ? 'Sign in to create setlists — they sync to your team account.'
+        : err.message
+      setFormError(msg)
     } finally {
       setCreating(false)
     }

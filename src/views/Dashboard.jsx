@@ -151,8 +151,8 @@ export default function Dashboard() {
 
       {/* ── Search + Sort ────────────────────────────────────────── */}
       {(songs.length > 0 || query) && (
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 max-w-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="relative flex-1 sm:max-w-sm">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] pointer-events-none" />
             <input
               type="text"
@@ -162,28 +162,30 @@ export default function Dashboard() {
               className="w-full h-8 pl-8 pr-3 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-[var(--color-ink)] placeholder-[var(--color-ink-muted)] hover:border-[var(--color-ink-muted)] focus:outline-none focus:border-[var(--color-ink)] transition-colors"
             />
           </div>
-          {availableKeys.length > 0 && (
+          <div className="flex items-center gap-2">
+            {availableKeys.length > 0 && (
+              <Select
+                value={keyFilter}
+                onChange={e => setKeyFilter(e.target.value)}
+                className="w-28"
+                title="Filter by key"
+              >
+                <option value="">All keys</option>
+                {availableKeys.map(k => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </Select>
+            )}
             <Select
-              value={keyFilter}
-              onChange={e => setKeyFilter(e.target.value)}
-              className="w-28"
-              title="Filter by key"
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="w-40"
             >
-              <option value="">All keys</option>
-              {availableKeys.map(k => (
-                <option key={k} value={k}>{k}</option>
+              {SORT_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </Select>
-          )}
-          <Select
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            className="w-40"
-          >
-            {SORT_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </Select>
+          </div>
         </div>
       )}
 
