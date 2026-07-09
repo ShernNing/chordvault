@@ -344,7 +344,7 @@ export default function SongView() {
         chosenSetlistId,
         song.id,
         song.original_key || null,
-        0,
+        transpose.capo,
       );
       const dest =
         setlists.find((s) => s.id === chosenSetlistId)?.name || "setlist";
