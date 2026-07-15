@@ -23,7 +23,7 @@ import { useSongs } from '../../lib/hooks'
 export default function SongVoicingsPanel({ song, semitones = 0, targetKey = null, onClose }) {
   const printRef = useRef(null)
   const [exporting, setExporting] = useState(false)
-  const [mode, setMode] = useState('chords')       // 'chords' | 'sequence'
+  const [mode, setMode] = useState('sequence')     // 'sequence' | 'chords'
   const [presetIdx, setPresetIdx] = useState(0)    // index into PRESETS, 0 = Auto
   const { songs: allSongs } = useSongs()
 
@@ -44,6 +44,9 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
     for (const g of sequenceGroups) for (const ch of g.chords) if (!seen.has(ch)) { seen.add(ch); out.push(ch) }
     return out
   }, [sequenceGroups])
+
+  // Total chords played across the whole song (section-grouped, dupes collapsed).
+  const seqChordCount = sequenceGroups.reduce((n, g) => n + g.chords.length, 0)
 
   // Chords mode: primary voicing per unique chord from the global DP path,
   // plus up to 2 preset-filtered alternates.
@@ -118,7 +121,9 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
       // Inline computed colors (since CSS vars don't carry into the cloned node)
       container.style.color = '#000'
       container.style.background = '#fff'
-      await exportSongToPDF(`${song.title || 'song'}-voicings`, targetKey || song.target_key || song.original_key, container)
+      // Page-break only at <section> tops (chord cards / song sections) so
+      // fretboard rows are never sliced horizontally across PDF pages.
+      await exportSongToPDF(`${song.title || 'song'}-voicings`, targetKey || song.target_key || song.original_key, container, { blockSelector: 'section' })
       document.body.removeChild(container)
     } finally { setExporting(false) }
   }
@@ -134,7 +139,9 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
               Voicings for {song.title}
             </span>
             <span className="text-xs text-[var(--color-ink-muted)] shrink-0">
-              · {orderedChords.length} unique chord{orderedChords.length === 1 ? '' : 's'}
+              {mode === 'sequence'
+                ? <>· {seqChordCount} chord{seqChordCount === 1 ? '' : 's'}{sequenceGroups.length > 1 ? ` · ${sequenceGroups.length} sections` : ''}</>
+                : <>· {orderedChords.length} unique chord{orderedChords.length === 1 ? '' : 's'}</>}
             </span>
           </div>
           <div className="flex items-center gap-2">
