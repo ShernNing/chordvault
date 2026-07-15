@@ -14,10 +14,35 @@ import { transposeChordName } from './transpose'
 const stringSetKey = (frets) =>
   frets.map((f, i) => (f != null ? i : null)).filter(i => i != null).join('-')
 
-// Ordered cycle list. Zone bounds overlap one fret so no zone starves;
-// zoneCenter feeds the drift penalty in nodeCost. `matches` takes a frets array.
+// Lowest played string index (0=lowE … 5=highE) — how far down the thick
+// strings a voicing reaches.
+function lowestPlayedString(frets) {
+  for (let i = 0; i < 6; i++) if (frets[i] != null) return i
+  return 5
+}
+
+// Soft "top strings" bias, keyed on the lowest played string. Triads on the
+// top three strings — G-B-e, lowest idx 3, i.e. guitarist strings 1·2·3 — are
+// free; D-G-B / top-4 drop-2 (lowest idx 2, strings 2·3·4) cost a little; and
+// anything dipping to the A string or below (idx ≤1, the 3·4·5 A-D-G set) is
+// pushed well down so it's picked only when nothing higher fits. Applied as a
+// node cost (not a filter), so 7th chords that only exist as top-4 shapes still
+// appear, and the path may shift up/down the neck to keep the preferred set.
+const STRING_PREF_COST = [10, 6, 1.5, 0]   // index = lowest played string; idx ≥3 → 0
+function stringPrefCost(frets) {
+  const lo = lowestPlayedString(frets)
+  return lo < STRING_PREF_COST.length ? STRING_PREF_COST[lo] : 0
+}
+
+// Ordered cycle list. `top-strings` is the default (see SongVoicingsPanel):
+// a soft bias toward high strings with a gentle high-neck lean, no hard filter.
+// Zone bounds overlap one fret so no zone starves; zoneCenter feeds the drift
+// penalty in nodeCost, stringCost feeds the string-set penalty. `matches` (when
+// present) hard-filters the candidate pool; presets without it bias softly.
 export const PRESETS = [
   { id: 'auto', label: 'Auto' },
+  { id: 'top-strings', label: 'Top strings (1·2·3 / 2·3·4)',
+    zoneCenter: 6, stringCost: stringPrefCost },
   { id: 'low',  label: 'Low neck',  zoneCenter: 3,
     matches: f => voicingPosition(f) >= 1 && voicingPosition(f) <= 5 },
   { id: 'mid',  label: 'Mid neck',  zoneCenter: 6.5,
@@ -65,8 +90,11 @@ const W_OFF_PRESET = 25
 
 function nodeCost(cand, preset) {
   let cost = cand.offPreset ? W_OFF_PRESET : 0
-  if (preset?.zoneCenter != null && !cand.offPreset) {
+  if (!cand.offPreset && preset?.zoneCenter != null) {
     cost += W_ZONE_DRIFT * Math.abs(voicingPosition(cand.frets) - preset.zoneCenter)
+  }
+  if (!cand.offPreset && preset?.stringCost) {
+    cost += preset.stringCost(cand.frets)
   }
   return cost
 }

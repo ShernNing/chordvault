@@ -37,6 +37,15 @@ export function chordToNashvilleParts(chordName, key) {
   const keyPc = keyChroma(key)
   if (keyPc == null) return none
 
+  // Optional/passing chords are wrapped in ( ) or [ ] — e.g. '(D)'. Strip the
+  // wrapper, convert the inner chord, then put the wrapper back around the
+  // result so '(D)' in G reads as '(5)', not literal.
+  const wrap = chordName.match(/^([([])(.+)([)\]])$/)
+  if (wrap) {
+    const inner = chordToNashvilleParts(wrap[2], key)
+    return { degree: wrap[1] + inner.degree, quality: inner.quality + wrap[3] }
+  }
+
   if (chordName.includes('/')) {
     const [top, bass] = chordName.split('/')
     const t = chordToNashvilleParts(top, key)

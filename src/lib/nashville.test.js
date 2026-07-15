@@ -30,6 +30,16 @@ describe('chordToNashville', () => {
   it('ignores a minor-key suffix when resolving the tonic', () => {
     expect(chordToNashville('A', 'Am')).toBe('1')
   })
+
+  it('converts optional/passing chords wrapped in ( ) or [ ], keeping the wrapper', () => {
+    expect(chordToNashville('(D)', 'G')).toBe('(5)')
+    expect(chordToNashville('[D]', 'G')).toBe('[5]')
+    expect(chordToNashville('(Em)', 'G')).toBe('(6m)')
+  })
+
+  it('converts a wrapped slash chord', () => {
+    expect(chordToNashville('(D/F#)', 'G')).toBe('(5/7)')
+  })
 })
 
 describe('nashvilleParsedContent', () => {

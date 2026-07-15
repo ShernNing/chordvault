@@ -82,7 +82,7 @@ function normalizeChordChars(s) {
 
 export function isChord(token) {
   if (!token || token.length === 0) return false
-  const clean = normalizeChordChars(token.replace(/[()]/g, '').trim())
+  const clean = normalizeChordChars(token.replace(/[()[\]]/g, '').trim())
   return CHORD_REGEX.test(clean)
 }
 

@@ -24,7 +24,12 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
   const printRef = useRef(null)
   const [exporting, setExporting] = useState(false)
   const [mode, setMode] = useState('sequence')     // 'sequence' | 'chords'
-  const [presetIdx, setPresetIdx] = useState(0)    // index into PRESETS, 0 = Auto
+  // Default to the soft "top strings" bias — most players favor the top string
+  // sets; Auto (pure voice-leading) and the other zones stay one click away.
+  const [presetIdx, setPresetIdx] = useState(() => {
+    const i = PRESETS.findIndex(p => p.id === 'top-strings')
+    return i === -1 ? 0 : i
+  })    // index into PRESETS
   const { songs: allSongs } = useSongs()
 
   const preset = PRESETS[presetIdx]
