@@ -62,7 +62,8 @@ match), it falls back to the **full** candidate list with each entry flagged
 - **Node cost:** for zone presets, distance of `position` from the zone
   center; flat penalty for `offPreset` candidates so they are used only when
   unavoidable.
-- **Tie-break:** deterministic — lower position, then catalog order.
+- **Tie-break:** deterministic — first candidate in catalog order wins
+  (strict `<` comparisons throughout).
 - **Returns:** one `{ chord, voicing, frets, offPreset }` per input chord;
   `voicing: null` entries for chords with no catalog voicings (callers render
   a placeholder and the DP chain treats them as a break — the next chord
