@@ -1,10 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
-import { X, FileDown, Music2, Link2 } from 'lucide-react'
+import { X, FileDown, Music2, Link2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import FretboardDiagram from './FretboardDiagram'
-import { voicingsForChord } from '../../lib/voicings/lookup'
-import { pickBestNext } from '../../lib/voicings/voiceLeading'
-import { transposeChordName } from '../../lib/voicings/transpose'
+import { PRESETS, candidatesForPreset, pickVoicingPath, chordSequenceFromParsedContent } from '../../lib/voicings/flow'
 import { keyPrefersFlats } from '../../lib/voicings/notes'
 import { difficultyOf } from '../../lib/voicings/difficulty'
 import { exportSongToPDF, createPrintContainer } from '../../lib/pdf'
@@ -23,46 +21,69 @@ import { useSongs } from '../../lib/hooks'
 export default function SongVoicingsPanel({ song, semitones = 0, targetKey = null, onClose }) {
   const printRef = useRef(null)
   const [exporting, setExporting] = useState(false)
+  const [mode, setMode] = useState('chords')       // 'chords' | 'sequence'
+  const [presetIdx, setPresetIdx] = useState(0)    // index into PRESETS, 0 = Auto
   const { songs: allSongs } = useSongs()
 
-  // Walk parsed_content, collect unique chord tokens in order of first appearance.
+  const preset = PRESETS[presetIdx]
+  const cyclePreset = (dir) => setPresetIdx(i => (i + dir + PRESETS.length) % PRESETS.length)
+
+  const preferFlats = keyPrefersFlats(targetKey || song?.target_key || song?.original_key)
+
+  // Playing-order chord groups (split on section headers, consecutive dupes collapsed).
+  const sequenceGroups = useMemo(
+    () => chordSequenceFromParsedContent(song?.parsed_content, { semitones, preferFlats }),
+    [song, semitones, preferFlats])
+
+  // Unique chords in order of first appearance.
   const orderedChords = useMemo(() => {
-    if (!song?.parsed_content) return []
-    const seen = new Map()
-    const preferFlats = keyPrefersFlats(targetKey || song?.target_key || song?.original_key)
-    for (const line of song.parsed_content) {
-      if (line.type !== 'chord_line' || !line.tokens) continue
-      for (const tok of line.tokens) {
-        const txt = (tok.text || '').trim()
-        if (!txt || !/^[A-G][b#]?/.test(txt)) continue
-        let displayed = txt
-        if (semitones !== 0) displayed = transposeChordName(txt, semitones, preferFlats)
-        if (!seen.has(displayed)) seen.set(displayed, true)
-      }
-    }
-    return [...seen.keys()]
-  }, [song, semitones, targetKey])
-
-  // Pick 3 best voicings per chord. First one is voice-led from previous chord's pick.
-  const chordsWithVoicings = useMemo(() => {
+    const seen = new Set()
     const out = []
-    let prevFrets = null
-    for (const ch of orderedChords) {
-      const candidates = voicingsForChord(ch)
-      if (candidates.length === 0) { out.push({ chord: ch, voicings: [] }); prevFrets = null; continue }
-
-      let primaryIdx = 0
-      if (prevFrets) {
-        const idx = pickBestNext(prevFrets, candidates.map(c => c.frets))
-        if (idx >= 0) primaryIdx = idx
-      }
-      // Move primary to front, keep up to 3
-      const ordered = [candidates[primaryIdx], ...candidates.filter((_, i) => i !== primaryIdx)].slice(0, 3)
-      out.push({ chord: ch, voicings: ordered, primaryFrets: ordered[0]?.frets || null })
-      prevFrets = ordered[0]?.frets || null
-    }
+    for (const g of sequenceGroups) for (const ch of g.chords) if (!seen.has(ch)) { seen.add(ch); out.push(ch) }
     return out
-  }, [orderedChords])
+  }, [sequenceGroups])
+
+  // Chords mode: primary voicing per unique chord from the global DP path,
+  // plus up to 2 preset-filtered alternates.
+  const chordsWithVoicings = useMemo(() => {
+    const fretSig = (f) => f.map(v => v == null ? 'x' : v).join('-')
+    const path = pickVoicingPath(orderedChords, preset)
+    return path.map(p => {
+      if (!p.frets) return { chord: p.chord, voicings: [], primaryFrets: null }
+      const primarySig = fretSig(p.frets)
+      const alternates = candidatesForPreset(p.chord, preset)
+        .filter(c => fretSig(c.frets) !== primarySig)
+        .slice(0, 2)
+      return {
+        chord: p.chord,
+        voicings: [
+          { voicing: p.voicing, frets: p.frets, displayedName: p.displayedName, offPreset: p.offPreset },
+          ...alternates,
+        ],
+        primaryFrets: p.frets,
+      }
+    })
+  }, [orderedChords, preset])
+
+  // Song-order mode: one voicing per occurrence, DP over the full flattened
+  // sequence (voice-leading flows across section boundaries), with each item
+  // carrying the previous occurrence's frets for shared-string highlighting.
+  const sequenceWithVoicings = useMemo(() => {
+    if (mode !== 'sequence') return []
+    const flat = sequenceGroups.flatMap(g => g.chords)
+    const path = pickVoicingPath(flat, preset)
+    let k = 0
+    let prevFrets = null
+    return sequenceGroups.map(g => ({
+      label: g.label,
+      items: g.chords.map(() => {
+        const p = path[k++]
+        const item = { ...p, prevFrets }
+        if (p.frets) prevFrets = p.frets
+        return item
+      }),
+    }))
+  }, [sequenceGroups, preset, mode])
 
   // Lookup: which other songs in the library use a given chord?
   const songsByChord = useMemo(() => {
@@ -129,6 +150,33 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
           </div>
         </header>
 
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] shrink-0 flex-wrap no-print">
+          <div className="flex rounded border border-[var(--color-border)] overflow-hidden text-xs h-8">
+            {[['chords', 'Chords'], ['sequence', 'Song order']].map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-2.5 h-full ${mode === m
+                  ? 'bg-[var(--color-bg-warm)] text-[var(--color-ink)] font-medium'
+                  : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'}`}
+              >{label}</button>
+            ))}
+          </div>
+          <div className="flex items-center rounded border border-[var(--color-border)] text-xs h-8">
+            <button
+              onClick={() => cyclePreset(-1)}
+              aria-label="Previous voicing set"
+              className="px-1.5 h-full flex items-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]"
+            ><ChevronLeft size={14} /></button>
+            <span className="px-1 min-w-[130px] text-center text-[var(--color-ink)]">{preset.label}</span>
+            <button
+              onClick={() => cyclePreset(1)}
+              aria-label="Next voicing set"
+              className="px-1.5 h-full flex items-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]"
+            ><ChevronRight size={14} /></button>
+          </div>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-4">
           <div ref={printRef} className="bg-[var(--color-bg)]">
             <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(440px,100%),1fr))]">
@@ -166,6 +214,11 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
                             <span className="font-mono text-[10px] text-[var(--color-ink-muted)]">
                               {v.frets.map(f => f == null ? 'x' : f).join(' ')}
                             </span>
+                            {v.offPreset && (
+                              <span className="text-[9px] uppercase tracking-wide text-[var(--color-ink-muted)] border border-[var(--color-border)] rounded px-1">
+                                off set
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
