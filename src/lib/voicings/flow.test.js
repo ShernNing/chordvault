@@ -48,6 +48,12 @@ describe('candidatesForPreset', () => {
   it('returns [] for an unparseable chord', () => {
     expect(candidatesForPreset('???', presetById('auto'))).toEqual([])
   })
+
+  it('applies the quality guard to padded chord names', () => {
+    const clean = candidatesForPreset('G', presetById('auto'))
+    const padded = candidatesForPreset('G ', presetById('auto'))
+    expect(padded).toEqual(clean)
+  })
 })
 
 describe('pickPathFromLayers', () => {

@@ -36,12 +36,15 @@ export const PRESETS = [
  * shapes), falls back to the FULL list with every entry flagged offPreset.
  */
 export function candidatesForPreset(chordName, preset) {
-  let all = voicingsForChord(chordName)
+  // voicingsForChord trims its input; trim here too so the quality guard
+  // below compares against the same normalized name (e.g. 'G ' vs 'G').
+  const want = String(chordName ?? '').trim()
+  let all = voicingsForChord(want)
   if (!all.length) return []
   // Quality guard: exact-match catalog groups mix qualities under one root
   // (plain 'G' carries Gsus2/G7/Gmaj7 voicings too) — keep only voicings
   // actually named like the requested chord when any exist.
-  const named = all.filter(c => c.displayedName === chordName)
+  const named = all.filter(c => c.displayedName === want)
   if (named.length) all = named
   if (!preset?.matches) return all.map(c => ({ ...c, offPreset: false }))
   const filtered = all.filter(c => preset.matches(c.frets))

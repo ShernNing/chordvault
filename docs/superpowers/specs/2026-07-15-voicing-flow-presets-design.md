@@ -36,16 +36,20 @@ voicings whose transitions are globally optimized for minimal hand movement
 | id | label | constraint |
 |----|-------|-----------|
 | `auto` | Auto | none |
-| `low` | Low neck | `voicing.position <= 5` |
-| `mid` | Mid neck | `4 <= position <= 9` |
-| `high` | High neck | `position >= 8` |
-| `set-gbe` | Strings 1-2-3 (G-B-e) | shape string-set `G-B-e` |
-| `set-dgb` | Strings 2-3-4 (D-G-B) | shape string-set `D-G-B` |
-| `set-adg` | Strings 3-4-5 (A-D-G) | shape string-set `A-D-G` |
+| `low` | Low neck | `voicingPosition(frets) <= 5` |
+| `mid` | Mid neck | `4 <= voicingPosition(frets) <= 9` |
+| `high` | High neck | `voicingPosition(frets) >= 8` |
+| `set-gbe` | Strings 1-2-3 (G-B-e) | played strings exactly `G-B-e` |
+| `set-dgb` | Strings 2-3-4 (D-G-B) | played strings exactly `D-G-B` |
+| `set-adg` | Strings 3-4-5 (A-D-G) | played strings exactly `A-D-G` |
 
-Zones deliberately overlap one fret so no zone preset starves. String-set
-membership is derived from the catalog voicing's `shape` field (its string-set
-label prefix, e.g. `"G-B-e · root"`); zone membership from `voicing.position`.
+Zones deliberately overlap one fret so no zone preset starves. Membership is
+computed from each candidate's `frets` array — zone membership via
+`voicingPosition(frets)`, string-set membership via the played-string
+signature (which string indices are non-null) — NOT from the catalog
+voicing's `shape` label or `voicing.position` field, because
+`voicingsForChord` can return frets transposed away from the catalog entry's
+recorded position.
 
 **`candidatesForPreset(chordName, preset)`** — runs `voicingsForChord`, filters
 by the preset constraint. If the filter empties the list (e.g. maj7/m7/dom7
@@ -123,7 +127,8 @@ export of the rendered DOM (mechanism unchanged).
 
 `src/lib/voicings/flow.test.js` (Vitest, colocated like sibling modules):
 
-1. Zone presets filter by position bounds; string-set presets by shape label.
+1. Zone presets filter by position bounds; string-set presets by played
+   strings.
 2. Fallback: 7th chord under a 3-string preset returns full list, all
    `offPreset: true`.
 3. Repeated chord yields identical consecutive voicings (zero-movement path).
