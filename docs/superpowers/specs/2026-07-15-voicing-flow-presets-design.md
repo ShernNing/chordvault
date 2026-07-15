@@ -36,7 +36,7 @@ voicings whose transitions are globally optimized for minimal hand movement
 | id | label | constraint |
 |----|-------|-----------|
 | `auto` | Auto | none |
-| `low` | Low neck | `voicingPosition(frets) <= 5` |
+| `low` | Low neck | `1 <= voicingPosition(frets) <= 5` |
 | `mid` | Mid neck | `4 <= voicingPosition(frets) <= 9` |
 | `high` | High neck | `voicingPosition(frets) >= 8` |
 | `set-gbe` | Strings 1-2-3 (G-B-e) | played strings exactly `G-B-e` |

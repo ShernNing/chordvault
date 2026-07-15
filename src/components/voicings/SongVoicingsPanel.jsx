@@ -10,7 +10,9 @@ import { useSongs } from '../../lib/hooks'
 
 /**
  * Slide-up panel listing every unique chord in a song with its best voicings.
- * Voice-leading: the first ("primary") voicing is auto-picked to flow from the previous chord.
+ * Voice-leading: the first ("primary") voicing is selected by global optimization (Viterbi)
+ * over the whole chord sequence under the active preset. Includes mode toggle (Chords/Song order)
+ * and preset cycler to explore different fretboard zones or string groups.
  *
  * Props:
  *   song           song object with parsed_content
