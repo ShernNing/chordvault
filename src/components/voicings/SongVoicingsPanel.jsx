@@ -92,7 +92,23 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
     try {
       const container = createPrintContainer()
       container.innerHTML = printRef.current.innerHTML
-      // Inline computed colors (since CSS vars don't carry into the cloned node)
+      // Pin light-theme values for the CSS vars used inside the print content:
+      // html2canvas resolves var() from the live document, so in dark theme the
+      // cloned nodes would otherwise render light-gray text/strokes on the
+      // forced-white export background. Values mirror :root in index.css.
+      const lightVars = {
+        '--color-bg': '#ffffff',
+        '--color-bg-warm': '#fafaf8',
+        '--color-border': '#e5e5e5',
+        '--color-ink': '#111111',
+        '--color-ink-soft': '#444444',
+        '--color-ink-muted': '#888888',
+        '--color-accent': '#f59e0b',
+        '--color-accent-soft': '#fef3c7',
+      }
+      for (const [name, value] of Object.entries(lightVars)) {
+        container.style.setProperty(name, value)
+      }
       container.style.color = '#000'
       container.style.background = '#fff'
       await exportSongToPDF(`${song.title || 'song'}-voicings`, targetKey || song.target_key || song.original_key, container)
