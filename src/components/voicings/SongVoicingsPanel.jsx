@@ -155,6 +155,7 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
             {[['chords', 'Chords'], ['sequence', 'Song order']].map(([m, label]) => (
               <button
                 key={m}
+                aria-pressed={mode === m}
                 onClick={() => setMode(m)}
                 className={`px-2.5 h-full ${mode === m
                   ? 'bg-[var(--color-bg-warm)] text-[var(--color-ink)] font-medium'
@@ -179,6 +180,45 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
 
         <div className="flex-1 overflow-y-auto p-4">
           <div ref={printRef} className="bg-[var(--color-bg)]">
+            {mode === 'sequence' ? (
+              <div className="flex flex-col gap-5">
+                {sequenceWithVoicings.map((group, gi) => (
+                  <section key={gi}>
+                    {group.label && (
+                      <h3 className="text-xs uppercase tracking-wide text-[var(--color-ink-muted)] mb-2">
+                        {group.label}
+                      </h3>
+                    )}
+                    <div className="flex flex-wrap gap-3">
+                      {group.items.map((item, i) => item.frets ? (
+                        <div key={i} className="flex flex-col items-center gap-1 w-[120px]">
+                          <span className="font-display text-sm text-[var(--color-ink)]">{item.chord}</span>
+                          <FretboardDiagram
+                            frets={item.frets}
+                            width={120}
+                            highlightRoot
+                            chordName={item.displayedName || item.chord}
+                            compareFrets={item.prevFrets}
+                          />
+                          <span className="font-mono text-[10px] text-[var(--color-ink-muted)]">
+                            {item.frets.map(f => f == null ? 'x' : f).join(' ')}
+                          </span>
+                          {item.offPreset && (
+                            <span className="text-[9px] uppercase tracking-wide text-[var(--color-ink-muted)] border border-[var(--color-border)] rounded px-1">
+                              off set
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div key={i} className="w-[120px] min-h-[80px] flex items-center justify-center text-[10px] italic text-[var(--color-ink-muted)] border border-dashed border-[var(--color-border)] rounded p-2 text-center">
+                          {item.chord}: no voicing
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
             <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(440px,100%),1fr))]">
               {chordsWithVoicings.map(({ chord, voicings }, idx) => {
                 const otherSongs = songsByChord.get(chord) || []
@@ -247,6 +287,7 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
                 )
               })}
             </div>
+            )}
           </div>
         </div>
       </div>
