@@ -6,9 +6,44 @@ const presetById = (id) => PRESETS.find(p => p.id === id)
 const playedIdx = (frets) => frets.map((f, i) => (f != null ? i : null)).filter(i => i != null)
 
 describe('PRESETS', () => {
-  it('starts with auto and contains all seven presets in cycle order', () => {
+  it('starts with auto, then the top-strings default, in cycle order', () => {
     expect(PRESETS.map(p => p.id)).toEqual(
-      ['auto', 'low', 'mid', 'high', 'set-gbe', 'set-dgb', 'set-adg'])
+      ['auto', 'top-strings', 'low', 'mid', 'high', 'set-gbe', 'set-dgb', 'set-adg'])
+  })
+})
+
+describe('top-strings default preset', () => {
+  const topStrings = presetById('top-strings')
+  const lowestString = (frets) => {
+    for (let i = 0; i < 6; i++) if (frets[i] != null) return i
+    return 5
+  }
+
+  it('softly biases — never hard-filters, so every chord keeps a full candidate pool', () => {
+    for (const chord of ['G', 'C', 'Em', 'Bm7b5']) {
+      const cands = candidatesForPreset(chord, topStrings)
+      expect(cands.length).toBeGreaterThan(0)
+      for (const c of cands) expect(c.offPreset).toBe(false)  // soft, not a filter
+    }
+  })
+
+  it('keeps picks off the A string (idx ≤1 = the 3·4·5 set) when higher sets exist', () => {
+    const path = pickVoicingPath(['G', 'C', 'D', 'Em', 'Am'], topStrings)
+    for (const p of path) {
+      expect(p.frets).not.toBeNull()
+      expect(lowestString(p.frets)).toBeGreaterThanOrEqual(2)  // stays on strings 1·2·3 / 2·3·4
+    }
+  })
+
+  it('prefers a top-three-string (G-B-e) voicing for an isolated triad', () => {
+    const [p] = pickVoicingPath(['C'], topStrings)
+    expect(lowestString(p.frets)).toBe(3)  // G-B-e set, the most-preferred
+  })
+
+  it('still returns a complete path for a 7th chord that only lives on the top-4 strings', () => {
+    const path = pickVoicingPath(['Gmaj7', 'Am7', 'D7'], topStrings)
+    expect(path).toHaveLength(3)
+    for (const p of path) expect(p.frets).not.toBeNull()
   })
 })
 
