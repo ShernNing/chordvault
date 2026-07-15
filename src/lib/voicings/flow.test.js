@@ -149,6 +149,19 @@ describe('chordSequenceFromParsedContent', () => {
     expect(groups[0].chords).toEqual(['A', 'D', 'E'])
   })
 
+  it('does not collapse duplicates across a section boundary', () => {
+    const crossing = [
+      { type: 'section_header', text: 'Verse' },
+      { type: 'chord_line', tokens: [{ text: 'G' }, { text: 'C' }] },
+      { type: 'section_header', text: 'Chorus' },
+      { type: 'chord_line', tokens: [{ text: 'C' }, { text: 'D' }] },
+    ]
+    expect(chordSequenceFromParsedContent(crossing)).toEqual([
+      { label: 'Verse', chords: ['G', 'C'] },
+      { label: 'Chorus', chords: ['C', 'D'] },
+    ])
+  })
+
   it('ignores non-chord tokens and returns [] for missing content', () => {
     const junk = [{ type: 'chord_line', tokens: [{ text: '(x2)' }, { text: 'G' }] }]
     expect(chordSequenceFromParsedContent(junk)[0].chords).toEqual(['G'])
