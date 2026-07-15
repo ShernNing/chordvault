@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PRESETS, candidatesForPreset } from './flow'
+import { PRESETS, candidatesForPreset, pickVoicingPath, pickPathFromLayers } from './flow'
 import { voicingPosition } from './notes'
 
 const presetById = (id) => PRESETS.find(p => p.id === id)
@@ -47,5 +47,75 @@ describe('candidatesForPreset', () => {
 
   it('returns [] for an unparseable chord', () => {
     expect(candidatesForPreset('???', presetById('auto'))).toEqual([])
+  })
+})
+
+describe('pickPathFromLayers', () => {
+  const V = (frets) => ({ voicing: { id: 'syn' }, frets, displayedName: 'X', offPreset: false })
+
+  it('beats greedy on a trap sequence', () => {
+    // Greedy takes the cheap first hop (5→4, movement 3) and then pays a huge
+    // jump to fret 12. The globally cheaper path goes 5→9→12.
+    const layers = [
+      [V([null, null, 5, 5, 5, null])],
+      [V([null, null, 4, 4, 4, null]), V([null, null, 9, 9, 9, null])],
+      [V([null, null, 12, 12, 12, null])],
+    ]
+    const path = pickPathFromLayers(layers, PRESETS[0])
+    expect(path[1].frets).toEqual([null, null, 9, 9, 9, null])
+  })
+
+  it('breaks the chain at an empty layer and picks around it', () => {
+    const layers = [
+      [V([null, null, 5, 5, 5, null])],
+      [],
+      [V([null, null, 7, 7, 7, null])],
+    ]
+    const path = pickPathFromLayers(layers, PRESETS[0])
+    expect(path[0]).not.toBeNull()
+    expect(path[1]).toBeNull()
+    expect(path[2]).not.toBeNull()
+  })
+})
+
+describe('pickVoicingPath', () => {
+  it('gives a repeated chord the identical voicing (zero-movement path)', () => {
+    const path = pickVoicingPath(['G', 'G', 'G'], PRESETS[0])
+    expect(path[0].frets).toEqual(path[1].frets)
+    expect(path[1].frets).toEqual(path[2].frets)
+  })
+
+  it('returns a complete path for every preset on a common progression', () => {
+    for (const preset of PRESETS) {
+      const path = pickVoicingPath(['G', 'C', 'D', 'Em'], preset)
+      expect(path).toHaveLength(4)
+      for (const p of path) {
+        expect(p.frets).not.toBeNull()
+        expect(p.voicing).not.toBeNull()
+      }
+    }
+  })
+
+  it('honors zone presets: every non-offPreset pick sits inside the zone', () => {
+    const path = pickVoicingPath(['G', 'C', 'D', 'Em'], PRESETS.find(p => p.id === 'high'))
+    for (const p of path) {
+      if (!p.offPreset) {
+        const pos = p.frets.filter(f => f != null && f > 0)
+        expect(Math.min(...pos)).toBeGreaterThanOrEqual(8)
+      }
+    }
+  })
+
+  it('is deterministic', () => {
+    const a = pickVoicingPath(['G', 'C', 'D', 'Em', 'C', 'G'], PRESETS.find(p => p.id === 'mid'))
+    const b = pickVoicingPath(['G', 'C', 'D', 'Em', 'C', 'G'], PRESETS.find(p => p.id === 'mid'))
+    expect(a).toEqual(b)
+  })
+
+  it('returns a null-voicing placeholder for unknown chords', () => {
+    const path = pickVoicingPath(['G', '???', 'C'], PRESETS[0])
+    expect(path[1]).toEqual({ chord: '???', voicing: null, frets: null, displayedName: '???', offPreset: false })
+    expect(path[0].frets).not.toBeNull()
+    expect(path[2].frets).not.toBeNull()
   })
 })

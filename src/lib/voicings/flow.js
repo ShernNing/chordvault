@@ -49,3 +49,97 @@ export function candidatesForPreset(chordName, preset) {
   const off = filtered.length === 0
   return pool.map(c => ({ ...c, offPreset: off }))
 }
+
+// ─── Path optimization (Viterbi) ────────────────────────────────────────────
+// Cost components are fixed by the spec; the weight values are tunable.
+const W_POSITION_JUMP = 0.75  // per-fret neck jump between consecutive voicings
+const W_SHARED_STRING = 1.5   // bonus per string kept at the same fret
+const W_ZONE_DRIFT = 0.5      // per-fret distance from a zone preset's center
+const W_OFF_PRESET = 25       // only take off-preset picks when unavoidable
+
+function nodeCost(cand, preset) {
+  let cost = cand.offPreset ? W_OFF_PRESET : 0
+  if (preset?.zoneCenter != null && !cand.offPreset) {
+    cost += W_ZONE_DRIFT * Math.abs(voicingPosition(cand.frets) - preset.zoneCenter)
+  }
+  return cost
+}
+
+function edgeCost(aFrets, bFrets) {
+  const sc = leadingScore(aFrets, bFrets)
+  if (!sc) return 0
+  const posJump = Math.abs(voicingPosition(aFrets) - voicingPosition(bFrets))
+  return sc.movement + W_POSITION_JUMP * posJump - W_SHARED_STRING * sc.sharedStrings
+}
+
+// Viterbi over layers[start..end) — writes the chosen candidate per layer
+// into picks. Ties resolve by strict `<`, i.e. first candidate in catalog
+// order wins (deterministic).
+function solveRun(layers, start, end, preset, picks) {
+  const costs = [layers[start].map(c => nodeCost(c, preset))]
+  const backs = [layers[start].map(() => -1)]
+
+  for (let i = start + 1; i < end; i++) {
+    const prevLayer = layers[i - 1]
+    const prevCost = costs[costs.length - 1]
+    const layerCosts = []
+    const layerBacks = []
+    for (const cand of layers[i]) {
+      let best = Infinity
+      let bestJ = -1
+      for (let j = 0; j < prevLayer.length; j++) {
+        const c = prevCost[j] + edgeCost(prevLayer[j].frets, cand.frets)
+        if (c < best) { best = c; bestJ = j }
+      }
+      layerCosts.push(best + nodeCost(cand, preset))
+      layerBacks.push(bestJ)
+    }
+    costs.push(layerCosts)
+    backs.push(layerBacks)
+  }
+
+  const last = costs[costs.length - 1]
+  let k = 0
+  for (let j = 1; j < last.length; j++) if (last[j] < last[k]) k = j
+  for (let i = end - 1; i >= start; i--) {
+    picks[i] = layers[i][k]
+    k = backs[i - start][k]
+  }
+}
+
+/**
+ * Core path picker over pre-built candidate layers. Each candidate needs a
+ * `.frets` array. An empty layer breaks the voice-leading chain (its slot is
+ * null; the next run starts fresh). Returns one candidate (or null) per layer.
+ */
+export function pickPathFromLayers(layers, preset) {
+  const picks = new Array(layers.length).fill(null)
+  let start = 0
+  while (start < layers.length) {
+    if (!layers[start].length) { start++; continue }
+    let end = start
+    while (end < layers.length && layers[end].length) end++
+    solveRun(layers, start, end, preset, picks)
+    start = end
+  }
+  return picks
+}
+
+/**
+ * One voicing per chord for the whole sequence under a preset.
+ * Returns [{ chord, voicing, frets, displayedName, offPreset }]; chords with
+ * no catalog voicings get { voicing: null, frets: null }.
+ */
+export function pickVoicingPath(chordNames, preset) {
+  const layers = chordNames.map(ch => candidatesForPreset(ch, preset))
+  const picks = pickPathFromLayers(layers, preset)
+  return chordNames.map((chord, i) => picks[i]
+    ? {
+        chord,
+        voicing: picks[i].voicing,
+        frets: picks[i].frets,
+        displayedName: picks[i].displayedName,
+        offPreset: !!picks[i].offPreset,
+      }
+    : { chord, voicing: null, frets: null, displayedName: chord, offPreset: false })
+}
