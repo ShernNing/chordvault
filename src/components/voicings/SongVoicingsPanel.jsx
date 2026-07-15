@@ -174,15 +174,16 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
         </header>
 
         <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--color-border)] shrink-0 flex-wrap no-print">
+          <span className="text-xs text-[var(--color-ink-muted)]">View</span>
           <div className="flex rounded border border-[var(--color-border)] overflow-hidden text-xs h-8">
-            {[['chords', 'Chords'], ['sequence', 'Song order']].map(([m, label]) => (
+            {[['sequence', 'By section'], ['chords', 'Unique chords']].map(([m, label]) => (
               <button
                 key={m}
                 aria-pressed={mode === m}
                 onClick={() => setMode(m)}
-                className={`px-2.5 h-full ${mode === m
-                  ? 'bg-[var(--color-bg-warm)] text-[var(--color-ink)] font-medium'
-                  : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'}`}
+                className={`px-3 h-full ${mode === m
+                  ? 'bg-[var(--color-accent-soft)] text-[var(--color-ink)] font-semibold'
+                  : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'}`}
               >{label}</button>
             ))}
           </div>
@@ -205,6 +206,14 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
           <div ref={printRef} className="bg-[var(--color-bg)]">
             {mode === 'sequence' ? (
               <div className="flex flex-col gap-5">
+                {sequenceWithVoicings.length === 0 && (
+                  <p className="text-sm italic text-[var(--color-ink-muted)]">No chords found in this song.</p>
+                )}
+                {sequenceWithVoicings.length > 0 && !sequenceWithVoicings.some(g => g.label) && (
+                  <p className="text-xs text-[var(--color-ink-muted)]">
+                    No section markers (<span className="font-mono">[Verse]</span>, <span className="font-mono">[Chorus]</span>…) detected — showing every chord in playing order.
+                  </p>
+                )}
                 {sequenceWithVoicings.map((group, gi) => (
                   <section key={gi}>
                     {group.label && (
