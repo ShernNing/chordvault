@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PRESETS, candidatesForPreset, pickVoicingPath, pickPathFromLayers } from './flow'
+import { PRESETS, candidatesForPreset, pickVoicingPath, pickPathFromLayers, chordSequenceFromParsedContent } from './flow'
 import { voicingPosition } from './notes'
 
 const presetById = (id) => PRESETS.find(p => p.id === id)
@@ -117,5 +117,41 @@ describe('pickVoicingPath', () => {
     expect(path[1]).toEqual({ chord: '???', voicing: null, frets: null, displayedName: '???', offPreset: false })
     expect(path[0].frets).not.toBeNull()
     expect(path[2].frets).not.toBeNull()
+  })
+})
+
+describe('chordSequenceFromParsedContent', () => {
+  const parsed = [
+    { type: 'section_header', text: 'Verse 1' },
+    { type: 'chord_line', tokens: [{ text: 'G' }, { text: 'G' }, { text: 'C' }] },
+    { type: 'lyric_line', text: 'la la la' },
+    { type: 'chord_line', tokens: [{ text: 'C' }, { text: 'D' }] },
+    { type: 'section_header', text: 'Chorus' },
+    { type: 'chord_line', tokens: [{ text: 'Em' }, { text: 'C' }] },
+  ]
+
+  it('groups by section header and collapses consecutive duplicates', () => {
+    expect(chordSequenceFromParsedContent(parsed)).toEqual([
+      { label: 'Verse 1', chords: ['G', 'C', 'D'] },   // G G → G; C|C across lines → C
+      { label: 'Chorus', chords: ['Em', 'C'] },
+    ])
+  })
+
+  it('puts headerless songs in one unlabeled group', () => {
+    const noHeader = [{ type: 'chord_line', tokens: [{ text: 'Am' }, { text: 'F' }] }]
+    expect(chordSequenceFromParsedContent(noHeader)).toEqual([
+      { label: null, chords: ['Am', 'F'] },
+    ])
+  })
+
+  it('applies transposition', () => {
+    const groups = chordSequenceFromParsedContent(parsed, { semitones: 2 })
+    expect(groups[0].chords).toEqual(['A', 'D', 'E'])
+  })
+
+  it('ignores non-chord tokens and returns [] for missing content', () => {
+    const junk = [{ type: 'chord_line', tokens: [{ text: '(x2)' }, { text: 'G' }] }]
+    expect(chordSequenceFromParsedContent(junk)[0].chords).toEqual(['G'])
+    expect(chordSequenceFromParsedContent(null)).toEqual([])
   })
 })

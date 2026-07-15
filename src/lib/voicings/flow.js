@@ -55,7 +55,10 @@ export function candidatesForPreset(chordName, preset) {
 const W_POSITION_JUMP = 0.75  // per-fret neck jump between consecutive voicings
 const W_SHARED_STRING = 1.5   // bonus per string kept at the same fret
 const W_ZONE_DRIFT = 0.5      // per-fret distance from a zone preset's center
-const W_OFF_PRESET = 25       // only take off-preset picks when unavoidable
+// Inert through pickVoicingPath (candidatesForPreset flags whole layers
+// uniformly, so it adds a constant to every path); binds only for
+// pickPathFromLayers callers that build mixed on/off-preset layers.
+const W_OFF_PRESET = 25
 
 function nodeCost(cand, preset) {
   let cost = cand.offPreset ? W_OFF_PRESET : 0
@@ -142,4 +145,34 @@ export function pickVoicingPath(chordNames, preset) {
         offPreset: !!picks[i].offPreset,
       }
     : { chord, voicing: null, frets: null, displayedName: chord, offPreset: false })
+}
+
+// ─── Song-order chord sequence ──────────────────────────────────────────────
+/**
+ * Walk parsed_content in playing order → [{ label, chords }] groups split on
+ * section_header lines. Consecutive duplicate chords collapse (G G C → G C).
+ * Transposition mirrors SongVoicingsPanel's display logic.
+ */
+export function chordSequenceFromParsedContent(parsedContent, { semitones = 0, preferFlats = false } = {}) {
+  if (!parsedContent) return []
+  const groups = []
+  let current = { label: null, chords: [] }
+  const flush = () => { if (current.chords.length) groups.push(current) }
+
+  for (const line of parsedContent) {
+    if (line.type === 'section_header') {
+      flush()
+      current = { label: line.text || null, chords: [] }
+      continue
+    }
+    if (line.type !== 'chord_line' || !line.tokens) continue
+    for (const tok of line.tokens) {
+      const txt = (tok.text || '').trim()
+      if (!txt || !/^[A-G][b#]?/.test(txt)) continue
+      const displayed = semitones !== 0 ? transposeChordName(txt, semitones, preferFlats) : txt
+      if (current.chords[current.chords.length - 1] !== displayed) current.chords.push(displayed)
+    }
+  }
+  flush()
+  return groups
 }
