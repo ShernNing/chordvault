@@ -31,7 +31,7 @@ const STRING_INDEX = {
 };
 const STRING_LETTER_RE = "[EeADGBadgb]";
 const MAX_FRET_INPUT = 24;
-const GRID_FRETS = 14;
+const GRID_FRETS = 22; // fret rows 1..22; taller than viewport → scrolls
 const SECTION_PRESETS = [
   "Intro",
   "Verse 1",
@@ -221,7 +221,7 @@ export default function ElectricGuitarNotesPanel({
     setEditingId(null);
   };
 
-  const saveEntry = async () => {
+  const saveEntry = async (keepAdding = false) => {
     if (!draft) return;
     const type = entryType(draft);
 
@@ -269,7 +269,26 @@ export default function ElectricGuitarNotesPanel({
         : stored.map((e) => (e.id === finalEntry.id ? finalEntry : e));
     try {
       await onSave(next);
-      cancelEdit();
+      if (keepAdding) {
+        // Reopen a fresh draft of the same type, keeping the section so a run
+        // of chords in one part can be added back-to-back without reopening.
+        const section = (draft.section || "").trim();
+        setDraft(
+          type === "lick"
+            ? { id: "new", type: "lick", notes: [], label: "", section, lickText: "" }
+            : {
+                id: "new",
+                type: "chord",
+                chord: "",
+                frets: [null, null, null, null, null, null],
+                label: "",
+                section,
+              },
+        );
+        setEditingId("new");
+      } else {
+        cancelEdit();
+      }
     } catch (e) {
       // Error already surfaced by parent; keep editor open so user can retry
     }
@@ -335,6 +354,7 @@ export default function ElectricGuitarNotesPanel({
                     setDraft={setDraft}
                     originalKey={song.original_key}
                     onSave={saveEntry}
+                    onSaveAndAdd={() => saveEntry(true)}
                     onCancel={cancelEdit}
                   />
                 ) : (
@@ -355,6 +375,7 @@ export default function ElectricGuitarNotesPanel({
               setDraft={setDraft}
               originalKey={song.original_key}
               onSave={saveEntry}
+              onSaveAndAdd={() => saveEntry(true)}
               onCancel={cancelEdit}
             />
           )}
@@ -487,8 +508,20 @@ function EntryCard({ entry, onEdit, onDelete }) {
 
 // ─── Editor, branches on draft.type ──────────────────────────────────────
 
-function EntryEditor({ draft, setDraft, _originalKey, onSave, onCancel }) {
+function EntryEditor({
+  draft,
+  setDraft,
+  _originalKey,
+  onSave,
+  onSaveAndAdd,
+  onCancel,
+}) {
   const type = entryType(draft);
+  const isNew = draft.id === "new";
+  const saveDisabled =
+    type === "chord"
+      ? !draft.chord?.trim()
+      : parseLickText(draft.lickText || "").length === 0;
   return (
     <article className='p-2 border border-[var(--color-accent)] rounded bg-[var(--color-bg-warm)] space-y-2'>
       <div className='flex items-center gap-1'>
@@ -533,15 +566,22 @@ function EntryEditor({ draft, setDraft, _originalKey, onSave, onCancel }) {
         <Button variant='ghost' size='sm' onClick={onCancel}>
           Cancel
         </Button>
+        {isNew && onSaveAndAdd && (
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={onSaveAndAdd}
+            disabled={saveDisabled}
+            title='Save and start another'
+          >
+            <Plus size={12} /> Save &amp; add
+          </Button>
+        )}
         <Button
           variant='primary'
           size='sm'
           onClick={onSave}
-          disabled={
-            type === "chord"
-              ? !draft.chord?.trim()
-              : parseLickText(draft.lickText || "").length === 0
-          }
+          disabled={saveDisabled}
         >
           <Check size={12} /> Save
         </Button>
@@ -685,15 +725,18 @@ function VoicingGrid({ frets, onSetFret }) {
     </>
   );
 
+  const colStyle = {
+    gridTemplateColumns: `${labelW}px repeat(6, minmax(0, 1fr))`,
+  };
+
   return (
     <div>
       <span className='text-[10px] text-[var(--color-ink-muted)] uppercase tracking-wide block mb-1'>
-        Build voicing, click cell to set fret per string
+        Build voicing, click cell to set fret per string · scroll for higher
+        frets
       </span>
-      <div
-        className='grid gap-0.5'
-        style={{ gridTemplateColumns: `${labelW}px repeat(6, minmax(0, 1fr))` }}
-      >
+      {/* Fixed header + mute/open rows (always visible) */}
+      <div className='grid gap-0.5' style={colStyle}>
         {/* header: blank + string labels */}
         <RowLabel />
         {STRING_LABELS.map((label, i) => (
@@ -709,18 +752,25 @@ function VoicingGrid({ frets, onSetFret }) {
         <StringRow value={null} displayLabel='×' />
         {/* open row */}
         <StringRow value={0} displayLabel='0' />
-        {/* fret rows */}
-        {Array.from({ length: GRID_FRETS }, (_, fIdx) => {
-          const f = fIdx + 1;
-          return (
-            <StringRow
-              key={`fr-${f}`}
-              value={f}
-              displayLabel={f}
-              isMarker={markerFret(f)}
-            />
-          );
-        })}
+      </div>
+      {/* Scrollable fret rows 1..GRID_FRETS */}
+      <div
+        className='overflow-y-auto mt-0.5'
+        style={{ maxHeight: cellH * 12 + 22 }}
+      >
+        <div className='grid gap-0.5' style={colStyle}>
+          {Array.from({ length: GRID_FRETS }, (_, fIdx) => {
+            const f = fIdx + 1;
+            return (
+              <StringRow
+                key={`fr-${f}`}
+                value={f}
+                displayLabel={f}
+                isMarker={markerFret(f)}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );
