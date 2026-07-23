@@ -24,35 +24,35 @@ export default function InlineVoicingRow({ line, lineIndex, lookup, onCycle }) {
   if (!chips.length) return null
 
   return (
-    <div className='inline-voicing-row no-print flex flex-wrap gap-2 mt-1 mb-2'>
+    <div className='inline-voicing-row no-print flex flex-wrap gap-4 mt-2 mb-3'>
       {chips.map(({ key, name }) => {
         const v = lookup(key)
         return (
-          <div key={key} className='flex flex-col items-center gap-0.5 w-[68px]'>
-            <span className='font-mono text-[10px] text-[var(--color-ink-soft)] leading-none'>
+          <div key={key} className='flex flex-col items-center gap-1 w-[150px]'>
+            <span className='font-display text-sm text-[var(--color-ink)] leading-none'>
               {v?.displayedName || name}
             </span>
             {v?.frets ? (
               <FretboardDiagram
                 frets={v.frets}
-                width={64}
+                width={150}
                 highlightRoot
                 chordName={v.displayedName || name}
               />
             ) : (
-              <span className='text-[9px] italic text-[var(--color-ink-muted)] py-2'>
+              <span className='text-xs italic text-[var(--color-ink-muted)] py-4'>
                 no voicing
               </span>
             )}
             {v?.frets && (
-              <div className='flex items-center gap-1'>
+              <div className='flex items-center gap-3'>
                 <button
                   type='button'
                   aria-label={`Previous voicing for ${name}`}
                   onClick={() => onCycle(key, name, -1)}
                   className='text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
                 >
-                  <ChevronLeft size={12} />
+                  <ChevronLeft size={18} />
                 </button>
                 <button
                   type='button'
@@ -60,7 +60,7 @@ export default function InlineVoicingRow({ line, lineIndex, lookup, onCycle }) {
                   onClick={() => onCycle(key, name, 1)}
                   className='text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]'
                 >
-                  <ChevronRight size={12} />
+                  <ChevronRight size={18} />
                 </button>
               </div>
             )}
