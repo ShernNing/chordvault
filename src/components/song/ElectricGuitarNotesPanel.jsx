@@ -3,6 +3,7 @@ import { X, Plus, Trash2, Edit3, Check, Zap } from "lucide-react";
 import FretboardDiagram from "../voicings/FretboardDiagram";
 import { voicingsForChord } from "../../lib/voicings/lookup";
 import { bestTransposeFrets } from "../../lib/voicings/transpose";
+import { smartTransposeLick } from "../../lib/voicings/lickTranspose";
 import { transposeChord } from "../../lib/transposition";
 import { Button, Input } from "../ui";
 
@@ -154,8 +155,26 @@ export default function ElectricGuitarNotesPanel({
     window.addEventListener("pointerup", up);
   };
 
+  // Naive-shift frame (same-string fret + semitones). NOT the render source —
+  // it seeds `startEdit` and the `saveEntry` inverse, so it must stay in the
+  // untouched original-key frame. The read-only list renders from `rendered` below.
   const displayed = useMemo(
     () => stored.map((e) => transposeForDisplay(e, semitones, displayKey)),
+    [stored, semitones, displayKey],
+  );
+
+  // Read-only render frame: lick entries use smart relocation (off-neck notes
+  // moved to same-pitch playable positions near their neighbors); chord entries
+  // and the naive-shift edit/save path are unchanged. Editing still seeds from the
+  // naive `displayed` memo, so relocation never corrupts the stored original-key
+  // frame (see docs/superpowers/specs/2026-07-23-smart-lick-transpose-design.md).
+  const rendered = useMemo(
+    () =>
+      stored.map((e) =>
+        entryType(e) === "lick"
+          ? { ...e, notes: smartTransposeLick(e.notes || [], semitones) }
+          : transposeForDisplay(e, semitones, displayKey),
+      ),
     [stored, semitones, displayKey],
   );
 
@@ -295,7 +314,7 @@ export default function ElectricGuitarNotesPanel({
         </header>
 
         <div className='flex-1 overflow-y-auto p-3 space-y-2'>
-          {displayed.length === 0 && editingId !== "new" && (
+          {rendered.length === 0 && editingId !== "new" && (
             <div className='text-xs text-[var(--color-ink-muted)] italic text-center py-8'>
               No voicings yet.
               <br />
@@ -303,7 +322,7 @@ export default function ElectricGuitarNotesPanel({
             </div>
           )}
 
-          {groupBySection(displayed).map(({ section, entries }) => (
+          {groupBySection(rendered).map(({ section, entries }) => (
             <section key={section} className='space-y-1.5'>
               <h3 className='text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent)] px-1 pt-1'>
                 {section === UNSECTIONED ? "No section" : section}
