@@ -47,6 +47,7 @@ import {
 } from "../lib/ingestion";
 import { cycleNashville } from "../lib/nashville";
 import { bestTransposeFrets } from "../lib/voicings/transpose";
+import { PRESETS } from "../lib/voicings/flow";
 import { exportSongToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSongToDocx } from "../lib/docxExport";
 import { useToast } from "../lib/toast";
@@ -100,6 +101,14 @@ export default function SongView() {
   });
   const [twoColumn, setTwoColumn] = useLocalStorage(`cv-2col-${id}`, "auto");
   const [nashville, setNashville] = useLocalStorage("cv-nashville", false);
+  const [voicingsInline, setVoicingsInline] = useLocalStorage(
+    "cv-voicings-inline",
+    false,
+  );
+  const [voicingPreset, setVoicingPreset] = useLocalStorage(
+    "cv-voicing-preset",
+    0,
+  );
   const [bpm, setBpm] = useLocalStorage(`cv-bpm-${id}`, 100);
   const [showPerform, setShowPerform] = useState(false);
   const [showChordPlayer, setShowChordPlayer] = useState(false);
@@ -601,6 +610,12 @@ export default function SongView() {
           onChange={handleTransposeChange}
           nashville={nashville}
           onToggleNashville={() => setNashville(cycleNashville)}
+          voicings={voicingsInline}
+          onToggleVoicings={() => setVoicingsInline((v) => !v)}
+          voicingPreset={voicingPreset}
+          onCyclePreset={(dir) =>
+            setVoicingPreset((i) => (i + dir + PRESETS.length) % PRESETS.length)
+          }
         />
       </div>
 
@@ -745,6 +760,8 @@ export default function SongView() {
         onLineTypeOverride={handleLineTypeOverride}
         onChordClick={setActiveVoicingChord}
         nashville={nashville}
+        voicings={voicingsInline}
+        voicingPreset={voicingPreset}
       />
 
       {showPerform && (
@@ -1142,6 +1159,8 @@ function ChordSheetPage({
   onLineTypeOverride,
   onChordClick,
   nashville = false,
+  voicings = false,
+  voicingPreset = 0,
 }) {
   const measureRef = React.useRef(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -1205,6 +1224,8 @@ function ChordSheetPage({
           onLineTypeOverride={onLineTypeOverride}
           onChordClick={onChordClick}
           nashville={nashville}
+          voicings={voicings}
+          voicingPreset={voicingPreset}
         />
       </div>
 
