@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useLayoutEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { transposeParsedContent } from "../../lib/transposition";
 import { annotateNashville, normalizeNashville } from "../../lib/nashville";
 import { normalizeSectionHeader, cleanSongTitle } from "../../lib/ingestion";
+import { PRESETS } from "../../lib/voicings/flow";
+import { buildInlineVoicings, cycleVoicing } from "../../lib/voicings/inlineVoicings";
+import InlineVoicingRow from "./InlineVoicingRow";
 
 // ─── Column layout helpers ───────────────────────────────────────────────────
 // JS-based section splitting so sections never break across columns.
@@ -250,8 +253,12 @@ export default function SongRenderer({
   onChordClick = null,
   fontSize = 14,
   nashville = false,
+  voicings = false,
+  voicingPreset = 0,
 }) {
   const [overrides, setOverrides] = useState({});
+  const [voicingOverrides, setVoicingOverrides] = useState({});
+  const showVoicings = voicings && !printMode;
 
   const transposed =
     semitones !== 0
@@ -262,6 +269,25 @@ export default function SongRenderer({
     nashMode !== "off" && targetKey
       ? annotateNashville(transposed, targetKey, nashMode)
       : transposed;
+
+  // Screen-only: one voicing per chord occurrence, keyed "lineIndex:tokenIndex".
+  // Rebuilt when the song, transposition, or preset changes. `content` is a pure
+  // function of these scalars, so depend on the scalars (not the fresh `content`
+  // ref, which changes every render while transposing).
+  const voicingMap = useMemo(
+    () =>
+      showVoicings
+        ? buildInlineVoicings(content, PRESETS[voicingPreset] || PRESETS[0])
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showVoicings, parsedContent, semitones, targetKey, voicingPreset],
+  );
+
+  // Per-occurrence overrides are preset-relative and position-keyed, so drop them
+  // when the preset, song, or transposition changes (keys/frets would be stale).
+  useLayoutEffect(() => {
+    setVoicingOverrides({});
+  }, [voicingPreset, parsedContent, semitones, targetKey]);
 
   if (!content || content.length === 0) {
     return (
@@ -275,6 +301,25 @@ export default function SongRenderer({
     setOverrides((prev) => ({ ...prev, [index]: newType }));
     onLineTypeOverride?.(index, newType);
   };
+
+  const lookupVoicing = (key) =>
+    voicingOverrides[key] ?? voicingMap?.get(key) ?? null;
+
+  const handleCycleVoicing = (key, name, dir) => {
+    const current = lookupVoicing(key);
+    const next = cycleVoicing(current, name, PRESETS[voicingPreset] || PRESETS[0], dir);
+    setVoicingOverrides((prev) => ({ ...prev, [key]: next }));
+  };
+
+  const voicingRow = (line, lineIndex) =>
+    showVoicings ? (
+      <InlineVoicingRow
+        line={line}
+        lineIndex={lineIndex}
+        lookup={lookupVoicing}
+        onCycle={handleCycleVoicing}
+      />
+    ) : null;
 
   // Pair adjacent chord+lyric lines into a single block
   const groups = [];
@@ -361,6 +406,7 @@ export default function SongRenderer({
           >
             {chordContent}
           </span>
+          {voicingRow(chord, chordIndex)}
           <span className='lyric-line'>{lyric.text}</span>
           {chord.uncertain && !printMode && onLineTypeOverride && (
             <UncertainOverlay
@@ -381,6 +427,7 @@ export default function SongRenderer({
         onOverride={onLineTypeOverride ? handleOverride : null}
         onChordClick={!printMode ? onChordClick : null}
         nashMode={nashMode}
+        voicingRow={voicingRow}
       />
     );
   };
@@ -419,6 +466,7 @@ function RenderLine({
   onOverride,
   onChordClick,
   nashMode = "off",
+  voicingRow = null,
 }) {
   switch (line.type) {
     case "section_header":
@@ -438,6 +486,7 @@ function RenderLine({
           onOverride={onOverride}
           onChordClick={onChordClick}
           nashMode={nashMode}
+          voicingRow={voicingRow}
         />
       );
 
@@ -485,6 +534,7 @@ function ChordLineRender({
   onOverride,
   onChordClick,
   nashMode = "off",
+  voicingRow = null,
 }) {
   const chordContent = renderChordTextInline(
     line,
@@ -501,6 +551,7 @@ function ChordLineRender({
       >
         {chordContent}
       </span>
+      {voicingRow?.(line, index)}
       {line.uncertain && !printMode && onOverride && (
         <UncertainOverlay
           label='Chord line?'

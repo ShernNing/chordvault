@@ -1,4 +1,12 @@
-import { RotateCcw, ChevronUp, ChevronDown, Hash } from "lucide-react";
+import {
+  RotateCcw,
+  ChevronUp,
+  ChevronDown,
+  Hash,
+  Guitar,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import {
   ALL_KEYS,
   transposeKey,
@@ -6,6 +14,7 @@ import {
   semitonesFromKeyToKey,
 } from "../../lib/transposition";
 import { normalizeNashville } from "../../lib/nashville";
+import { PRESETS } from "../../lib/voicings/flow";
 import { Button, Select, Tooltip, Badge } from "../ui";
 import { RollValue } from "../../lib/motion";
 
@@ -25,6 +34,10 @@ export default function TransposeControls({
   onChange,
   nashville = false,
   onToggleNashville = null,
+  voicings = false,
+  onToggleVoicings = null,
+  voicingPreset = 0,
+  onCyclePreset = null,
 }) {
   const displayKey = originalKey ? transposeKey(originalKey, semitones) : null;
 
@@ -168,6 +181,50 @@ export default function TransposeControls({
             </Tooltip>
           );
         })()}
+
+      {/* ── Voicings (fretboard diagrams under each chord) ──────────────── */}
+      {onToggleVoicings && (
+        <div className='flex items-center gap-1'>
+          <Tooltip
+            content={
+              voicings
+                ? "Hide chord voicings under the chords"
+                : "Show a fretboard diagram under each chord"
+            }
+          >
+            <Button
+              variant={voicings ? "primary" : "secondary"}
+              size='sm'
+              onClick={onToggleVoicings}
+            >
+              <Guitar size={12} /> Voicings
+            </Button>
+          </Tooltip>
+          {voicings && onCyclePreset && (
+            <div className='flex items-center rounded border border-[var(--color-border)] text-xs h-8'>
+              <button
+                type='button'
+                onClick={() => onCyclePreset(-1)}
+                aria-label='Previous voicing set'
+                className='px-1.5 h-full flex items-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className='px-1 min-w-[92px] text-center text-[var(--color-ink)]'>
+                {PRESETS[voicingPreset]?.label || PRESETS[0].label}
+              </span>
+              <button
+                type='button'
+                onClick={() => onCyclePreset(1)}
+                aria-label='Next voicing set'
+                className='px-1.5 h-full flex items-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Capo hint ────────────────────────────────────────────────── */}
       {capoDisplay && (
