@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useLayoutEffect } from "react";
 import { AlertTriangle } from "lucide-react";
 import { transposeParsedContent } from "../../lib/transposition";
 import { annotateNashville, normalizeNashville } from "../../lib/nashville";
@@ -285,7 +285,7 @@ export default function SongRenderer({
 
   // Per-occurrence overrides are preset-relative and position-keyed, so drop them
   // when the preset, song, or transposition changes (keys/frets would be stale).
-  useEffect(() => {
+  useLayoutEffect(() => {
     setVoicingOverrides({});
   }, [voicingPreset, parsedContent, semitones, targetKey]);
 
