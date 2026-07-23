@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useLayoutEffect } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Save } from "lucide-react";
 import { transposeParsedContent } from "../../lib/transposition";
 import { annotateNashville, normalizeNashville } from "../../lib/nashville";
 import { normalizeSectionHeader, cleanSongTitle } from "../../lib/ingestion";
@@ -255,10 +255,20 @@ export default function SongRenderer({
   nashville = false,
   voicings = false,
   voicingPreset = 0,
+  voicingStore = null,
+  onSaveVoicings = null,
 }) {
   const [overrides, setOverrides] = useState({});
   const [voicingOverrides, setVoicingOverrides] = useState({});
+  const [savedVoicings, setSavedVoicings] = useState({});
+  const [savingVoicings, setSavingVoicings] = useState(false);
   const showVoicings = voicings && !printMode;
+
+  // Manual inline-voicing picks persist to Supabase (songs.inline_voicings), a
+  // map keyed by "preset:semitones" — the same scalars the picks are relative to
+  // — so each transposition/preset combo keeps its own saved voicings without
+  // stale-key collisions. onSaveVoicings persists; absent = read-only (no Save).
+  const voicingComboKey = `${voicingPreset}:${semitones}`;
 
   const transposed =
     semitones !== 0
@@ -283,11 +293,68 @@ export default function SongRenderer({
     [showVoicings, parsedContent, semitones, targetKey, voicingPreset],
   );
 
-  // Per-occurrence overrides are preset-relative and position-keyed, so drop them
-  // when the preset, song, or transposition changes (keys/frets would be stale).
+  // Per-occurrence overrides are preset-relative and position-keyed. On any
+  // change to the preset, song, transposition, or the persisted store, reload
+  // the saved picks for the current combo (or clear to auto voice-leading).
   useLayoutEffect(() => {
-    setVoicingOverrides({});
-  }, [voicingPreset, parsedContent, semitones, targetKey]);
+    if (!showVoicings) {
+      setVoicingOverrides({});
+      setSavedVoicings({});
+      return;
+    }
+    const saved = voicingStore?.[voicingComboKey] || {};
+    setVoicingOverrides(saved);
+    setSavedVoicings(saved);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voicingPreset, parsedContent, semitones, targetKey, showVoicings, voicingStore]);
+
+  // Merge the current combo's overrides into the full store (dropping the combo
+  // when empty), preserving every other combo's saved picks.
+  const buildNextStore = (comboOverrides) => {
+    const next = { ...(voicingStore || {}) };
+    if (Object.keys(comboOverrides).length > 0)
+      next[voicingComboKey] = comboOverrides;
+    else delete next[voicingComboKey];
+    return next;
+  };
+
+  const saveVoicings = async () => {
+    if (!onSaveVoicings || savingVoicings) return;
+    setSavingVoicings(true);
+    try {
+      await onSaveVoicings(buildNextStore(voicingOverrides));
+      setSavedVoicings(voicingOverrides);
+    } catch {
+      // Parent surfaces the error; keep the dirty state so the user can retry.
+    } finally {
+      setSavingVoicings(false);
+    }
+  };
+
+  const resetVoicings = async () => {
+    if (savingVoicings) return;
+    // If nothing is persisted, just drop the in-session picks locally.
+    if (!onSaveVoicings || Object.keys(savedVoicings).length === 0) {
+      setVoicingOverrides({});
+      setSavedVoicings({});
+      return;
+    }
+    setSavingVoicings(true);
+    try {
+      await onSaveVoicings(buildNextStore({}));
+      setVoicingOverrides({});
+      setSavedVoicings({});
+    } catch {
+      // keep state; parent surfaced the error
+    } finally {
+      setSavingVoicings(false);
+    }
+  };
+
+  const voicingsDirty =
+    JSON.stringify(voicingOverrides) !== JSON.stringify(savedVoicings);
+  const manualVoicingCount = Object.keys(voicingOverrides).length;
+  const hasSavedVoicings = Object.keys(savedVoicings).length > 0;
 
   if (!content || content.length === 0) {
     return (
@@ -432,8 +499,49 @@ export default function SongRenderer({
     );
   };
 
+  const voicingSaveBar =
+    showVoicings && onSaveVoicings && (voicingsDirty || hasSavedVoicings) ? (
+      <div className='no-print flex flex-wrap items-center gap-2 mb-3 px-3 py-2 rounded border border-[var(--color-border)] bg-[var(--color-bg-warm)] text-xs'>
+        <span className='text-[var(--color-ink-soft)]'>
+          {manualVoicingCount > 0
+            ? `${manualVoicingCount} custom voicing${manualVoicingCount === 1 ? "" : "s"}`
+            : "No custom voicings"}
+          {voicingsDirty ? (
+            <span className='text-[var(--color-accent)]'> · unsaved</span>
+          ) : hasSavedVoicings ? (
+            <span className='text-[var(--color-ink-muted)]'> · saved</span>
+          ) : null}
+        </span>
+        <div className='flex items-center gap-1.5 ml-auto'>
+          <button
+            type='button'
+            onClick={saveVoicings}
+            disabled={!voicingsDirty || savingVoicings}
+            className='flex items-center gap-1 h-7 px-2.5 rounded bg-[var(--color-ink)] text-[var(--color-bg)] hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity'
+          >
+            <Save size={12} /> {savingVoicings ? "Saving…" : "Save voicings"}
+          </button>
+          {(hasSavedVoicings || manualVoicingCount > 0) && (
+            <button
+              type='button'
+              onClick={resetVoicings}
+              disabled={savingVoicings}
+              className='h-7 px-2.5 rounded border border-[var(--color-border)] text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink-muted)] disabled:opacity-40'
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+    ) : null;
+
   if (!twoColumn) {
-    return <div className='chord-sheet'>{groups.map(renderGroup)}</div>;
+    return (
+      <div className='chord-sheet'>
+        {voicingSaveBar}
+        {groups.map(renderGroup)}
+      </div>
+    );
   }
 
   // 2-column: group by section, split left-first, render as flex columns
@@ -452,9 +560,12 @@ export default function SongRenderer({
     );
 
   return (
-    <div className='chord-sheet flex gap-8'>
-      <div className='flex-1 min-w-0'>{renderCol(left)}</div>
-      <div className='flex-1 min-w-0'>{renderCol(right)}</div>
+    <div className='chord-sheet'>
+      {voicingSaveBar}
+      <div className='flex gap-8'>
+        <div className='flex-1 min-w-0'>{renderCol(left)}</div>
+        <div className='flex-1 min-w-0'>{renderCol(right)}</div>
+      </div>
     </div>
   );
 }

@@ -259,6 +259,22 @@ export default function SongView() {
     await update({ parsed_content: newContent });
   };
 
+  const handleSaveVoicings = async (nextStore) => {
+    try {
+      await update({ inline_voicings: nextStore });
+      toast.success("Voicings saved");
+    } catch (e) {
+      const msg = String(e?.message || e);
+      toast.error(
+        `Save failed: ${msg}` +
+          (msg.includes("inline_voicings")
+            ? `\n\nAdd the column in Supabase:\n\nALTER TABLE songs ADD COLUMN inline_voicings jsonb DEFAULT '{}'::jsonb;`
+            : ""),
+      );
+      throw e;
+    }
+  };
+
   const hasUncertain = song.parsed_content?.some((l) => l.uncertain);
 
   const handleCopy = async () => {
@@ -762,6 +778,8 @@ export default function SongView() {
         nashville={nashville}
         voicings={voicingsInline}
         voicingPreset={voicingPreset}
+        voicingStore={song.inline_voicings || null}
+        onSaveVoicings={canEdit ? handleSaveVoicings : null}
       />
 
       {showPerform && (
@@ -1161,6 +1179,8 @@ function ChordSheetPage({
   nashville = false,
   voicings = false,
   voicingPreset = 0,
+  voicingStore = null,
+  onSaveVoicings = null,
 }) {
   const measureRef = React.useRef(null);
   const [isOverflowing, setIsOverflowing] = React.useState(false);
@@ -1226,6 +1246,8 @@ function ChordSheetPage({
           nashville={nashville}
           voicings={voicings}
           voicingPreset={voicingPreset}
+          voicingStore={voicingStore}
+          onSaveVoicings={onSaveVoicings}
         />
       </div>
 
