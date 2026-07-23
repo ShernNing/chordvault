@@ -60,7 +60,9 @@ export function buildInlineVoicings(content, preset) {
  * candidates (nothing to cycle).
  */
 export function cycleVoicing(current, name, preset, dir) {
-  const cands = candidatesForPreset(name, preset || PRESETS[0])
+  const cands = candidatesForPreset(name, preset || PRESETS[0], {
+    includeShells: true,
+  })
   if (cands.length <= 1) return current
   const sig = fretSig(current?.frets)
   let idx = cands.findIndex((c) => fretSig(c.frets) === sig)

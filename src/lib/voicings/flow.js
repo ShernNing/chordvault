@@ -60,17 +60,30 @@ export const PRESETS = [
  * If the preset filter empties the list (e.g. 7th chords exist only as top-4
  * shapes), falls back to the FULL list with every entry flagged offPreset.
  */
-export function candidatesForPreset(chordName, preset) {
+export function candidatesForPreset(chordName, preset, opts = {}) {
   // voicingsForChord trims its input; trim here too so the quality guard
   // below compares against the same normalized name (e.g. 'G ' vs 'G').
   const want = String(chordName ?? '').trim()
-  let all = voicingsForChord(want)
-  if (!all.length) return []
+  const original = voicingsForChord(want)
+  if (!original.length) return []
   // Quality guard: exact-match catalog groups mix qualities under one root
   // (plain 'G' carries Gsus2/G7/Gmaj7 voicings too) — keep only voicings
   // actually named like the requested chord when any exist.
-  const named = all.filter(c => c.displayedName === want)
-  if (named.length) all = named
+  const named = original.filter(c => c.displayedName === want)
+  let all = original
+  if (named.length) {
+    all = named
+    // For plain major/minor chords, optionally fold in the same-root shell
+    // (power) voicings so manual cycling can reach the no-3rd shapes. Appended
+    // AFTER the real triads, so they never displace the default primary pick.
+    if (opts.includeShells) {
+      const m = want.match(/^([A-G][b#]?)m?$/)
+      if (m) {
+        const shells = original.filter((c) => c.displayedName === `${m[1]}5`)
+        if (shells.length) all = [...named, ...shells]
+      }
+    }
+  }
   if (!preset?.matches) return all.map(c => ({ ...c, offPreset: false }))
   const filtered = all.filter(c => preset.matches(c.frets))
   const pool = filtered.length ? filtered : all

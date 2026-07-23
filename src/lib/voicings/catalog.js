@@ -79,6 +79,9 @@ const FAMILIES = {
   dim7:     { suffix: 'dim7',  key: 'dim7',     tag: 'dim7'  },
   sus2:     { suffix: 'sus2',  key: 'sus2',     tag: 'sus'   },
   sus4:     { suffix: 'sus4',  key: 'sus4',     tag: 'sus'   },
+  // Root-5th-octave "shell" voicings (no 3rd) — the compact movable shapes
+  // players slide up the neck. Works over major or minor roots alike.
+  power:    { suffix: '5',     key: 'power',    tag: 'power' },
 }
 
 // Which families each chord root carries.
@@ -180,14 +183,17 @@ function buildVoicings() {
 const TRIAD_INTERVALS = {
   majTriad: [0, 4, 7], minTriad: [0, 3, 7], dimTriad: [0, 3, 6],
   sus2: [0, 2, 7], sus4: [0, 5, 7],
+  power: [0, 7, 12], // root · 5th · octave (no 3rd) — the shell shape
 }
 
 // Which 3-note families each chord root carries in the string-set generator.
 // Major roots also get sus2/sus4 (same root, 3rd swapped for the 2nd/4th).
 function triadFamiliesFor(rootChord) {
   const cats = CHORD_FAMILIES[rootChord]
-  if (cats.includes('majTriad')) return ['majTriad', 'sus2', 'sus4']
-  if (cats.includes('minTriad')) return ['minTriad']
+  // Shell (power) shapes carry no 3rd, so they suit major and minor roots alike;
+  // diminished/half-dim need the b5, so they're excluded.
+  if (cats.includes('majTriad')) return ['majTriad', 'sus2', 'sus4', 'power']
+  if (cats.includes('minTriad')) return ['minTriad', 'power']
   if (cats.includes('dimTriad')) return ['dimTriad']
   return []
 }

@@ -67,4 +67,17 @@ describe('cycleVoicing', () => {
     const cur = { name: 'Zzz', voicing: null, frets: null, displayedName: 'Zzz', offPreset: false }
     expect(cycleVoicing(cur, 'Zzz', AUTO, 1)).toBe(cur)
   })
+
+  it('cycles a plain major chord into same-root shell (power) voicings', () => {
+    const map = buildInlineVoicings(content, AUTO)
+    let cur = map.get('0:0') // default primary — a real G triad, never a shell
+    expect(cur.displayedName).toBe('G')
+    const names = new Set()
+    for (let i = 0; i < 20; i++) {
+      cur = cycleVoicing(cur, 'G', AUTO, 1)
+      names.add(cur.displayedName)
+    }
+    // Shells are reachable by manual cycling, labeled honestly as G5.
+    expect(names.has('G5')).toBe(true)
+  })
 })
