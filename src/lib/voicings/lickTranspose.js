@@ -9,11 +9,13 @@
 // Pure module (no React). Notes are { string, fret, slideTo?, bend? } with
 // string 0 = low E … 5 = high e. Pitch is preserved exactly except for a
 // last-resort octave shift when a note's target pitch is unreachable on any string.
+// Fret range is 0–24, matching MAX_FRET_INPUT in ElectricGuitarNotesPanel.jsx (the
+// editor's neck ceiling for these same lick notes).
 
 import { STRING_OPEN_MIDI, fretToMidi } from './notes'
 
 const MIN_FRET = 0
-const MAX_FRET = 22
+const MAX_FRET = 24
 const NUM_STRINGS = 6
 const W_STRING = 2 // cost weight per string crossed, relative to one fret of travel
 
@@ -30,9 +32,9 @@ function positionsForMidi(midi) {
 }
 
 // Candidate positions for a target pitch, with octave fallback when the exact
-// pitch is unreachable. Prefers the smaller octave offset; ties drop (-12) so the
-// result stays lower on the neck. If still unreachable, returns a clamped naive
-// position so output is always defined.
+// pitch is unreachable. Tries the exact pitch, then one octave down, then one
+// octave up. If still unreachable, returns a clamped naive position so output
+// is always defined.
 function candidatesForMidi(targetMidi, naiveString, naiveFret) {
   let cands = positionsForMidi(targetMidi)
   if (cands.length) return cands
@@ -135,7 +137,18 @@ export function smartTransposeLick(notes, semitones) {
     const out = { string: pos.string, fret: pos.fret }
     if (note.slideTo != null) {
       const slidePitch = STRING_OPEN_MIDI[note.string] + note.slideTo + semitones
-      out.slideTo = clamp(slidePitch - STRING_OPEN_MIDI[pos.string], MIN_FRET, MAX_FRET)
+      // Keep the slide on the note's new string; if the exact target leaves the
+      // neck, octave-shift it (matching the note's own fallback) before clamping.
+      let sf = slidePitch - STRING_OPEN_MIDI[pos.string]
+      if (sf < MIN_FRET || sf > MAX_FRET) {
+        for (const off of [12, -12]) {
+          if (sf + off >= MIN_FRET && sf + off <= MAX_FRET) {
+            sf += off
+            break
+          }
+        }
+      }
+      out.slideTo = clamp(sf, MIN_FRET, MAX_FRET)
     }
     if (note.bend != null) out.bend = note.bend
     return out

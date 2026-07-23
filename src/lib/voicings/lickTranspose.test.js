@@ -56,4 +56,20 @@ describe('smartTransposeLick', () => {
     const out = smartTransposeLick([{ string: 0, fret: 3, bend: 2 }], 2)
     expect(out[0]).toEqual({ string: 0, fret: 5, bend: 2 })
   })
+
+  it('keeps a multi-note off-neck run clustered on one string (DP transition)', () => {
+    // note0: string0 fret10 (midi50) +5 -> fret15 in range => anchor {0,15}
+    // note1: string0 fret21 (midi61) +5 -> naive 26 off, target midi 66
+    // note2: string0 fret22 (midi62) +5 -> naive 27 off, target midi 67
+    // DP picks the run nearest the anchor: {string:2,fret:16} then {string:2,fret:17}.
+    const out = smartTransposeLick(
+      [{ string: 0, fret: 10 }, { string: 0, fret: 21 }, { string: 0, fret: 22 }],
+      5,
+    )
+    expect(out[0]).toEqual({ string: 0, fret: 15 })
+    expect(out[1]).toEqual({ string: 2, fret: 16 })
+    expect(out[2]).toEqual({ string: 2, fret: 17 })
+    expect(midiOf(out[1])).toBe(66)
+    expect(midiOf(out[2])).toBe(67)
+  })
 })
