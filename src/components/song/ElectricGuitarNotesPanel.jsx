@@ -155,6 +155,9 @@ export default function ElectricGuitarNotesPanel({
     window.addEventListener("pointerup", up);
   };
 
+  // Naive-shift frame (same-string fret + semitones). NOT the render source —
+  // it seeds `startEdit` and the `saveEntry` inverse, so it must stay in the
+  // untouched original-key frame. The read-only list renders from `rendered` below.
   const displayed = useMemo(
     () => stored.map((e) => transposeForDisplay(e, semitones, displayKey)),
     [stored, semitones, displayKey],
