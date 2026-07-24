@@ -6,9 +6,9 @@ import { voicingUniquePitchClasses } from './notes'
 
 // Detect chord names from a voicing's frets.
 // Returns array of chord names (strings), e.g. ["Cmaj7", "Em/C"].
-export function detectChordNames(frets) {
+export function detectChordNames(frets, tuning) {
   if (!frets) return []
-  const pcs = voicingUniquePitchClasses(frets)
+  const pcs = voicingUniquePitchClasses(frets, false, tuning)
   if (pcs.length === 0) return []
   try {
     const detected = Chord.detect(pcs)

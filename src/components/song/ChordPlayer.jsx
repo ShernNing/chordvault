@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, X, Music4, Repeat } from "lucide-react";
+import { Play, Pause, X, Music4, Repeat, Timer } from "lucide-react";
 import { createProgressionPlayer } from "../../lib/voicings/audio";
 import { Button, Tooltip, Select } from "../ui";
 
@@ -10,20 +10,25 @@ import { Button, Tooltip, Select } from "../ui";
  *
  * Props:
  *   chords   string[]   , ordered chord names to play
+ *   sections [{label,start,end}] , optional ranges for section looping
  *   bpm      number     , tempo (shared with the perform bar)
  *   raised   boolean    , lift above the perform bar when both are open
  *   onClose  () => void
  */
 export default function ChordPlayer({
   chords = [],
+  sections = [],
   bpm = 100,
   raised = false,
   onClose,
 }) {
   const [playing, setPlaying] = useState(false);
   const [current, setCurrent] = useState(-1);
+  const [count, setCount] = useState(0); // count-in ticks remaining (0 = not counting)
   const [beatsPerChord, setBeatsPerChord] = useState(4);
   const [loop, setLoop] = useState(false);
+  const [countIn, setCountIn] = useState(false);
+  const [sectionIdx, setSectionIdx] = useState(-1); // -1 = whole song
   const playerRef = useRef(null);
   const loopRef = useRef(loop);
   loopRef.current = loop;
@@ -33,6 +38,7 @@ export default function ChordPlayer({
     playerRef.current = null;
     setPlaying(false);
     setCurrent(-1);
+    setCount(0);
   };
 
   // Tear down on unmount or when the inputs that define the progression change.
@@ -40,21 +46,31 @@ export default function ChordPlayer({
   useEffect(() => {
     if (playing) stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restart is intentional only on progression/tempo change
-  }, [chords, bpm, beatsPerChord]);
+  }, [chords, bpm, beatsPerChord, sectionIdx]);
 
   const start = () => {
     if (!chords.length) return;
+    const sec = sectionIdx >= 0 ? sections[sectionIdx] : null;
     const player = createProgressionPlayer({
       chords,
       bpm,
       beatsPerChord,
-      onStep: (i) => setCurrent(i),
+      beatsPerBar: 4,
+      countInBeats: countIn ? 4 : 0,
+      startIndex: sec ? sec.start : 0,
+      endIndex: sec ? sec.end : null,
+      onStep: (i) => {
+        setCount(0);
+        setCurrent(i);
+      },
+      onCount: (n) => setCount(n),
       onEnd: () => {
         if (loopRef.current) {
           start();
         } else {
           setPlaying(false);
           setCurrent(-1);
+          setCount(0);
         }
       },
     });
@@ -91,7 +107,11 @@ export default function ChordPlayer({
 
         {/* Current chord + upcoming strip */}
         <div className='flex items-center gap-1.5 overflow-hidden'>
-          {playing && currentChord ? (
+          {count > 0 ? (
+            <span className='font-mono text-base font-bold text-[var(--color-ink)] min-w-[2.5rem]'>
+              {count}…
+            </span>
+          ) : playing && currentChord ? (
             <>
               <span className='font-mono text-base font-bold text-[var(--color-accent)] min-w-[2.5rem]'>
                 {currentChord}
@@ -128,6 +148,32 @@ export default function ChordPlayer({
             ))}
           </Select>
         </div>
+
+        <Tooltip content={countIn ? "Count-in on" : "Count-in (1 bar)"}>
+          <Button
+            variant={countIn ? "primary" : "secondary"}
+            size='icon-sm'
+            onClick={() => setCountIn((c) => !c)}
+          >
+            <Timer size={13} />
+          </Button>
+        </Tooltip>
+
+        {sections.length > 0 && (
+          <Select
+            value={sectionIdx}
+            onChange={(e) => setSectionIdx(Number(e.target.value))}
+            className='h-7 w-28 text-xs py-0'
+            title='Loop a section'
+          >
+            <option value={-1}>Whole song</option>
+            {sections.map((s, i) => (
+              <option key={i} value={i}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        )}
 
         <Tooltip content={loop ? "Looping" : "Loop"}>
           <Button

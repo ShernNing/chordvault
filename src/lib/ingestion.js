@@ -235,6 +235,26 @@ export function extractChords(parsedContent) {
   return chords
 }
 
+// Like extractChords, but also returns section ranges aligned to the flat chord
+// array: [{ label, start, end }] with end exclusive. Used for section looping in
+// the play-along player. Sections with no chords are dropped.
+export function extractChordsWithSections(parsedContent) {
+  const chords = []
+  const sections = []
+  let cur = null
+  for (const line of parsedContent || []) {
+    if (line.type === 'section_header') {
+      if (cur && cur.end > cur.start) sections.push(cur)
+      cur = { label: line.text || 'Section', start: chords.length, end: chords.length }
+    } else if (line.type === 'chord_line' && line.tokens) {
+      for (const token of line.tokens) if (token.isChord) chords.push(token.text)
+      if (cur) cur.end = chords.length
+    }
+  }
+  if (cur && cur.end > cur.start) sections.push(cur)
+  return { chords, sections }
+}
+
 // ─── Key Detection: Roman Numeral Degree Weighting ────────────────────────
 //
 // Each chord is scored by its harmonic function (degree) relative to the candidate key.

@@ -9,6 +9,7 @@ import {
   X,
   Search,
   Lock,
+  ImageUp,
 } from "lucide-react";
 import { useSongs } from "../lib/hooks";
 import { useAuth } from "../lib/AuthContext";
@@ -58,9 +59,36 @@ export default function NewSong() {
   const [artistAutoDetected, setArtistAutoDetected] = useState(false);
   const [lookingUpArtist, setLookingUpArtist] = useState(false);
   const [artistLookupMsg, setArtistLookupMsg] = useState("");
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
 
   // Live parse result
   const ingestionResult = rawContent.trim() ? ingest(rawContent, title) : null;
+
+  const handlePhotoImport = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setOcrBusy(true);
+    setOcrProgress(0);
+    setError(null);
+    try {
+      const { recognizeImage } = await import("../lib/ocr");
+      const text = await recognizeImage(file, setOcrProgress);
+      if (!text) {
+        setError("No text found in that image. Try a clearer, straighter photo.");
+        return;
+      }
+      // Append beneath existing content so a multi-page shot can be added up.
+      setRawContent((prev) => (prev.trim() ? `${prev.trimEnd()}\n\n${text}` : text));
+      toast.success("Text extracted from photo — check and tidy it up");
+    } catch (err) {
+      setError(`Photo import failed: ${err?.message || err}`);
+    } finally {
+      setOcrBusy(false);
+      setOcrProgress(0);
+    }
+  };
 
   const handleRawContentChange = (e) => {
     let content = e.target.value;
@@ -412,11 +440,33 @@ export default function NewSong() {
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
         {/* Raw editor */}
         <div className='flex flex-col gap-2'>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between gap-2'>
             <label className='text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide'>
               Paste chord sheet
             </label>
-            {ingestionResult && <IngestionStatus result={ingestionResult} />}
+            <div className='flex items-center gap-2'>
+              <label
+                className={`flex items-center gap-1 px-2 h-7 text-[11px] rounded border cursor-pointer transition-colors ${
+                  ocrBusy
+                    ? "border-[var(--color-border)] text-[var(--color-ink-muted)] cursor-wait"
+                    : "border-[var(--color-border)] text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-accent)]"
+                }`}
+                title='Extract text from a photo of a chord sheet (runs on your device)'
+              >
+                <ImageUp size={12} />
+                {ocrBusy
+                  ? `Reading… ${Math.round(ocrProgress * 100)}%`
+                  : "Import from photo"}
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='hidden'
+                  disabled={ocrBusy}
+                  onChange={handlePhotoImport}
+                />
+              </label>
+              {ingestionResult && <IngestionStatus result={ingestionResult} />}
+            </div>
           </div>
           <Textarea
             value={rawContent}

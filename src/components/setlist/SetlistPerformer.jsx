@@ -7,6 +7,7 @@ import {
   Pause,
   Gauge,
   Music2,
+  Timer,
   Hash,
   Type,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { supabaseSongOps } from "../../lib/supabaseOps";
 import { Metronome, tapsToBpm } from "../../lib/metronome";
 import { useKeyboardControls, useDisplaySettings } from "../../lib/hooks";
 import { cycleNashville, normalizeNashville } from "../../lib/nashville";
+import { estimateSongSeconds, formatDuration } from "../../lib/songDuration";
 import SongRenderer from "../song/SongRenderer";
 import { Button, Tooltip, Badge } from "../ui";
 
@@ -59,9 +61,10 @@ export default function SetlistPerformer({ slots, onClose }) {
 
   const scrollRef = useRef(null);
   const [scrolling, setScrolling] = useState(false);
-  const [speed, setSpeed] = useState(28);
-  const speedRef = useRef(speed);
-  speedRef.current = speed;
+  const [manualSpeed, setManualSpeed] = useState(28);
+  const [bpmSync, setBpmSync] = useState(false);
+  const [bpmSpeed, setBpmSpeed] = useState(28);
+  const speedRef = useRef(28);
 
   const slot = playable[index];
   const song = slot?.song;
@@ -74,6 +77,23 @@ export default function SetlistPerformer({ slots, onClose }) {
   const tapsRef = useRef([]);
   const beatsPerBar = 4;
 
+  // BPM-synced scroll: derive px/s so the chart scrolls over the song's
+  // estimated single-pass length at the current tempo.
+  const durationSec = song ? estimateSongSeconds(song, bpm, beatsPerBar) : 0;
+  const recomputeBpmSpeed = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const scrollable = el.scrollHeight - el.clientHeight;
+    if (scrollable > 0 && durationSec > 0) setBpmSpeed(scrollable / durationSec);
+  }, [durationSec]);
+  const activeSpeed = bpmSync ? bpmSpeed : manualSpeed;
+  speedRef.current = activeSpeed;
+
+  // Refresh derived speed when synced, on tempo change, or on song change.
+  useEffect(() => {
+    if (bpmSync) recomputeBpmSpeed();
+  }, [bpmSync, recomputeBpmSpeed, index]);
+
   const goTo = useCallback(
     (next) => {
       setIndex(Math.max(0, Math.min(playable.length - 1, next)));
@@ -83,7 +103,10 @@ export default function SetlistPerformer({ slots, onClose }) {
 
   const onNext = useCallback(() => goTo(index + 1), [goTo, index]);
   const onPrev = useCallback(() => goTo(index - 1), [goTo, index]);
-  const toggleScroll = useCallback(() => setScrolling((s) => !s), []);
+  const toggleScroll = useCallback(() => {
+    if (bpmSync) recomputeBpmSpeed();
+    setScrolling((s) => !s);
+  }, [bpmSync, recomputeBpmSpeed]);
 
   useKeyboardControls({
     onNext,
@@ -321,17 +344,38 @@ export default function SetlistPerformer({ slots, onClose }) {
                 {scrolling ? <Pause size={14} /> : <Play size={14} />}
               </Button>
             </Tooltip>
-            <Gauge size={13} className='text-[var(--color-ink-muted)]' />
-            <input
-              type='range'
-              min={6}
-              max={120}
-              step={2}
-              value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value))}
-              className='w-16 sm:w-24 accent-[var(--color-accent)]'
-              title={`Scroll ${speed}px/s`}
-            />
+            <Tooltip
+              content={
+                bpmSync ? "Synced to tempo" : "Sync scroll speed to tempo"
+              }
+            >
+              <Button
+                variant={bpmSync ? "primary" : "secondary"}
+                size='icon-sm'
+                onClick={() => setBpmSync((v) => !v)}
+              >
+                <Timer size={14} />
+              </Button>
+            </Tooltip>
+            {bpmSync ? (
+              <span className='text-[11px] font-mono text-[var(--color-ink-soft)] tabular-nums whitespace-nowrap'>
+                ~{formatDuration(durationSec)}
+              </span>
+            ) : (
+              <>
+                <Gauge size={13} className='text-[var(--color-ink-muted)]' />
+                <input
+                  type='range'
+                  min={6}
+                  max={120}
+                  step={2}
+                  value={manualSpeed}
+                  onChange={(e) => setManualSpeed(Number(e.target.value))}
+                  className='w-16 sm:w-24 accent-[var(--color-accent)]'
+                  title={`Scroll ${manualSpeed}px/s`}
+                />
+              </>
+            )}
           </div>
 
           <div className='w-px h-6 bg-[var(--color-border)] shrink-0' />

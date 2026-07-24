@@ -17,6 +17,7 @@ import {
   Type,
   KeyRound,
   ListMusic,
+  ListOrdered,
   Guitar,
   Zap,
   PlayCircle,
@@ -41,6 +42,7 @@ import {
 } from "../lib/transposition";
 import {
   extractChords,
+  extractChordsWithSections,
   detectKey,
   ingest,
   tokenizeChordLine,
@@ -76,6 +78,7 @@ import VocalRangeHelper from "../components/song/VocalRangeHelper";
 import VoicingDrawer from "../components/voicings/VoicingDrawer";
 import SongVoicingsPanel from "../components/voicings/SongVoicingsPanel";
 import ElectricGuitarNotesPanel from "../components/song/ElectricGuitarNotesPanel";
+import ArrangementEditor from "../components/song/ArrangementEditor";
 
 export default function SongView() {
   const { id } = useParams();
@@ -117,9 +120,9 @@ export default function SongView() {
   const [shareLink, setShareLink] = useState("");
   const [sharingLink, setSharingLink] = useState(false);
 
-  // Sounding chords in playing order (post-transpose) for the chord player.
-  const songChords = useMemo(() => {
-    if (!song?.parsed_content) return [];
+  // Sounding chords (post-transpose) + section ranges for the play-along player.
+  const { chords: songChords, sections: songSections } = useMemo(() => {
+    if (!song?.parsed_content) return { chords: [], sections: [] };
     const dk = song.original_key
       ? transposeKey(song.original_key, transpose.semitones)
       : null;
@@ -127,7 +130,7 @@ export default function SongView() {
       transpose.semitones !== 0
         ? transposeParsedContent(song.parsed_content, transpose.semitones, dk)
         : song.parsed_content;
-    return extractChords(content);
+    return extractChordsWithSections(content);
   }, [song?.parsed_content, song?.original_key, transpose.semitones]);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -145,6 +148,14 @@ export default function SongView() {
   const [activeVoicingChord, setActiveVoicingChord] = useState(null);
   const [showVoicingsPanel, setShowVoicingsPanel] = useState(false);
   const [showElectricPanel, setShowElectricPanel] = useState(false);
+  const [showArrangement, setShowArrangement] = useState(false);
+  const [arrangeBackup, setArrangeBackup] = useState(() => {
+    try {
+      return !!localStorage.getItem(`cv-arr-backup-${id}`);
+    } catch {
+      return false;
+    }
+  });
 
   const printRef = useRef(null);
 
@@ -272,6 +283,34 @@ export default function SongView() {
             : ""),
       );
       throw e;
+    }
+  };
+
+  const handleApplyArrangement = async (newContent) => {
+    // Snapshot current content so the rewrite is revertible.
+    try {
+      localStorage.setItem(
+        `cv-arr-backup-${id}`,
+        JSON.stringify(song.parsed_content),
+      );
+    } catch { /* quota — proceed without backup */ }
+    await update({ parsed_content: newContent });
+    setArrangeBackup(true);
+    setShowArrangement(false);
+    toast.success("Arrangement applied");
+  };
+
+  const handleRevertArrangement = async () => {
+    try {
+      const raw = localStorage.getItem(`cv-arr-backup-${id}`);
+      if (!raw) return;
+      await update({ parsed_content: JSON.parse(raw) });
+      localStorage.removeItem(`cv-arr-backup-${id}`);
+      setArrangeBackup(false);
+      setShowArrangement(false);
+      toast.success("Reverted to previous arrangement");
+    } catch (e) {
+      toast.error(`Revert failed: ${e?.message || e}`);
     }
   };
 
@@ -576,6 +615,19 @@ export default function SongView() {
             </Button>
           </Tooltip>
           {canEdit && (
+            <Tooltip content='Rearrange sections'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                onClick={() => setShowArrangement(true)}
+                title='Arrangement'
+                className={arrangeBackup ? "text-[var(--color-accent)]" : ""}
+              >
+                <ListOrdered size={14} />
+              </Button>
+            </Tooltip>
+          )}
+          {canEdit && (
             <Tooltip content='Edit song'>
               <Button
                 variant='ghost'
@@ -782,10 +834,21 @@ export default function SongView() {
         onSaveVoicings={canEdit ? handleSaveVoicings : null}
       />
 
+      {showArrangement && (
+        <ArrangementEditor
+          song={song}
+          onApply={handleApplyArrangement}
+          canRevert={arrangeBackup}
+          onRevert={handleRevertArrangement}
+          onClose={() => setShowArrangement(false)}
+        />
+      )}
+
       {showPerform && (
         <PerformBar
           bpm={bpm}
           onBpmChange={setBpm}
+          song={song}
           onClose={() => setShowPerform(false)}
         />
       )}
@@ -793,6 +856,7 @@ export default function SongView() {
       {showChordPlayer && (
         <ChordPlayer
           chords={songChords}
+          sections={songSections}
           bpm={bpm}
           raised={showPerform}
           onClose={() => setShowChordPlayer(false)}

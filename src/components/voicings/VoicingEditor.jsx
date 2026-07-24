@@ -4,10 +4,10 @@ import FretboardDiagram from './FretboardDiagram'
 import { useUserVoicings } from '../../lib/voicings/userVoicings'
 import { detectChordNames } from '../../lib/voicings/enharmonic'
 import { voicingUniquePitchClasses } from '../../lib/voicings/notes'
+import { TUNINGS, getTuning, tuningLabels } from '../../lib/voicings/tuning'
 
 const NUM_STRINGS = 6
 const MAX_FRET = 12
-const STRING_LABEL = ['E', 'A', 'D', 'G', 'B', 'e']
 
 /**
  * Visual voicing builder. Click strings/frets to set notes. Save to localStorage.
@@ -18,12 +18,16 @@ export default function VoicingEditor({ onSaved = null, initial = null }) {
   const [rootChord, setRootChord] = useState(initial?.rootChord || 'C')
   const [displayName, setDisplayName] = useState(initial?.displayName || 'C')
   const [description, setDescription] = useState(initial?.description || '')
+  const [tuningId, setTuningId] = useState(initial?.tuning || 'standard')
+
+  const tuning = getTuning(tuningId)
+  const STRING_LABEL = useMemo(() => tuningLabels(tuning.midi), [tuning])
 
   const detected = useMemo(() => {
-    return detectChordNames(frets).slice(0, 4)
-  }, [frets])
+    return detectChordNames(frets, tuning.midi).slice(0, 4)
+  }, [frets, tuning])
 
-  const notes = voicingUniquePitchClasses(frets)
+  const notes = voicingUniquePitchClasses(frets, false, tuning.midi)
 
   const setFret = (stringIdx, fret) => {
     setFrets(prev => {
@@ -45,7 +49,7 @@ export default function VoicingEditor({ onSaved = null, initial = null }) {
 
   const onSave = () => {
     if (frets.every(f => f == null)) return
-    const saved = add({ rootChord: rootChord.trim() || 'C', displayName: displayName.trim() || rootChord, frets, description })
+    const saved = add({ rootChord: rootChord.trim() || 'C', displayName: displayName.trim() || rootChord, frets, description, tuning: tuningId })
     onSaved?.(saved)
     reset()
     setDisplayName('')
@@ -55,10 +59,22 @@ export default function VoicingEditor({ onSaved = null, initial = null }) {
     <div className="flex flex-col gap-4 p-4 rounded border border-[var(--color-border)] bg-[var(--color-bg-warm)]">
       <header className="flex items-center justify-between">
         <h3 className="font-display text-lg text-[var(--color-ink)]">Build a custom voicing</h3>
-        <button
-          onClick={reset}
-          className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-[var(--color-border)] text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink-muted)]"
-        ><RotateCcw size={12} /> Reset</button>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-[var(--color-ink-soft)]">
+            Tuning
+            <select
+              value={tuningId}
+              onChange={(e) => setTuningId(e.target.value)}
+              className="h-7 px-1.5 text-xs rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-ink)]"
+            >
+              {TUNINGS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>
+          <button
+            onClick={reset}
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-[var(--color-border)] text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink-muted)]"
+          ><RotateCcw size={12} /> Reset</button>
+        </div>
       </header>
 
       <div className="flex flex-col md:flex-row gap-6 items-start">

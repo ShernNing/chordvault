@@ -6,9 +6,11 @@ import {
   ChevronDown,
   Gauge,
   Music2,
+  Timer,
   X,
 } from "lucide-react";
 import { Metronome, tapsToBpm } from "../../lib/metronome";
+import { estimateSongSeconds, formatDuration } from "../../lib/songDuration";
 import { Button, Tooltip } from "../ui";
 
 // Hands-free auto-scroll: scroll the window at `speed` px/sec while active.
@@ -52,16 +54,42 @@ function useAutoScroll(speed) {
  *   bpm          number      , current tempo (stored by parent)
  *   onBpmChange  (bpm)=>void  , persist tempo
  *   beatsPerBar  number       , accent every N beats (default 4)
+ *   song         object       , for BPM-synced scroll (structure → duration)
  *   onClose      ()=>void     , hide the bar
  */
 export default function PerformBar({
   bpm = 100,
   onBpmChange,
   beatsPerBar = 4,
+  song = null,
   onClose,
 }) {
-  const [speed, setSpeed] = useState(30);
-  const { scrolling, setScrolling } = useAutoScroll(speed);
+  const [manualSpeed, setManualSpeed] = useState(30); // px/s, slider value
+  const [bpmSync, setBpmSync] = useState(false);
+  const [bpmSpeed, setBpmSpeed] = useState(30); // px/s derived from tempo+length
+
+  // Estimated single-pass duration at the current tempo — drives synced scroll
+  // so the sheet reaches the bottom right as the song ends.
+  const durationSec = song ? estimateSongSeconds(song, bpm, beatsPerBar) : 0;
+
+  const recomputeBpmSpeed = useCallback(() => {
+    const scrollable =
+      document.documentElement.scrollHeight - window.innerHeight;
+    if (scrollable > 0 && durationSec > 0) setBpmSpeed(scrollable / durationSec);
+  }, [durationSec]);
+
+  // Keep the derived speed fresh while synced (tempo changes, layout settles).
+  useEffect(() => {
+    if (bpmSync) recomputeBpmSpeed();
+  }, [bpmSync, recomputeBpmSpeed]);
+
+  const activeSpeed = bpmSync ? bpmSpeed : manualSpeed;
+  const { scrolling, setScrolling } = useAutoScroll(activeSpeed);
+
+  const toggleScroll = () => {
+    if (bpmSync) recomputeBpmSpeed(); // height may have changed since mount
+    setScrolling((s) => !s);
+  };
 
   const metroRef = useRef(null);
   const [metroOn, setMetroOn] = useState(false);
@@ -123,22 +151,49 @@ export default function PerformBar({
             <Button
               variant={scrolling ? "primary" : "secondary"}
               size='icon-sm'
-              onClick={() => setScrolling((s) => !s)}
+              onClick={toggleScroll}
             >
               {scrolling ? <Pause size={14} /> : <Play size={14} />}
             </Button>
           </Tooltip>
-          <Gauge size={13} className='text-[var(--color-ink-muted)]' />
-          <input
-            type='range'
-            min={6}
-            max={120}
-            step={2}
-            value={speed}
-            onChange={(e) => setSpeed(Number(e.target.value))}
-            className='w-24 accent-[var(--color-accent)]'
-            title={`Scroll speed ${speed}px/s`}
-          />
+
+          {song && (
+            <Tooltip
+              content={
+                bpmSync
+                  ? "Synced to tempo — scrolls over the song's length"
+                  : "Sync scroll speed to tempo"
+              }
+            >
+              <Button
+                variant={bpmSync ? "primary" : "secondary"}
+                size='icon-sm'
+                onClick={() => setBpmSync((v) => !v)}
+              >
+                <Timer size={14} />
+              </Button>
+            </Tooltip>
+          )}
+
+          {bpmSync ? (
+            <span className='text-[11px] font-mono text-[var(--color-ink-soft)] select-none whitespace-nowrap'>
+              ~{formatDuration(durationSec)}
+            </span>
+          ) : (
+            <>
+              <Gauge size={13} className='text-[var(--color-ink-muted)]' />
+              <input
+                type='range'
+                min={6}
+                max={120}
+                step={2}
+                value={manualSpeed}
+                onChange={(e) => setManualSpeed(Number(e.target.value))}
+                className='w-24 accent-[var(--color-accent)]'
+                title={`Scroll speed ${manualSpeed}px/s`}
+              />
+            </>
+          )}
         </div>
 
         <div className='w-px h-6 bg-[var(--color-border)]' />

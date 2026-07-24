@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useMemo, useSyncExternalStore, useRef
 import { supabaseSongOps, supabaseSetlistOps } from './supabaseOps'
 import { ingest, cleanSongTitle } from './ingestion'
 import { createResource } from './cache'
+import { scoreFields } from './fuzzySearch'
+import { songSearchFields } from './songSearch'
+import { DEFAULT_SONG_SECONDS, formatDuration, estimateSongSeconds } from './songDuration'
 
 // ─── Online Status ─────────────────────────────────────────────────────────
 export function useOnlineStatus() {
@@ -465,30 +468,29 @@ export function useKeyboardControls({ onNext, onPrev, onToggle, enabled = true }
   }, [onNext, onPrev, onToggle, enabled])
 }
 
-// ─── Per-song duration estimate (localStorage, no DB) ────────────────────────
-export const DEFAULT_SONG_SECONDS = 210 // 3:30 default per song
+// ─── Per-song duration (manual override in localStorage, else auto-estimate) ──
+// Estimation + formatting live in songDuration.js (pure); re-exported here so
+// existing importers keep working.
+export { DEFAULT_SONG_SECONDS, formatDuration, estimateSongSeconds }
 
-export function getSongSeconds(songId) {
+/**
+ * Per-song length in seconds. A manual override (set via setSongSeconds) always
+ * wins; otherwise estimate from the song's structure + tempo when the song
+ * object is supplied, falling back to the flat default.
+ */
+export function getSongSeconds(songId, song = null) {
   try {
     const v = localStorage.getItem(`cv-duration-${songId}`)
-    const n = v != null ? JSON.parse(v) : DEFAULT_SONG_SECONDS
-    return Number.isFinite(n) ? n : DEFAULT_SONG_SECONDS
-  } catch { return DEFAULT_SONG_SECONDS }
+    if (v != null) {
+      const n = JSON.parse(v)
+      if (Number.isFinite(n)) return n
+    }
+  } catch { /* ignore */ }
+  return song ? estimateSongSeconds(song) : DEFAULT_SONG_SECONDS
 }
 
 export function setSongSeconds(songId, seconds) {
   try { localStorage.setItem(`cv-duration-${songId}`, JSON.stringify(seconds)) } catch { /* quota */ }
-}
-
-export function formatDuration(totalSeconds) {
-  const s = Math.max(0, Math.round(totalSeconds))
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  if (m >= 60) {
-    const h = Math.floor(m / 60)
-    return `${h}h ${m % 60}m`
-  }
-  return `${m}:${String(sec).padStart(2, '0')}`
 }
 
 // ─── Debounce ──────────────────────────────────────────────────────────────
@@ -507,16 +509,24 @@ export function useSearch(allSongs) {
   const debouncedQuery = useDebounce(query, 200)
   const [results, setResults] = useState(allSongs)
 
+  // Precompute weighted fields (incl. the parsed-content body) once per library
+  // so keystrokes only re-score, never re-parse.
+  const indexed = useMemo(
+    () => allSongs.map(s => ({ song: s, fields: songSearchFields(s) })),
+    [allSongs],
+  )
+
   useEffect(() => {
     if (!debouncedQuery.trim()) { setResults(allSongs); return }
-    const q = debouncedQuery.toLowerCase()
-    setResults(allSongs.filter(s =>
-      s.title?.toLowerCase().includes(q) ||
-      s.artist?.toLowerCase().includes(q) ||
-      s.original_key?.toLowerCase().includes(q) ||
-      s.tags?.some(t => t.toLowerCase().includes(q))
-    ))
-  }, [debouncedQuery, allSongs])
+    const scored = []
+    for (const { song, fields } of indexed) {
+      const score = scoreFields(debouncedQuery, fields)
+      if (score > 0) scored.push({ song, score })
+    }
+    // Relevance-rank while searching (title hits above lyric hits); stable for ties.
+    scored.sort((a, b) => b.score - a.score)
+    setResults(scored.map(x => x.song))
+  }, [debouncedQuery, indexed, allSongs])
 
   return { query, setQuery, results }
 }

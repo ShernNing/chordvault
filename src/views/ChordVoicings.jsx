@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Guitar, Eye, Type, LayoutGrid, Search, Star, ListTree, Sparkles, Hash, GitCompare, Wrench, GraduationCap } from 'lucide-react'
+import { Guitar, Eye, Type, LayoutGrid, Search, Star, Zap, ListTree, Sparkles, Hash, GitCompare, Wrench, GraduationCap } from 'lucide-react'
 import VoicingGrid from '../components/voicings/VoicingGrid'
 import ProgressionStrip from '../components/voicings/ProgressionStrip'
 import ProgressionsLibrary from '../components/voicings/ProgressionsLibrary'
@@ -43,6 +43,7 @@ export default function ChordVoicings() {
   const [search, setSearch] = useState('')
   const [difficulty, setDifficulty] = useLocalStorage('chordvault-voicings-difficulty', 'all')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [powerOnly, setPowerOnly] = useState(false)
 
   const [audioOptions, setAudioOptions] = useLocalStorage('chordvault-voicings-audio', DEFAULT_AUDIO_OPTIONS)
   const [showAudioPanel, setShowAudioPanel] = useState(false)
@@ -226,6 +227,19 @@ export default function ChordVoicings() {
             </button>
 
             <button
+              onClick={() => setPowerOnly(p => !p)}
+              title="Show only root–5th–octave shell (power) voicings"
+              className={`flex items-center gap-1.5 h-7 px-3 text-xs rounded border transition-colors ${
+                powerOnly
+                  ? 'bg-[var(--color-accent)] text-black border-[var(--color-accent)]'
+                  : 'bg-[var(--color-bg)] border-[var(--color-border)] text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'
+              }`}
+            >
+              <Zap size={12} fill={powerOnly ? 'currentColor' : 'none'} />
+              Power (5) only
+            </button>
+
+            <button
               onClick={() => setHighlightRoot(r => !r)}
               className={`h-7 px-3 text-xs rounded border transition-colors ${
                 highlightRoot ? 'bg-[var(--color-accent)] text-black border-[var(--color-accent)]'
@@ -311,6 +325,9 @@ export default function ChordVoicings() {
                 {visibleChords.map(({ rootChord, label, roman }) => {
                   const voicings = allVoicingsByChord[rootChord] || []
                   if (voicings.length === 0) return null
+                  // With the Power (5) filter on, hide roots that have no shell
+                  // voicing (e.g. diminished) so the page isn't full of empties.
+                  if (powerOnly && !voicings.some(v => (v.tags || []).includes('power'))) return null
                   return (
                     <section key={rootChord} className="flex flex-col gap-3">
                       <h2 className="font-display text-xl text-[var(--color-ink)] border-b border-[var(--color-border)] pb-1 flex items-baseline gap-2">
@@ -330,6 +347,7 @@ export default function ChordVoicings() {
                         difficulty={difficulty}
                         favoritesOnly={favoritesOnly}
                         favoriteIds={favoriteIds}
+                        powerOnly={powerOnly}
                         absolute
                         preferFlats={preferFlats}
                       />

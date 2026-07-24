@@ -35,6 +35,7 @@ export default function VoicingGrid({
   difficulty = 'all',
   favoritesOnly = false,
   favoriteIds = [],
+  powerOnly = false,
   onCardClick = null,
   absolute = false,
   preferFlats = null,
@@ -47,6 +48,7 @@ export default function VoicingGrid({
       .filter(x => x.frets != null)
       .filter(({ voicing }) => {
         if (favoritesOnly && !favSet.has(voicing.id)) return false
+        if (powerOnly && !(voicing.tags || []).includes('power')) return false
         if (difficulty !== 'all') {
           const d = difficultyOf(voicing.frets, voicing.tags || []).level
           if (d !== difficulty) return false
@@ -63,7 +65,7 @@ export default function VoicingGrid({
         }
         return true
       })
-  }, [voicings, displayKey, searchQuery, difficulty, favoritesOnly, favoriteIds, absolute])
+  }, [voicings, displayKey, searchQuery, difficulty, favoritesOnly, favoriteIds, powerOnly, absolute])
 
   if (items.length === 0) {
     return (

@@ -25,6 +25,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.1",
+    "tesseract.js": "^7.0.0",
     "tonal": "^6.4.3",
     "tone": "^15.1.22"
   },

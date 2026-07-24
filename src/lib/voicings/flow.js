@@ -39,19 +39,21 @@ function stringPrefCost(frets) {
 // Zone bounds overlap one fret so no zone starves; zoneCenter feeds the drift
 // penalty in nodeCost, stringCost feeds the string-set penalty. `matches` (when
 // present) hard-filters the candidate pool; presets without it bias softly.
+// `short` is the compact label for the fixed-width inline cycler chip; `label`
+// is the full name used where there is room (voicings panel).
 export const PRESETS = [
-  { id: 'auto', label: 'Auto' },
-  { id: 'top-strings', label: 'Top strings (1·2·3 / 2·3·4)',
+  { id: 'auto', label: 'Auto', short: 'Auto' },
+  { id: 'top-strings', label: 'Top strings (1·2·3 / 2·3·4)', short: 'Top strings',
     zoneCenter: 6, stringCost: stringPrefCost },
-  { id: 'low',  label: 'Low neck',  zoneCenter: 3,
+  { id: 'low',  label: 'Low neck',  short: 'Low neck',  zoneCenter: 3,
     matches: f => voicingPosition(f) >= 1 && voicingPosition(f) <= 5 },
-  { id: 'mid',  label: 'Mid neck',  zoneCenter: 6.5,
+  { id: 'mid',  label: 'Mid neck',  short: 'Mid neck',  zoneCenter: 6.5,
     matches: f => voicingPosition(f) >= 4 && voicingPosition(f) <= 9 },
-  { id: 'high', label: 'High neck', zoneCenter: 11.5,
+  { id: 'high', label: 'High neck', short: 'High neck', zoneCenter: 11.5,
     matches: f => voicingPosition(f) >= 8 },
-  { id: 'set-gbe', label: 'Strings 1·2·3 (G-B-e)', matches: f => stringSetKey(f) === '3-4-5' },
-  { id: 'set-dgb', label: 'Strings 2·3·4 (D-G-B)', matches: f => stringSetKey(f) === '2-3-4' },
-  { id: 'set-adg', label: 'Strings 3·4·5 (A-D-G)', matches: f => stringSetKey(f) === '1-2-3' },
+  { id: 'set-gbe', label: 'Strings 1·2·3 (G-B-e)', short: '1·2·3 G-B-e', matches: f => stringSetKey(f) === '3-4-5' },
+  { id: 'set-dgb', label: 'Strings 2·3·4 (D-G-B)', short: '2·3·4 D-G-B', matches: f => stringSetKey(f) === '2-3-4' },
+  { id: 'set-adg', label: 'Strings 3·4·5 (A-D-G)', short: '3·4·5 A-D-G', matches: f => stringSetKey(f) === '1-2-3' },
 ]
 
 /**

@@ -10,21 +10,22 @@ const FLAT_NAMES  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb',
 const FLAT_KEYS = new Set(['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb', 'Dm', 'Gm', 'Cm', 'Fm', 'Bbm', 'Ebm', 'Abm'])
 
 // fret: integer >= 0 (0 = open). Returns MIDI number.
-export function fretToMidi(stringIdx, fret) {
-  return STRING_OPEN_MIDI[stringIdx] + fret
+// `tuning` is six open-string MIDI numbers low→high; defaults to standard.
+export function fretToMidi(stringIdx, fret, tuning = STRING_OPEN_MIDI) {
+  return tuning[stringIdx] + fret
 }
 
 // Returns pitch like 'C#4'. Honors sharp/flat preference.
-export function fretToPitch(stringIdx, fret, preferFlats = false) {
-  const midi = fretToMidi(stringIdx, fret)
+export function fretToPitch(stringIdx, fret, preferFlats = false, tuning = STRING_OPEN_MIDI) {
+  const midi = fretToMidi(stringIdx, fret, tuning)
   const name = (preferFlats ? FLAT_NAMES : SHARP_NAMES)[midi % 12]
   const octave = Math.floor(midi / 12) - 1
   return `${name}${octave}`
 }
 
 // Returns pitch class like 'C#' (no octave).
-export function fretToPitchClass(stringIdx, fret, preferFlats = false) {
-  const midi = fretToMidi(stringIdx, fret)
+export function fretToPitchClass(stringIdx, fret, preferFlats = false, tuning = STRING_OPEN_MIDI) {
+  const midi = fretToMidi(stringIdx, fret, tuning)
   return (preferFlats ? FLAT_NAMES : SHARP_NAMES)[midi % 12]
 }
 
@@ -34,33 +35,33 @@ export function keyPrefersFlats(key) {
 }
 
 // frets: array of 6, null = muted, 0..N = fret. Returns array of pitch-classes (mute stripped).
-export function voicingPitchClasses(frets, preferFlats = false) {
+export function voicingPitchClasses(frets, preferFlats = false, tuning = STRING_OPEN_MIDI) {
   const out = []
   for (let i = 0; i < 6; i++) {
     const f = frets[i]
     if (f == null) continue
-    out.push(fretToPitchClass(i, f, preferFlats))
+    out.push(fretToPitchClass(i, f, preferFlats, tuning))
   }
   return out
 }
 
 // Unique ordered pitch classes (low→high) — useful for "notes" display.
-export function voicingUniquePitchClasses(frets, preferFlats = false) {
+export function voicingUniquePitchClasses(frets, preferFlats = false, tuning = STRING_OPEN_MIDI) {
   const seen = new Set()
   const out = []
-  for (const pc of voicingPitchClasses(frets, preferFlats)) {
+  for (const pc of voicingPitchClasses(frets, preferFlats, tuning)) {
     if (!seen.has(pc)) { seen.add(pc); out.push(pc) }
   }
   return out
 }
 
 // Full pitches (with octave), low→high.
-export function voicingPitches(frets, preferFlats = false) {
+export function voicingPitches(frets, preferFlats = false, tuning = STRING_OPEN_MIDI) {
   const out = []
   for (let i = 0; i < 6; i++) {
     const f = frets[i]
     if (f == null) continue
-    out.push(fretToPitch(i, f, preferFlats))
+    out.push(fretToPitch(i, f, preferFlats, tuning))
   }
   return out
 }

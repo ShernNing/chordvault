@@ -201,27 +201,38 @@ export default function TransposeControls({
             </Button>
           </Tooltip>
           {voicings && onCyclePreset && (
-            <div className='flex items-center rounded border border-[var(--color-border)] text-xs h-8'>
-              <button
-                type='button'
-                onClick={() => onCyclePreset(-1)}
-                aria-label='Previous voicing set'
-                className='px-1.5 h-full flex items-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <span className='px-1 min-w-[92px] text-center text-[var(--color-ink)]'>
-                {PRESETS[voicingPreset]?.label || PRESETS[0].label}
-              </span>
-              <button
-                type='button'
-                onClick={() => onCyclePreset(1)}
-                aria-label='Next voicing set'
-                className='px-1.5 h-full flex items-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
+            // Fixed overall width + fixed-width arrow hit areas so the arrows
+            // never move as the preset label changes length — the user can
+            // keep clicking the same spot to cycle through sets.
+            (() => {
+              const preset = PRESETS[voicingPreset] || PRESETS[0];
+              return (
+                <div className='flex items-center rounded border border-[var(--color-border)] text-xs h-8 w-[168px]'>
+                  <button
+                    type='button'
+                    onClick={() => onCyclePreset(-1)}
+                    aria-label='Previous voicing set'
+                    className='w-7 shrink-0 h-full flex items-center justify-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span
+                    className='flex-1 min-w-0 px-1 text-center truncate text-[var(--color-ink)]'
+                    title={preset.label}
+                  >
+                    {preset.short || preset.label}
+                  </span>
+                  <button
+                    type='button'
+                    onClick={() => onCyclePreset(1)}
+                    aria-label='Next voicing set'
+                    className='w-7 shrink-0 h-full flex items-center justify-center text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:bg-[var(--color-bg-warm)]'
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              );
+            })()
           )}
         </div>
       )}

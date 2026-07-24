@@ -52,7 +52,7 @@ export const DEFAULT_AUDIO_OPTIONS = {
 export async function playVoicing(frets, options = {}) {
   const opts = { ...DEFAULT_AUDIO_OPTIONS, ...options }
   if (!frets) return
-  let pitches = voicingPitches(frets)
+  let pitches = voicingPitches(frets, false, opts.tuning)
   if (pitches.length === 0) return
 
   if (opts.direction === 'up') pitches = pitches.slice().reverse()
@@ -130,15 +130,39 @@ export function chordToPitches(chordName, { baseOctave = 3 } = {}) {
  *   onEnd():       fired when the progression finishes
  * Returns { start, stop }. Safe to call stop() at any time.
  */
-export function createProgressionPlayer({ chords = [], bpm = 100, beatsPerChord = 4, strum = true, onStep, onEnd }) {
-  let i = 0
+export function createProgressionPlayer({
+  chords = [],
+  bpm = 100,
+  beatsPerChord = 4,
+  beatsPerBar = 4,
+  strum = true,
+  countInBeats = 0,
+  startIndex = 0,
+  endIndex = null,
+  onStep,
+  onCount,
+  onEnd,
+}) {
+  const lo = Math.max(0, Math.min(startIndex, chords.length))
+  const hi = endIndex == null ? chords.length : Math.max(lo, Math.min(endIndex, chords.length))
+  let i = lo
   let timer = null
   let stopped = false
-  const intervalMs = (60 / Math.max(bpm, 1)) * beatsPerChord * 1000
+  const beatMs = (60 / Math.max(bpm, 1)) * 1000
+  const intervalMs = beatMs * beatsPerChord
+
+  // Short synth blip for the count-in, accent on the downbeat.
+  const click = async (accent) => {
+    try {
+      const { Tone, synth } = await getSynth()
+      if (stopped) return
+      synth.triggerAttackRelease(accent ? 'C6' : 'G5', 0.05, Tone.now())
+    } catch { /* click is best-effort */ }
+  }
 
   const playStep = async () => {
     if (stopped) return
-    if (i >= chords.length) { stop(); onEnd?.(); return }
+    if (i >= hi) { stop(); onEnd?.(); return }
     const chord = chords[i]
     onStep?.(i, chord)
     const pitches = chordToPitches(chord)
@@ -156,11 +180,22 @@ export function createProgressionPlayer({ chords = [], bpm = 100, beatsPerChord 
     timer = setTimeout(playStep, intervalMs)
   }
 
+  // Tick the count-in beats, then hand off to the progression.
+  const runCountIn = (beat) => {
+    if (stopped) return
+    if (beat >= countInBeats) { playStep(); return }
+    onCount?.(countInBeats - beat) // remaining count, e.g. 4,3,2,1
+    click(beat % beatsPerBar === 0)
+    timer = setTimeout(() => runCountIn(beat + 1), beatMs)
+  }
+
   const start = async () => {
     stopped = false
-    i = 0
+    i = lo
     try { await getSynth() } catch { /* keeps going; playStep handles failure */ }
-    if (!stopped) playStep()
+    if (stopped) return
+    if (countInBeats > 0) runCountIn(0)
+    else playStep()
   }
 
   function stop() {

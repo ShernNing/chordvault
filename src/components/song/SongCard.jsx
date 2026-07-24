@@ -1,6 +1,27 @@
 import { Link } from "react-router-dom";
-import { Clock, User, Check, Trash2 } from "lucide-react";
+import { Clock, User, Check, Trash2, Search } from "lucide-react";
 import { Badge } from "../ui";
+import { highlightSegments } from "../../lib/fuzzySearch";
+import { lyricSnippet } from "../../lib/songSearch";
+
+/** Render text with case-insensitive query matches wrapped in <mark>. */
+function Highlight({ text, query }) {
+  if (!query || !text) return text || null;
+  const segs = highlightSegments(text, query);
+  if (segs.length === 1 && !segs[0].hit) return text;
+  return segs.map((seg, i) =>
+    seg.hit ? (
+      <mark
+        key={i}
+        className='bg-[var(--color-accent-soft)] text-[var(--color-ink)] rounded-sm px-0.5'
+      >
+        {seg.text}
+      </mark>
+    ) : (
+      <span key={i}>{seg.text}</span>
+    ),
+  );
+}
 
 function formatDate(iso) {
   if (!iso) return null;
@@ -21,7 +42,16 @@ export default function SongCard({
   onSelect,
   onDelete,
   canDelete = true,
+  query = "",
 }) {
+  // Show a lyric snippet only when the match came from the body, not the
+  // title/artist (which are already highlighted above).
+  const inMeta =
+    query &&
+    `${song.title || ""} ${song.artist || ""} ${(song.tags || []).join(" ")}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase());
+  const snippet = query && !inMeta ? lyricSnippet(song, query) : "";
   const handleCheckbox = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -79,7 +109,7 @@ export default function SongCard({
           className={`flex items-start justify-between gap-2 mb-1 ${onSelect ? "pl-5" : ""}`}
         >
           <h3 className='text-sm font-semibold text-[var(--color-ink)] leading-tight line-clamp-2'>
-            {song.title}
+            <Highlight text={song.title} query={query} />
           </h3>
           {song.original_key && (
             <span
@@ -97,7 +127,20 @@ export default function SongCard({
           >
             <User size={10} className='text-[var(--color-ink-muted)]' />
             <span className='text-xs text-[var(--color-ink-soft)] truncate'>
-              {song.artist}
+              <Highlight text={song.artist} query={query} />
+            </span>
+          </div>
+        )}
+
+        {/* Lyric/chord match snippet (only when the hit was in the body) */}
+        {snippet && (
+          <div className='flex items-start gap-1 mb-2'>
+            <Search
+              size={10}
+              className='text-[var(--color-ink-muted)] mt-0.5 shrink-0'
+            />
+            <span className='text-xs text-[var(--color-ink-soft)] italic line-clamp-2'>
+              <Highlight text={snippet} query={query} />
             </span>
           </div>
         )}

@@ -156,7 +156,7 @@ export default function Dashboard() {
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] pointer-events-none" />
             <input
               type="text"
-              placeholder="Search songs, artists, tags…"
+              placeholder="Search titles, artists, tags, lyrics, chords…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               className="w-full h-8 pl-8 pr-3 text-sm bg-[var(--color-bg)] border border-[var(--color-border)] rounded text-[var(--color-ink)] placeholder-[var(--color-ink-muted)] hover:border-[var(--color-ink-muted)] focus:outline-none focus:border-[var(--color-ink)] transition-colors"
@@ -263,6 +263,7 @@ export default function Dashboard() {
                 onSelect={toggleSelect}
                 onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
                 canDelete={canDeleteSong(song)}
+                query={query}
               />
             </Reveal>
           ))}
@@ -284,6 +285,7 @@ export default function Dashboard() {
                   onSelect={toggleSelect}
                   onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
                   canDelete={canDeleteSong(song)}
+                query={query}
                 />
               </Reveal>
             ))}

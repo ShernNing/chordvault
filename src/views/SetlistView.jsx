@@ -153,7 +153,7 @@ export default function SetlistView() {
     const songs = setlist?.songs || [];
     const next = {};
     for (const s of songs)
-      if (s.song) next[s.song_id] = getSongSeconds(s.song_id);
+      if (s.song) next[s.song_id] = getSongSeconds(s.song_id, s.song);
     setDurations(next);
   }, [setlist?.songs]);
 
@@ -186,7 +186,7 @@ export default function SetlistView() {
 
   const totalSeconds = slots.reduce(
     (sum, s) =>
-      s.song ? sum + (durations[s.song_id] ?? getSongSeconds(s.song_id)) : sum,
+      s.song ? sum + (durations[s.song_id] ?? getSongSeconds(s.song_id, s.song)) : sum,
     0,
   );
 
@@ -670,7 +670,7 @@ export default function SetlistView() {
                           number={segmentNumbers.get(slot.id)}
                           seconds={
                             durations[slot.song_id] ??
-                            getSongSeconds(slot.song_id)
+                            getSongSeconds(slot.song_id, slot.song)
                           }
                           selected={selected.has(slot.id)}
                           onToggleSelect={() => toggleSelect(slot.id)}
