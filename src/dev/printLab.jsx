@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- dev harness, not app code */
 // Diagnostic harness for PDF export packing (open /print-lab.html in dev).
-// Replicates SetlistView.handleExportPDF measure→pack→render pipeline and
-// reports measured vs actually-rendered heights (window.__printLabReport).
+// Runs the REAL export pipeline — measureSetlistItems → packPages → PrintPage —
+// on a stress setlist and reports measured vs actually-rendered heights plus
+// horizontal chord-line overflow (window.__printLabReport; `ok` must be true).
 // Kept on purpose: run it before touching print components or packing
 // constants — see "PDF export invariants" in CLAUDE.md.
 import { createRoot } from "react-dom/client";
@@ -9,21 +10,15 @@ import { flushSync } from "react-dom";
 import "../index.css";
 import { parseRawContent } from "../lib/ingestion";
 import { packPages } from "../lib/pdfPacking";
+import { measureSetlistItems } from "../lib/printMeasure";
 import { numberSlots } from "../lib/setlistSegments";
+import { PrintPage } from "../components/song/SongRenderer";
 import {
-  SegmentHeading,
-  SingleSongForColumn,
-  SongSheetBody,
-  PrintPage,
-  PRINT_TWO_COL_LINE_THRESHOLD,
+  PRINT_PAGE_HEIGHT,
   PRINT_SONG_GAP,
-} from "../components/song/SongRenderer";
+} from "../lib/printMetrics";
 
-const PAGE_HEIGHT = 1086;
-const SONG_GAP = PRINT_SONG_GAP;
-const HALF_COL_WIDTH = 357;
-const FULL_WIDTH = 746;
-const MAX_HALF_COL_CHARS = 45;
+const A4_HEIGHT = 1122.52;
 
 const GOODNESS_OF_GOD = `[Intro]
 G  Gsus4 G  Gsus4
@@ -138,22 +133,30 @@ Chorus line two of filler ${n}
 C     D     G
 Chorus line three of filler ${n}`;
 
-function getMaxLineChars(parsedContent) {
-  let max = 0;
-  for (const line of parsedContent || []) {
-    let len = 0;
-    if (line.type === "chord_line") {
-      len = line.tokens
-        ? line.tokens.reduce((s, t) => s + (t.leadingSpaces || 0) + t.text.length, 0)
-        : (line.raw || "").length;
-    } else if (line.type === "lyric_line") {
-      len = (line.text || "").length;
-    }
-    if (len > max) max = len;
-  }
-  return max;
-}
-const countNonBlankLines = (pc) => (pc || []).filter((l) => l.type !== "blank").length;
+// Stress songs for the failure modes the measure pass must handle.
+const sectionsOf = (n, chord, lyric) =>
+  Array.from(
+    { length: n },
+    (_, i) => `[Verse ${i + 1}]\n` + `${chord}\n${lyric}\n`.repeat(4),
+  ).join("\n");
+const LONG_LYRIC =
+  "And I will sing of your goodness all my life, forever and ever amen";
+// 54 lines whose lyrics wrap at half width: estimated split overflowed A4.
+const LONG_WRAPPING = sectionsOf(6, "G        C        D        Em", LONG_LYRIC);
+// Short, but one 45-char chord line is ~410px bold — wider than a 357px column.
+const DENSE_CHORDS = `[Verse]
+Bbmaj7 Bbmaj7 Bbmaj7 Bbmaj7 Bbmaj7 Bbmaj7 Bbm
+Short lyric line
+G       C
+Another short line`;
+// Far taller than one page even in two columns: must shrink to fit.
+const HUGE = sectionsOf(14, "G        C        D        Em", LONG_LYRIC);
+// Long song whose chord lines are too wide for a half column.
+const WIDE_CHORDS_LONG = sectionsOf(
+  6,
+  "Gmaj7    Cadd9/E    D/F#    Em7    Bbmaj7#11    Asus4    G",
+  "I love you Lord",
+);
 
 function makeSlot(id, title, key, raw) {
   return {
@@ -172,19 +175,30 @@ const slots = [
   makeSlot("gog", "Goodness Of God", "G", GOODNESS_OF_GOD),
   { id: "div1", song_id: null, label: "COMMUNION", page_break: false },
   makeSlot("ml", "Matchless Love", "B", MATCHLESS_LOVE),
+  makeSlot("lw", "Long Wrapping", "G", LONG_WRAPPING),
+  { id: "div2", song_id: null, label: "RESPONSE", page_break: false },
+  makeSlot("dc", "Dense Chords", "Bb", DENSE_CHORDS),
+  makeSlot("hg", "Huge Song", "G", HUGE),
+  { id: "div3", song_id: null, label: "CLOSING", page_break: true },
+  makeSlot("wc", "Wide Chords Long", "G", WIDE_CHORDS_LONG),
 ];
 
+// Height the packer believes a band occupies (must equal the rendered height).
+function expectedBandHeight(band, nextHeadingH) {
+  if (band.type === "heading") return nextHeadingH();
+  if (band.type === "full") return band.item.height;
+  const col = (items) =>
+    items.reduce((h, it, i) => h + it.height + (i > 0 ? PRINT_SONG_GAP : 0), 0);
+  return Math.max(col(band.left), col(band.right));
+}
+
 function run() {
-  const report = [];
-  const rawEntries = numberSlots(slots).map((entry) => {
+  const entries = numberSlots(slots).map((entry) => {
     if (entry.kind === "divider")
       return { kind: "divider", label: entry.label, pageBreak: entry.pageBreak };
     const slot = entry.slot;
-    const content = slot.song.parsed_content;
     return {
       kind: "song",
-      maxChars: getMaxLineChars(content),
-      nonBlankLines: countNonBlankLines(content),
       props: {
         song: slot.song,
         semitones: 0,
@@ -195,60 +209,17 @@ function run() {
     };
   });
 
-  // ── measurement pass: identical to SetlistView.handleExportPDF ──
-  const measureEl = document.createElement("div");
-  measureEl.style.cssText =
-    "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;" +
-    "font-family:Arial,sans-serif;font-size:14px;";
-  document.body.appendChild(measureEl);
-  const measureRoot = createRoot(measureEl);
-  const measure = (width, node) => {
-    measureEl.style.width = `${width}px`;
-    flushSync(() => measureRoot.render(node));
-    return Math.ceil(measureEl.getBoundingClientRect().height);
-  };
-
-  const items = rawEntries.map((d, id) => {
-    if (d.kind === "divider") {
-      const height = measure(FULL_WIDTH, <SegmentHeading label={d.label} />);
-      return { id, isDivider: true, label: d.label, pageBreak: d.pageBreak, height };
-    }
-    const narrowCandidate =
-      d.maxChars <= MAX_HALF_COL_CHARS &&
-      d.nonBlankLines <= PRINT_TWO_COL_LINE_THRESHOLD;
-    let fitsHalf, height;
-    if (narrowCandidate) {
-      const h = measure(HALF_COL_WIDTH, <SingleSongForColumn {...d.props} />);
-      if (h <= PAGE_HEIGHT) {
-        fitsHalf = true;
-        height = h;
-      } else {
-        fitsHalf = false;
-        height = measure(FULL_WIDTH, <SongSheetBody {...d.props} />);
-      }
-    } else {
-      fitsHalf = false;
-      height = measure(FULL_WIDTH, <SongSheetBody {...d.props} />);
-    }
-    return { id, fitsHalf, height, ...d.props };
-  });
-  measureRoot.unmount();
-  document.body.removeChild(measureEl);
-
-  items.forEach((it) => {
-    report.push({
-      item: it.isDivider ? `divider:${it.label}` : it.song.title,
-      fitsHalf: !!it.fitsHalf,
-      measuredH: it.height,
-    });
-  });
-
-  const pages = packPages(items, { pageHeight: PAGE_HEIGHT, gap: SONG_GAP });
+  const items = measureSetlistItems(entries);
+  const pages = packPages(items);
+  // Heading bands carry only a label; they appear in the same order as the
+  // divider items, so consume divider heights in order.
+  const headingHs = items.filter((it) => it.isDivider).map((it) => it.height);
+  const nextHeadingH = () => headingHs.shift();
 
   // ── render pass: same containers as createPrintContainer, but visible ──
   const out = document.getElementById("pages");
-  const pageReports = [];
-  pages.forEach((page, pi) => {
+  const range = document.createRange();
+  const pageReports = pages.map((page, pi) => {
     const container = document.createElement("div");
     container.style.cssText =
       "width:794px;background:white;color:black;padding:0;font-family:Arial,sans-serif;font-size:14px;outline:3px solid red;margin:20px 0;position:relative;";
@@ -256,26 +227,54 @@ function run() {
     const root = createRoot(container);
     flushSync(() => root.render(<PrintPage bands={page.bands} />));
 
+    const stack = container.firstElementChild.firstElementChild;
+    const renderedStackH = stack.getBoundingClientRect().height;
+    const expectedStackH = page.bands.reduce(
+      (h, band, i) =>
+        h + expectedBandHeight(band, nextHeadingH) + (i > 0 ? PRINT_SONG_GAP : 0),
+      0,
+    );
+    // Chord lines never wrap: their glyphs must stay inside their column.
+    const chordOverflows = [...container.querySelectorAll('[data-print-line="chord_line"]')].filter(
+      (el) => {
+        range.selectNodeContents(el);
+        return range.getBoundingClientRect().width > el.clientWidth + 0.5;
+      },
+    ).length;
+
     // A4 pdf page height line
     const marker = document.createElement("div");
-    marker.style.cssText =
-      "position:absolute;top:1122.52px;left:0;right:0;border-top:2px dashed red;z-index:10;";
+    marker.style.cssText = `position:absolute;top:${A4_HEIGHT}px;left:0;right:0;border-top:2px dashed red;z-index:10;`;
     container.appendChild(marker);
 
-    const rect = container.getBoundingClientRect();
-    const bands = [...container.querySelectorAll(":scope > div > div")].map((b) => {
-      const r = b.getBoundingClientRect();
-      return Math.round(r.height * 100) / 100;
-    });
-    pageReports.push({
+    const containerH = container.getBoundingClientRect().height;
+    const report = {
       page: pi + 1,
-      containerH: Math.round(rect.height * 100) / 100,
-      overA4: Math.round((rect.height - 1122.52) * 100) / 100,
-      bandHeights: bands,
-    });
+      containerH: Math.round(containerH * 100) / 100,
+      overA4: Math.round((containerH - A4_HEIGHT) * 100) / 100,
+      expectedStackH,
+      renderedStackH: Math.round(renderedStackH * 100) / 100,
+      chordOverflows,
+    };
+    report.ok =
+      report.overA4 <= 0 &&
+      renderedStackH <= expectedStackH + 1 &&
+      chordOverflows === 0;
+    return report;
   });
 
-  const summary = { items: report, pages: pageReports, PAGE_HEIGHT, wrapperMax: PAGE_HEIGHT + 36 };
+  const summary = {
+    ok: pageReports.every((p) => p.ok),
+    items: items.map((it) => ({
+      item: it.isDivider ? `divider:${it.label}` : it.song.title,
+      fitsHalf: !!it.fitsHalf,
+      measuredH: it.height,
+      scale: it.scale,
+      splitAt: it.splitAt,
+    })),
+    pages: pageReports,
+    pageBudget: PRINT_PAGE_HEIGHT,
+  };
   document.getElementById("report").textContent = JSON.stringify(summary, null, 2);
   window.__printLabReport = summary;
 }

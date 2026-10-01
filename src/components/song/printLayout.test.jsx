@@ -20,8 +20,8 @@ import {
   SongSheetBody,
   SingleSongForColumn,
   SegmentHeading,
-  PRINT_SONG_GAP,
 } from "./SongRenderer";
+import { PRINT_SONG_GAP } from "../../lib/printMetrics";
 import { parseRawContent } from "../../lib/ingestion";
 
 const SHORT_SONG = `[Verse]
@@ -148,6 +148,10 @@ describe("song components render a single root element", () => {
     ],
     ["SongSheetBody 2-col", () => <SongSheetBody {...songProps(LONG_SONG)} />],
     [
+      "SongSheetBody measured split + scale",
+      () => <SongSheetBody {...songProps(LONG_SONG)} splitAt={10} scale={0.8} />,
+    ],
+    [
       "SingleSongForColumn",
       () => <SingleSongForColumn {...songProps(SHORT_SONG)} />,
     ],
@@ -155,5 +159,50 @@ describe("song components render a single root element", () => {
   ])("%s", (_name, makeElement) => {
     const markup = renderToStaticMarkup(<div>{makeElement()}</div>);
     expect(childCountAtDepth(markup, 1)).toBe(1);
+  });
+});
+
+describe("measure-pass layout props (splitAt, scale)", () => {
+  const COL_OPEN = '<div style="flex:1;min-width:0">';
+  const sectionsIn = (html) => html.split("data-print-section").length - 1;
+
+  it("splitAt=k puts exactly the first k sections in the left column", () => {
+    const markup = renderToStaticMarkup(
+      <SongSheetBody {...songProps(LONG_SONG)} splitAt={10} />,
+    );
+    const [, left, right] = markup.split(COL_OPEN);
+    expect(sectionsIn(left)).toBe(10);
+    expect(sectionsIn(right)).toBe(15);
+    expect(left).toContain("Lyric line 9");
+    expect(left).not.toContain("Lyric line 10");
+  });
+
+  it("splitAt=0 forces a single column even for a long song", () => {
+    const markup = renderToStaticMarkup(
+      <SongSheetBody {...songProps(LONG_SONG)} splitAt={0} />,
+    );
+    expect(markup).not.toContain("display:flex");
+    expect(sectionsIn(markup)).toBe(25);
+  });
+
+  it("scale shrinks every font size and vertical spacer proportionally", () => {
+    const markup = renderToStaticMarkup(
+      <SongSheetBody {...songProps(SHORT_SONG)} scale={0.5} />,
+    );
+    const sizes = [...markup.matchAll(/font-size:([\d.]+)px/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(new Set(sizes)).toEqual(new Set([9.5, 8])); // title 19, lines 16
+    expect(markup).toContain("height:4px"); // blank spacer 8px
+    expect(markup).toContain("margin-bottom:4px"); // title margin 8px
+  });
+
+  it("tags every printed line with its type for width measurement", () => {
+    const markup = renderToStaticMarkup(
+      <SingleSongForColumn {...songProps(SHORT_SONG)} />,
+    );
+    expect(markup.split('data-print-line="chord_line"').length - 1).toBe(4);
+    expect(markup.split('data-print-line="lyric_line"').length - 1).toBe(4);
+    expect(markup.split('data-print-line="section_header"').length - 1).toBe(2);
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { packPages } from './pdfPacking'
+import { PRINT_PAGE_HEIGHT, PRINT_SONG_GAP } from './printMetrics'
 
 // Helpers to keep the arithmetic readable in tests.
 const narrow = (id, height) => ({ id, fitsHalf: true, height })
@@ -293,5 +294,14 @@ describe('packPages', () => {
         expect(page.bands[0].item.height).toBeGreaterThan(pageHeight)
       }
     }
+  })
+
+  it('defaults to the shared print geometry (page budget + song gap)', () => {
+    // Two narrow songs that exactly fill one column at the real budget/gap.
+    const h = (PRINT_PAGE_HEIGHT - PRINT_SONG_GAP) / 2
+    const pages = packPages([narrow(1, h), narrow(2, h), narrow(3, 1)])
+    expect(pages).toHaveLength(1)
+    expect(pages[0].bands[0].left.map((i) => i.id)).toEqual([1, 2])
+    expect(pages[0].bands[0].right.map((i) => i.id)).toEqual([3])
   })
 })

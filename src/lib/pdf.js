@@ -34,19 +34,40 @@ export async function exportSongToPDF(songTitle, key, renderElement) {
   let heightLeft = imgHeight
   let position = 0
 
-  pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
   heightLeft -= pdfHeight
 
   while (heightLeft > 0) {
     position = heightLeft - imgHeight
     pdf.addPage()
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
     heightLeft -= pdfHeight
   }
 
   const safeTitle = (songTitle || 'song').replace(/[/\\:*?"<>|]/g, '_')
   const safeKey = (key || 'unknown').replace(/[^a-z0-9#b]/gi, '')
   pdf.save(`${safeTitle}-${safeKey}.pdf`)
+}
+
+/**
+ * Placement of one packed page's image on one PDF page. Each setlist element
+ * is exactly one page, so it is NEVER sliced across PDF pages (slicing cuts
+ * songs mid-line). The measure pass keeps pages within A4; if a page still
+ * comes out taller (a measurement regression), it is shrunk to fit and
+ * centred horizontally instead.
+ */
+export function fitPageImage(canvasWidth, canvasHeight, pdfWidth, pdfHeight) {
+  const height = (canvasHeight * pdfWidth) / canvasWidth
+  if (height <= pdfHeight) return { x: 0, width: pdfWidth, height }
+  const shrink = pdfHeight / height
+  console.warn(
+    `PDF export: page overflowed A4 by ${Math.round(height - pdfHeight)}px; shrinking to fit`,
+  )
+  return {
+    x: (pdfWidth - pdfWidth * shrink) / 2,
+    width: pdfWidth * shrink,
+    height: pdfHeight,
+  }
 }
 
 export async function exportSetlistToPDF(setlistName, songElements) {
@@ -73,23 +94,15 @@ export async function exportSetlistToPDF(setlistName, songElements) {
     })
 
     const imgData = canvas.toDataURL('image/jpeg', 0.85)
-    const imgWidth = pdfWidth
-    const imgHeight = (canvas.height * pdfWidth) / canvas.width
+    const { x, width, height } = fitPageImage(
+      canvas.width,
+      canvas.height,
+      pdfWidth,
+      pdfHeight,
+    )
 
     if (i > 0) pdf.addPage()
-
-    let heightLeft = imgHeight
-    let position = 0
-
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-    heightLeft -= pdfHeight
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight
-      pdf.addPage()
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-      heightLeft -= pdfHeight
-    }
+    pdf.addImage(imgData, 'JPEG', x, 0, width, height)
   }
 
   const safeName = (setlistName || 'setlist').replace(/[/\\:*?"<>|]/g, '_')

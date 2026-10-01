@@ -1,3 +1,5 @@
+import { PRINT_PAGE_HEIGHT, PRINT_SONG_GAP } from './printMetrics'
+
 /**
  * Pure page-packer for setlist PDF export.
  *
@@ -18,13 +20,21 @@
  * then right column reproduces the input order (waterfall fill).
  *
  * Input items: { id, fitsHalf: boolean, height: number }. `height` must already
- * be measured at the width the item will render (357px narrow, 746px wide).
+ * be measured at the width and scale the item will render
+ * (measureSetlistItems in printMeasure.jsx), which also guarantees every song
+ * fits its page budget — the over-tall guards below are defensive only.
+ *
+ * Defaults are the shared print geometry (printMetrics.js); override only in
+ * tests.
  *
  * @param {Array<{id:*, fitsHalf:boolean, height:number}>} items
  * @param {{pageHeight?:number, gap?:number}} [opts]
  * @returns {Array<{bands: Array}>}
  */
-export function packPages(items, { pageHeight = 1087, gap = 16 } = {}) {
+export function packPages(
+  items,
+  { pageHeight = PRINT_PAGE_HEIGHT, gap = PRINT_SONG_GAP } = {},
+) {
   const pages = []
   let page = null // { bands: [], usedAbove } — usedAbove = height of closed bands (+ gaps)
   let openCols = null // { left, right, leftH, rightH, avail, useRight }

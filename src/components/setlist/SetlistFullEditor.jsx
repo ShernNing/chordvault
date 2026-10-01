@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { createRoot } from "react-dom/client";
-import { flushSync } from "react-dom";
 import {
   X,
   GripVertical,
@@ -32,53 +30,23 @@ import {
   transposeParsedContent,
 } from "../../lib/transposition";
 import { cleanSongTitle } from "../../lib/ingestion";
-import {
-  SingleSongForColumn,
-  SegmentHeading,
-  PRINT_SONG_GAP,
-} from "../song/SongRenderer";
+import { SegmentHeading } from "../song/SongRenderer";
 import { packPages } from "../../lib/pdfPacking";
+import { measureSetlistItems } from "../../lib/printMeasure";
+import { PRINT_SONG_GAP } from "../../lib/printMetrics";
 import { numberSlots } from "../../lib/setlistSegments";
 
-const MAX_HALF_COL_CHARS = 45;
-// A4 at 96dpi is 1122.5px; print wrapper eats 12px top + 24px bottom padding →
-// true budget 1086.5px. Must stay in sync with PAGE_HEIGHT in SetlistView's
-// handleExportPDF, or preview pagination diverges from the exported PDF.
-const PAGE_COL_HEIGHT = 1086;
 const SONG_GAP = PRINT_SONG_GAP; // must match the print renderer's band gap
-const HALF_COL_WIDTH = 357; // (746 content - 32 gap) / 2
-const FULL_WIDTH = 746; // 794 wrapper - 2×24 padding
 
-// NOTE: computePageLayout below is an APPROXIMATE inline preview only. The real
-// PDF export uses packPages() (src/lib/pdfPacking.js), which supports mixed
-// bands (a wide song stacked below a 2-column region) and segment-divider
-// headings that this preview does not render. Segment dividers are filtered out
-// before this runs; per-segment numbering and mixed-layout preview parity are a
-// tracked follow-up.
+// Page assignment in this preview is EXACT: computePageLayout runs the same
+// measure pass (src/lib/printMeasure.jsx) and packer as the PDF export. Only
+// the in-page rendering is approximate — songs are shown as editable single
+// columns, without the export's internal 2-column split or font scaling.
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function uid() {
   return Math.random().toString(36).slice(2, 9);
-}
-
-function getMaxLineChars(parsedContent) {
-  let max = 0;
-  for (const line of parsedContent || []) {
-    let len = 0;
-    if (line.type === "chord_line") {
-      len = line.tokens
-        ? line.tokens.reduce(
-            (s, t) => s + (t.leadingSpaces || 0) + t.text.length,
-            0,
-          )
-        : (line.raw || "").length;
-    } else if (line.type === "lyric_line") {
-      len = (line.text || "").length;
-    }
-    if (len > max) max = len;
-  }
-  return max;
 }
 
 function parsedContentToSections(parsedContent) {
@@ -138,77 +106,32 @@ function getTransposeData(slot) {
   return { shapeSemitones, shapeKey, keyLabel, displayKey };
 }
 
-// ── page layout computation (mirrors SetlistView handleExportPDF bin-packing) ─
+// ── page layout computation (shared with SetlistView handleExportPDF) ───────
 
 async function computePageLayout(editedSlots) {
   // numberSlots keeps segment dividers and restarts song numbering after each
   // one, matching the exported PDF exactly.
-  const entries = numberSlots(editedSlots);
-  if (entries.length === 0) return [];
-
-  // Mirrors the export measurement pass in SetlistView.handleExportPDF: same
-  // font context as createPrintContainer, Math.ceil so sub-pixel heights never
-  // under-count (scrollHeight rounds to nearest and can round down).
-  const measureEl = document.createElement("div");
-  measureEl.style.cssText =
-    "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;" +
-    "font-family:Arial,sans-serif;font-size:14px;";
-  document.body.appendChild(measureEl);
-  const measureRoot = createRoot(measureEl);
-  const measure = (width, node) => {
-    measureEl.style.width = `${width}px`;
-    flushSync(() => measureRoot.render(node));
-    return Math.ceil(measureEl.getBoundingClientRect().height);
-  };
-
-  const items = entries.map((entry, id) => {
+  const entries = numberSlots(editedSlots).map((entry) => {
     if (entry.kind === "divider") {
-      const height = measure(FULL_WIDTH, <SegmentHeading label={entry.label} />);
-      return {
-        id,
-        isDivider: true,
-        label: entry.label,
-        pageBreak: entry.pageBreak,
-        height,
-      };
+      return { kind: "divider", label: entry.label, pageBreak: entry.pageBreak };
     }
     const slot = entry.slot;
-    const parsedContent = sectionsToParsedContent(slot.sections);
-    const songNode = (
-      <SingleSongForColumn
-        song={{ ...slot.song, parsed_content: parsedContent }}
-        semitones={0}
-        targetKey={slot._displayKey}
-        keyLabel={slot._keyLabel}
-        songNumber={entry.songNumber}
-      />
-    );
-    if (getMaxLineChars(parsedContent) <= MAX_HALF_COL_CHARS) {
-      const h = measure(HALF_COL_WIDTH, songNode);
-      if (h <= PAGE_COL_HEIGHT) {
-        return {
-          id,
-          fitsHalf: true,
-          height: h,
-          slotId: slot.id,
-          songNumber: entry.songNumber,
-        };
-      }
-    }
-    const h = measure(FULL_WIDTH, songNode);
+    // Same props the export derives from buildExportSlots(): content already
+    // transposed, so semitones 0.
     return {
-      id,
-      fitsHalf: false,
-      height: h,
-      slotId: slot.id,
-      songNumber: entry.songNumber,
+      kind: "song",
+      props: {
+        song: { ...slot.song, parsed_content: sectionsToParsedContent(slot.sections) },
+        semitones: 0,
+        targetKey: slot._displayKey,
+        keyLabel: slot._keyLabel,
+        songNumber: entry.songNumber,
+      },
+      meta: { slotId: slot.id },
     };
   });
-
-  measureRoot.unmount();
-  document.body.removeChild(measureEl);
-
-  return packPages(items, { pageHeight: PAGE_COL_HEIGHT, gap: SONG_GAP });
+  if (entries.length === 0) return [];
+  return packPages(measureSetlistItems(entries));
 }
 
 // ── main component ────────────────────────────────────────────────────────────
@@ -486,16 +409,22 @@ function EditorPage({
     const slot = slotById[d.slotId];
     if (!slot) return null;
     return (
-      <EditableSongContent
-        key={slot.id}
-        slot={slot}
-        songNumber={d.songNumber}
-        clipboard={clipboard}
-        onReorderSections={(aId, oId) => onReorderSections(slot.id, aId, oId)}
-        onEditLine={(secId, li, text) => onEditLine(slot.id, secId, li, text)}
-        onCutSection={(secId) => onCutSection(slot.id, secId)}
-        onPasteAfter={(afterId) => onPasteAfter(slot.id, afterId)}
-      />
+      <div key={slot.id}>
+        {d.scale < 1 && (
+          <div style={{ fontSize: "10px", color: "#b45309", marginBottom: "2px" }}>
+            Shrunk to {Math.round(d.scale * 100)}% in the PDF to fit one page
+          </div>
+        )}
+        <EditableSongContent
+          slot={slot}
+          songNumber={d.songNumber}
+          clipboard={clipboard}
+          onReorderSections={(aId, oId) => onReorderSections(slot.id, aId, oId)}
+          onEditLine={(secId, li, text) => onEditLine(slot.id, secId, li, text)}
+          onCutSection={(secId) => onCutSection(slot.id, secId)}
+          onPasteAfter={(afterId) => onPasteAfter(slot.id, afterId)}
+        />
+      </div>
     );
   };
 

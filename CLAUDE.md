@@ -15,44 +15,57 @@ Full spec: `docs/superpowers/specs/2026-07-01-pdf-export-packing-redesign-design
 `src/components/song/printLayout.test.jsx` and `src/lib/pdfPacking.test.js`.
 
 The export pipeline is **measure → pack → render → rasterize**
-(`SetlistView.handleExportPDF` → `packPages` in `src/lib/pdfPacking.js` →
+(`SetlistView.handleExportPDF` → `measureSetlistItems` in
+`src/lib/printMeasure.jsx` → `packPages` in `src/lib/pdfPacking.js` →
 `PrintPage` in `src/components/song/SongRenderer.jsx` → `exportSetlistToPDF`).
-Measured heights and rendered heights MUST match exactly, or pages overfill
-and html2canvas slices songs mid-line across PDF page boundaries.
+Measured heights and rendered heights MUST match exactly, or pages overfill.
 
-1. **One root element per print component.** `SongSheetBody`,
+1. **One measure pass, one geometry module.** `measureSetlistItems` is the
+   ONLY measurement code — SetlistView (export), SetlistFullEditor (preview)
+   and `src/dev/printLab.jsx` all call it. Never copy it inline again (the old
+   copies drifted and the preview paginated differently from the PDF). Every
+   print number (`PRINT_PAGE_HEIGHT` 1086, `PRINT_FULL_WIDTH` 746,
+   `PRINT_HALF_COL_WIDTH` 357, `PRINT_COL_GAP` 32, `PRINT_SONG_GAP` 28,
+   `PRINT_TWO_COL_LINE_THRESHOLD`) lives in `src/lib/printMetrics.js`; never
+   hardcode them. `packPages` defaults to them.
+2. **One root element per print component.** `SongSheetBody`,
    `SingleSongForColumn`, `SegmentHeading` must render a SINGLE root element
    (never a fragment). `PrintPage`'s band stack is `flex` with a
    `PRINT_SONG_GAP` gap; fragment children become separate flex items,
-   injecting the gap INSIDE a song (between title and chords) and breaking
-   height parity.
-2. **Gap only between songs, via ONE constant.** `PRINT_SONG_GAP` (exported
-   from `SongRenderer.jsx`) is the single source of truth for between-song
-   spacing: the band stack gap, the within-column gap, AND the `gap` passed to
-   `packPages` by `SetlistView`, `SetlistFullEditor`, and `printLab`. Never
-   hardcode it, never let renderer and packer values differ. Title→content
-   spacing inside a song is the 8px `PrintSongHeader` margin — do not add
-   more.
-3. **Measure in the render's font context.** The hidden measure div sets
-   `font-family:Arial,sans-serif;font-size:14px` (mirrors
-   `createPrintContainer`); print components pin `font-family`/`line-height`
-   inline.
-4. **Never under-measure.** Use
-   `Math.ceil(measureEl.getBoundingClientRect().height)` — NOT `scrollHeight`
-   (rounds to nearest, can round down, accumulates page overflow).
-5. **Page budget is 1086px.** A4@96dpi 1122.5px − wrapper padding 36px =
-   1086.5px. `PAGE_HEIGHT` (`SetlistView.jsx`) and `PAGE_COL_HEIGHT`
-   (`SetlistFullEditor.jsx`) must both stay 1086 and in sync.
-6. **Songs are never split by the packer.** `packPages` places whole songs;
-   a segment heading is kept with its first song (`blockH` check). Any change
-   to packing must keep `src/lib/pdfPacking.test.js` green.
+   injecting the gap INSIDE a song and breaking height parity. Title→content
+   spacing inside a song is the 8px (× scale) `PrintSongHeader` margin.
+3. **Measure in the render's font context, with the real component.** The
+   measure host mirrors the PrintPage wrapper (`Arial`, 16px); print
+   components pin `font-family`/`line-height` inline. Heights use
+   `Math.ceil(getBoundingClientRect().height)` — NOT `scrollHeight` (rounds to
+   nearest, can round down).
+4. **Widths are measured in pixels, not characters.** Chord lines are
+   `white-space: pre` and never wrap; `measureSetlistItems` reads each line's
+   natural width (`data-print-line` + Range rects). A song is half-column only
+   if every line fits 357px unwrapped; the widest chord line caps the font
+   scale for whatever column it lands in.
+5. **Two-column split uses measured, balanced sections.** Long songs get
+   `splitAt` from `chooseBalancedSplit` over measured section heights
+   (`data-print-section`). The legacy estimate split (`splitAt` undefined) is
+   only for standalone single-song export.
+6. **No song ever exceeds its page.** Songs are never split by the packer. A
+   song that doesn't fit its budget is shrunk via the `scale` prop
+   (`fitScale`); a song directly after a segment heading gets
+   `PRINT_PAGE_HEIGHT − heading − gap` so the heading always shares its page.
+   `exportSetlistToPDF` never slices a page across PDF pages — an overfull
+   page is shrunk onto one page (with a console warning) as a last resort.
+   Scaling is done with explicit px sizes, not CSS `zoom`/`transform`
+   (html2canvas reads computed font sizes).
+7. **Tests stay green:** `src/lib/pdfPacking.test.js`,
+   `src/lib/printMetrics.test.js`, `src/lib/pdf.test.js`,
+   `src/components/song/printLayout.test.jsx`.
 
 Before touching print components, packing constants, or measurement code, run
 the diagnostic harness: open `/print-lab.html` in the dev server and check
-`window.__printLabReport` — measured vs rendered heights must agree (±1px)
-and every page must stay under the A4 marker.
-
-<!-- ⚠️ END PERMANENT SECTION -->
+`window.__printLabReport.ok === true` — it runs the real pipeline on a stress
+setlist (wrapping long songs, dense chords, over-tall songs, headings) and
+checks rendered vs measured heights, A4 overflow and chord-line overflow per
+page.
 
 ## Verification
 

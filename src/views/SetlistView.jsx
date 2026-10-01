@@ -52,15 +52,9 @@ import {
 import { createSetlistShare, shareUrl } from "../lib/shares";
 import { exportSetlistToPDF, createPrintContainer } from "../lib/pdf";
 import { exportSetlistToDocx } from "../lib/docxExport";
-import {
-  PrintPage,
-  SongSheetBody,
-  SingleSongForColumn,
-  SegmentHeading,
-  PRINT_TWO_COL_LINE_THRESHOLD,
-  PRINT_SONG_GAP,
-} from "../components/song/SongRenderer";
+import { PrintPage } from "../components/song/SongRenderer";
 import { packPages } from "../lib/pdfPacking";
+import { measureSetlistItems } from "../lib/printMeasure";
 import { numberSlots } from "../lib/setlistSegments";
 import SetlistFullEditor from "../components/setlist/SetlistFullEditor";
 import SetlistPerformer from "../components/setlist/SetlistPerformer";
@@ -74,33 +68,6 @@ import {
   Skeleton,
   Select,
 } from "../components/ui";
-
-// Half-page column: (794 - 48px padding - 32px gap) / 2 = 357px ÷ ~7.2px/char ≈ 49 chars
-// Use 45 as conservative threshold to ensure no overflow
-const MAX_HALF_COL_CHARS = 45;
-
-function getMaxLineChars(parsedContent) {
-  let max = 0;
-  for (const line of parsedContent || []) {
-    let len = 0;
-    if (line.type === "chord_line") {
-      len = line.tokens
-        ? line.tokens.reduce(
-            (s, t) => s + (t.leadingSpaces || 0) + t.text.length,
-            0,
-          )
-        : (line.raw || "").length;
-    } else if (line.type === "lyric_line") {
-      len = (line.text || "").length;
-    }
-    if (len > max) max = len;
-  }
-  return max;
-}
-
-function countNonBlankLines(parsedContent) {
-  return (parsedContent || []).filter((l) => l.type !== "blank").length;
-}
 
 export default function SetlistView() {
   const { id } = useParams();
@@ -257,20 +224,9 @@ export default function SetlistView() {
       const roots = [];
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
 
-      // A4 at 96dpi is 1122.5px; the print wrapper eats 12px top + 24px bottom
-      // padding, so the true budget is 1086.5px. Anything above 1086 risks the
-      // rendered page overrunning the PDF page and html2canvas slicing songs
-      // mid-line across page boundaries.
-      const PAGE_HEIGHT = 1086;
-      // Vertical gap between bands / stacked songs. Shared with the print
-      // renderer so the packer's math always matches the rendered page.
-      const SONG_GAP = PRINT_SONG_GAP;
-      const HALF_COL_WIDTH = 357; // (746 content - 32 gap) / 2
-      const FULL_WIDTH = 746; // 794 wrapper - 2×24 padding
-
-      // Step 1: turn slots into ordered render data. numberSlots keeps segment
-      // dividers and restarts song numbering at 1 after each one.
-      const rawEntries = numberSlots(exportSlots).map((entry) => {
+      // Step 1: turn slots into ordered print entries. numberSlots keeps
+      // segment dividers and restarts song numbering at 1 after each one.
+      const entries = numberSlots(exportSlots).map((entry) => {
         if (entry.kind === "divider") {
           return {
             kind: "divider",
@@ -288,13 +244,13 @@ export default function SetlistView() {
         const shapeSemitones = semitones - capo;
         const shapeKey =
           capo > 0 && displayKey ? transposeKey(displayKey, -capo) : displayKey;
-        const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
-        const content = slot.song.parsed_content;
+        // The full editor exports pre-transposed content with capo reset to 0;
+        // it passes its original label (incl. capo) through as _keyLabel.
+        const keyLabel =
+          slot._keyLabel ??
+          `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
         return {
           kind: "song",
-          maxChars: getMaxLineChars(content),
-          nonBlankLines: countNonBlankLines(content),
-          // Props consumed by the print components (SingleSongForColumn / SongSheetBody).
           props: {
             song: slot.song,
             semitones: shapeSemitones,
@@ -305,76 +261,22 @@ export default function SetlistView() {
         };
       });
 
-      // Step 2: measure each entry at the width it will actually render, and
-      // decide whether a song packs into a half-page column (narrow) or takes a
-      // full-width band. The browser layout engine handles font metrics and
-      // wrapping exactly, matching the final PDF.
-      // Font/size must mirror createPrintContainer so measured metrics match
-      // the final render; Math.ceil keeps sub-pixel heights from under-counting
-      // (scrollHeight rounds to nearest, which can round DOWN and overfill).
-      const measureEl = document.createElement("div");
-      measureEl.style.cssText =
-        "position:absolute;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;" +
-        "font-family:Arial,sans-serif;font-size:14px;";
-      document.body.appendChild(measureEl);
-      const measureRoot = createRoot(measureEl);
-      const measure = (width, node) => {
-        measureEl.style.width = `${width}px`;
-        flushSync(() => measureRoot.render(node));
-        return Math.ceil(measureEl.getBoundingClientRect().height);
-      };
+      // Step 2: measure every entry in the print font context (layout, font
+      // scale and exact height per song — see src/lib/printMeasure.jsx), then
+      // pack whole songs onto A4 pages.
+      const pages = packPages(measureSetlistItems(entries));
 
-      const items = rawEntries.map((d, id) => {
-        if (d.kind === "divider") {
-          const height = measure(FULL_WIDTH, <SegmentHeading label={d.label} />);
-          return { id, isDivider: true, label: d.label, pageBreak: d.pageBreak, height };
-        }
-        // Narrow candidates fit a half column horizontally AND are short enough
-        // that a single (unsplit) column is appropriate. Wide or long songs get
-        // a full-width band with internal 2-col split when needed.
-        const narrowCandidate =
-          d.maxChars <= MAX_HALF_COL_CHARS &&
-          d.nonBlankLines <= PRINT_TWO_COL_LINE_THRESHOLD;
-        let fitsHalf, height;
-        if (narrowCandidate) {
-          const h = measure(
-            HALF_COL_WIDTH,
-            <SingleSongForColumn {...d.props} />,
-          );
-          if (h <= PAGE_HEIGHT) {
-            fitsHalf = true;
-            height = h;
-          } else {
-            // Narrow but taller than a whole column — render full width instead.
-            fitsHalf = false;
-            height = measure(FULL_WIDTH, <SongSheetBody {...d.props} />);
-          }
-        } else {
-          fitsHalf = false;
-          height = measure(FULL_WIDTH, <SongSheetBody {...d.props} />);
-        }
-        return { id, fitsHalf, height, ...d.props };
-      });
-
-      measureRoot.unmount();
-      document.body.removeChild(measureEl);
-
-      const pages = packPages(items, {
-        pageHeight: PAGE_HEIGHT,
-        gap: SONG_GAP,
-      });
-
-      // Render each page (an ordered stack of cols/full bands) into its own
-      // print container.
+      // Step 3: render each page (an ordered stack of bands) into its own
+      // print container, synchronously so layout is final before capture.
       for (const page of pages) {
         const container = createPrintContainer();
         const root = createRoot(container);
-        root.render(<PrintPage bands={page.bands} />);
+        flushSync(() => root.render(<PrintPage bands={page.bands} />));
         containers.push(container);
         roots.push(root);
       }
 
-      await new Promise((r) => setTimeout(r, 400));
+      await document.fonts?.ready;
       await exportSetlistToPDF(setlist.name, containers);
 
       roots.forEach((r) => {
@@ -413,7 +315,10 @@ export default function SetlistView() {
             capo > 0 && displayKey
               ? transposeKey(displayKey, -capo)
               : displayKey;
-          const keyLabel = `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
+          // Full-editor exports carry their original label (incl. capo).
+          const keyLabel =
+            slot._keyLabel ??
+            `${displayKey || ""}${capo > 0 ? ` (capo ${capo})` : ""}`;
           return {
             song: slot.song,
             semitones: shapeSemitones,

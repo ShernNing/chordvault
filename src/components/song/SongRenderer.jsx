@@ -6,6 +6,11 @@ import { normalizeSectionHeader, cleanSongTitle } from "../../lib/ingestion";
 import { PRESETS } from "../../lib/voicings/flow";
 import { buildInlineVoicings, cycleVoicing } from "../../lib/voicings/inlineVoicings";
 import InlineVoicingRow from "./InlineVoicingRow";
+import {
+  PRINT_SONG_GAP,
+  PRINT_COL_GAP,
+  PRINT_TWO_COL_LINE_THRESHOLD,
+} from "../../lib/printMetrics";
 
 // ─── Column layout helpers ───────────────────────────────────────────────────
 // JS-based section splitting so sections never break across columns.
@@ -723,18 +728,23 @@ const PRINT_WRAPPER_STYLE = {
   fontSize: "16px",
 };
 
-// Vertical gap between songs on a printed page (band stack and within a
-// column). packPages callers MUST pass this same value as `gap`, or measured
-// page heights diverge from the render and songs get sliced across PDF pages.
-export const PRINT_SONG_GAP = 28;
+// Print geometry (PRINT_SONG_GAP, column widths, page budget) lives in
+// src/lib/printMetrics.js, shared with the measure pass and the packer.
+//
+// `scale` (default 1) on the print components below shrinks every font size,
+// margin and spacer proportionally. The export measure pass
+// (src/lib/printMeasure.jsx) sets it only when a song would otherwise overflow
+// its page; the measured height is taken at the same scale, so measure/render
+// parity holds. Column widths and gaps never scale.
+const px = (n, scale) => `${n * scale}px`;
 
-function PrintSongHeader({ song, keyLabel, songNumber }) {
+function PrintSongHeader({ song, keyLabel, songNumber, scale = 1 }) {
   return (
-    <div style={{ marginBottom: "8px" }}>
+    <div style={{ marginBottom: px(8, scale) }}>
       <span
         style={{
           fontFamily: "Arial, sans-serif",
-          fontSize: "19px",
+          fontSize: px(19, scale),
           fontWeight: "700",
           lineHeight: "1.3",
           color: "#000000",
@@ -755,25 +765,33 @@ function PrintSongHeader({ song, keyLabel, songNumber }) {
   );
 }
 
-function PrintSection({ section, sectionKey }) {
+// `data-print-section` / `data-print-line` let the measure pass read section
+// heights and natural line widths straight from the DOM.
+function PrintSection({ section, sectionKey, scale = 1 }) {
   return (
-    <div key={sectionKey}>
-      {section.header && <PrintLine line={section.header} />}
+    <div key={sectionKey} data-print-section=''>
+      {section.header && <PrintLine line={section.header} scale={scale} />}
       {section.lines.map((line, li) => (
-        <PrintLine key={li} line={line} />
+        <PrintLine key={li} line={line} scale={scale} />
       ))}
     </div>
   );
 }
 
-// A full-width song sheet with no page wrapper. Splits into two internal
-// columns when the song has more non-blank lines than the threshold. Used both
-// as a `full` band inside PrintPage and (wrapped) as a standalone sheet.
-export const PRINT_TWO_COL_LINE_THRESHOLD = 45;
+// A full-width song sheet with no page wrapper, optionally split into two
+// internal columns. Used both as a `full` band inside PrintPage and (wrapped)
+// as a standalone sheet.
+//
+// `splitAt` — chosen by the setlist measure pass from MEASURED section heights:
+//   0     → single column
+//   k > 0 → two columns, first k sections on the left (balanced split)
+//   undefined (standalone single-song export) → legacy rule: split when the
+//   song has more than PRINT_TWO_COL_LINE_THRESHOLD non-blank lines, using
+//   estimated section heights.
 
 // INVARIANT (printLayout.test.jsx): must return a SINGLE root element. As a
 // fragment, its children become separate flex items inside PrintPage's
-// gap:16px band stack — the gap lands between the song title and its first
+// PRINT_SONG_GAP band stack — the gap lands between the song title and its first
 // chords, and the rendered height exceeds the block-context measurement, so
 // packPages overfills pages and songs get sliced across PDF page boundaries.
 export function SongSheetBody({
@@ -782,6 +800,8 @@ export function SongSheetBody({
   targetKey,
   keyLabel,
   songNumber,
+  splitAt,
+  scale = 1,
 }) {
   const content =
     semitones !== 0
@@ -789,43 +809,56 @@ export function SongSheetBody({
       : song.parsed_content;
 
   const sections = _groupPrintSections(_stripIntraPairBlanks(content || []));
-  const nonBlankLines = (content || []).filter(
-    (l) => l.type !== "blank",
-  ).length;
-  const useColumns = nonBlankLines > PRINT_TWO_COL_LINE_THRESHOLD;
+  let left, right;
+  if (splitAt === undefined) {
+    const nonBlankLines = (content || []).filter(
+      (l) => l.type !== "blank",
+    ).length;
+    if (nonBlankLines > PRINT_TWO_COL_LINE_THRESHOLD)
+      ({ left, right } = _splitPrintSections(sections));
+  } else if (splitAt > 0 && splitAt < sections.length) {
+    left = sections.slice(0, splitAt);
+    right = sections.slice(splitAt);
+  }
 
-  if (!useColumns) {
+  if (!left) {
     return (
       <div>
         <PrintSongHeader
           song={song}
           keyLabel={keyLabel}
           songNumber={songNumber}
+          scale={scale}
         />
         {sections.map((s, si) => (
-          <PrintSection key={si} section={s} sectionKey={si} />
+          <PrintSection key={si} section={s} sectionKey={si} scale={scale} />
         ))}
       </div>
     );
   }
 
-  const { left, right } = _splitPrintSections(sections);
   return (
     <div>
       <PrintSongHeader
         song={song}
         keyLabel={keyLabel}
         songNumber={songNumber}
+        scale={scale}
       />
-      <div style={{ display: "flex", gap: "32px" }}>
+      <div style={{ display: "flex", gap: `${PRINT_COL_GAP}px` }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {left.map((s, si) => (
-            <PrintSection key={si} section={s} sectionKey={si} />
+            <PrintSection key={si} section={s} sectionKey={si} scale={scale} />
           ))}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           {right.map((s, si) => (
-            <PrintSection key={1000 + si} section={s} sectionKey={1000 + si} />
+            <PrintSection
+              key={1000 + si}
+              section={s}
+              sectionKey={1000 + si}
+              scale={scale}
+            />
           ))}
         </div>
       </div>
@@ -891,6 +924,7 @@ export function SingleSongForColumn({
   targetKey,
   keyLabel,
   songNumber,
+  scale = 1,
 }) {
   const content =
     semitones !== 0
@@ -903,9 +937,10 @@ export function SingleSongForColumn({
         song={song}
         keyLabel={keyLabel}
         songNumber={songNumber}
+        scale={scale}
       />
       {sections.map((s, si) => (
-        <PrintSection key={si} section={s} sectionKey={si} />
+        <PrintSection key={si} section={s} sectionKey={si} scale={scale} />
       ))}
     </div>
   );
@@ -922,7 +957,9 @@ function ColsBand({ left, right }) {
     gap: `${PRINT_SONG_GAP}px`,
   };
   return (
-    <div style={hasTwoColumns ? { display: "flex", gap: "32px" } : {}}>
+    <div
+      style={hasTwoColumns ? { display: "flex", gap: `${PRINT_COL_GAP}px` } : {}}
+    >
       <div style={{ ...(hasTwoColumns ? { flex: 1 } : {}), ...columnStyle }}>
         {left.map((item, i) => (
           <SingleSongForColumn key={i} {...item} />
@@ -997,21 +1034,26 @@ export function PrintPage({ bands }) {
   );
 }
 
-function PrintLine({ line }) {
+// Chord lines are `white-space: pre` (never wrap — chord positions matter), so
+// the measure pass keeps them inside their column by pixel width. Wrappable
+// lines get `overflowWrap: anywhere` so even an unbroken word can never bleed
+// past the column edge.
+function PrintLine({ line, scale = 1 }) {
   const sectionStyle = {
     fontFamily: "Arial, sans-serif",
-    fontSize: "16px",
+    fontSize: px(16, scale),
     fontWeight: "700",
     color: "#000000",
     lineHeight: "1.2",
-    marginTop: "8px",
-    marginBottom: "2px",
+    marginTop: px(8, scale),
+    marginBottom: px(2, scale),
     display: "block",
+    overflowWrap: "anywhere",
   };
 
   const chordStyle = {
     fontFamily: "Arial, sans-serif",
-    fontSize: "16px",
+    fontSize: px(16, scale),
     fontWeight: "700",
     color: "#000000",
     whiteSpace: "pre",
@@ -1022,36 +1064,44 @@ function PrintLine({ line }) {
 
   const lyricStyle = {
     fontFamily: "Arial, sans-serif",
-    fontSize: "16px",
+    fontSize: px(16, scale),
     fontWeight: "400",
     color: "#000000",
     whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
     display: "block",
     lineHeight: "1.2",
-    marginBottom: "2px",
+    marginBottom: px(2, scale),
   };
 
   const annotationStyle = {
     fontFamily: "Arial, sans-serif",
-    fontSize: "13px",
+    fontSize: px(13, scale),
     fontWeight: "700",
     fontStyle: "italic",
     color: "#555555",
     whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
     display: "block",
     lineHeight: "1.2",
-    marginTop: "2px",
-    marginBottom: "2px",
+    marginTop: px(2, scale),
+    marginBottom: px(2, scale),
   };
 
   switch (line.type) {
     case "section_header":
       return (
-        <span style={sectionStyle}>{normalizeSectionHeader(line.text)}</span>
+        <span style={sectionStyle} data-print-line='section_header'>
+          {normalizeSectionHeader(line.text)}
+        </span>
       );
 
     case "annotation":
-      return <span style={annotationStyle}>{`→ ${line.text}`}</span>;
+      return (
+        <span style={annotationStyle} data-print-line='annotation'>
+          {`→ ${line.text}`}
+        </span>
+      );
 
     case "chord_line": {
       const text = line.tokens
@@ -1059,16 +1109,28 @@ function PrintLine({ line }) {
             .map((t) => " ".repeat(t.leadingSpaces || 0) + t.text)
             .join("")
         : line.raw || "";
-      return <span style={chordStyle}>{text}</span>;
+      return (
+        <span style={chordStyle} data-print-line='chord_line'>
+          {text}
+        </span>
+      );
     }
 
     case "lyric_line":
-      return <span style={lyricStyle}>{line.text}</span>;
+      return (
+        <span style={lyricStyle} data-print-line='lyric_line'>
+          {line.text}
+        </span>
+      );
 
     case "blank":
-      return <div style={{ height: "8px" }} />;
+      return <div style={{ height: px(8, scale) }} />;
 
     default:
-      return <span style={lyricStyle}>{line.text}</span>;
+      return (
+        <span style={lyricStyle} data-print-line='lyric_line'>
+          {line.text}
+        </span>
+      );
   }
 }
