@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useSyncExternalStore, useRef } from 'react'
-import { supabaseSongOps, supabaseSetlistOps } from './supabaseOps'
+import { supabaseSongOps, supabaseSetlistOps, supabaseFavoriteOps } from './supabaseOps'
+import { toggleIn } from './favorites'
+import { useAuth } from './AuthContext'
+import { useToast } from './toast'
 import { ingest, cleanSongTitle } from './ingestion'
 import { createResource } from './cache'
 import { scoreFields } from './fuzzySearch'
@@ -265,6 +268,55 @@ export function useSongs(sortBy = 'title') {
   }, [])
 
   return { songs, loading: pending && songs.length === 0, error, reload: () => load(true), createSong, updateSong, deleteSong, bulkDeleteSongs }
+}
+
+// ─── Song Favourites ───────────────────────────────────────────────────────
+// Per-user starred songs (song_favorites table). Toggle is optimistic and rolls
+// back on failure so the star never lies about what is persisted.
+export function useSongFavorites() {
+  const { userId } = useAuth()
+  const toast = useToast()
+  const [ids, setIds] = useState(() => new Set())
+  const [loading, setLoading] = useState(!!userId)
+  const idsRef = useRef(ids)
+  idsRef.current = ids
+
+  useEffect(() => {
+    if (!userId) { setIds(new Set()); setLoading(false); return }
+    let cancelled = false
+    setLoading(true)
+    supabaseFavoriteOps.list(userId)
+      .then(list => { if (!cancelled) setIds(new Set(list)) })
+      .catch(e => {
+        if (cancelled) return
+        const msg = e?.message || ''
+        toast.error(
+          msg.includes('song_favorites')
+            ? 'Favourites need a database migration: run supabase/migrations/20261001000000_song_favorites.sql'
+            : msg || 'Could not load favourites',
+        )
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- toast identity is not a reload trigger
+  }, [userId])
+
+  const has = useCallback((id) => ids.has(id), [ids])
+
+  const toggle = useCallback(async (songId) => {
+    if (!userId) return
+    const wasFavorite = idsRef.current.has(songId)
+    setIds(prev => toggleIn(prev, songId))
+    try {
+      if (wasFavorite) await supabaseFavoriteOps.remove(userId, songId)
+      else await supabaseFavoriteOps.add(userId, songId)
+    } catch (e) {
+      setIds(prev => (prev.has(songId) === wasFavorite ? prev : toggleIn(prev, songId)))
+      toast.error(e?.message || 'Could not update favourite')
+    }
+  }, [userId, toast])
+
+  return { ids, has, toggle, loading, enabled: !!userId }
 }
 
 // ─── Single Song ───────────────────────────────────────────────────────────

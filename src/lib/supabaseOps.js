@@ -107,6 +107,29 @@ export const supabaseSongOps = {
   },
 }
 
+export const supabaseFavoriteOps = {
+  // Song ids the signed-in user has starred.
+  async list(userId) {
+    const { data, error } = await supabase
+      .from('song_favorites').select('song_id').eq('user_id', userId)
+    if (error) throw error
+    return (data ?? []).map(r => r.song_id)
+  },
+
+  async add(userId, songId) {
+    const { error } = await supabase
+      .from('song_favorites')
+      .upsert({ user_id: userId, song_id: songId }, { onConflict: 'user_id,song_id' })
+    if (error) throw error
+  },
+
+  async remove(userId, songId) {
+    const { error } = await supabase
+      .from('song_favorites').delete().eq('user_id', userId).eq('song_id', songId)
+    if (error) throw error
+  },
+}
+
 export const supabaseProfileOps = {
   // The signed-in user's own profile row (id, role, created_at, email if present).
   async getMine(userId) {

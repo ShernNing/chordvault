@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw } from 'lucide-react'
-import { useSongs, useSearch, useSetlists, useSemanticSearch } from '../lib/hooks'
+import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw, Star } from 'lucide-react'
+import { useSongs, useSearch, useSetlists, useSemanticSearch, useSongFavorites } from '../lib/hooks'
+import { filterFavorites } from '../lib/favorites'
 import { useAuth } from '../lib/AuthContext'
 import { supabaseSetlistOps } from '../lib/supabaseOps'
 import { selectRelatedSongs } from '../lib/relatedSongs'
@@ -28,15 +29,19 @@ export default function Dashboard() {
   const toast = useToast()
   const { canAddSongs, canDeleteSong } = useAuth()
   const [keyFilter, setKeyFilter] = useState('')
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const favorites = useSongFavorites()
 
   // Keys present in the library, for the key filter dropdown.
   const availableKeys = React.useMemo(
     () => [...new Set(songs.map(s => s.original_key).filter(Boolean))].sort(),
     [songs],
   )
-  const filteredResults = keyFilter
-    ? results.filter(s => s.original_key === keyFilter)
-    : results
+  const filteredResults = React.useMemo(() => {
+    let list = keyFilter ? results.filter(s => s.original_key === keyFilter) : results
+    if (favoritesOnly) list = filterFavorites(list, favorites.ids)
+    return list
+  }, [results, keyFilter, favoritesOnly, favorites.ids])
 
   const relatedToShow = React.useMemo(
     () => selectRelatedSongs(relatedIds, songs, {
@@ -163,6 +168,21 @@ export default function Dashboard() {
             />
           </div>
           <div className="flex items-center gap-2">
+            {favorites.enabled && (
+              <button
+                type="button"
+                onClick={() => setFavoritesOnly(v => !v)}
+                aria-pressed={favoritesOnly}
+                title="Show only favourites"
+                className={`h-8 px-2.5 inline-flex items-center gap-1.5 text-xs rounded border transition-colors ${
+                  favoritesOnly
+                    ? 'border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-bg)]'
+                    : 'border-[var(--color-border)] text-[var(--color-ink-soft)] hover:border-[var(--color-ink-muted)]'
+                }`}
+              >
+                <Star size={12} fill={favoritesOnly ? 'currentColor' : 'none'} /> Favourites
+              </button>
+            )}
             {availableKeys.length > 0 && (
               <Select
                 value={keyFilter}
@@ -245,10 +265,15 @@ export default function Dashboard() {
       ) : filteredResults.length === 0 && relatedToShow.length === 0 ? (
         <EmptyState
           icon={Search}
-          title={query ? `No results for "${query}"` : `No songs in key of ${keyFilter}`}
-          description="Try a different search term or key filter."
+          title={
+            query ? `No results for "${query}"`
+              : favoritesOnly && !keyFilter ? 'No favourites yet'
+              : keyFilter ? `No songs in key of ${keyFilter}`
+              : 'No matching songs'
+          }
+          description={favoritesOnly ? 'Star a song to add it to your favourites.' : 'Try a different search term or key filter.'}
           action={
-            <Button variant="secondary" size="sm" onClick={() => { setQuery(''); setKeyFilter('') }}>
+            <Button variant="secondary" size="sm" onClick={() => { setQuery(''); setKeyFilter(''); setFavoritesOnly(false) }}>
               Clear filters
             </Button>
           }
@@ -264,6 +289,8 @@ export default function Dashboard() {
                 onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
                 canDelete={canDeleteSong(song)}
                 query={query}
+                favorite={favorites.has(song.id)}
+                onToggleFavorite={favorites.enabled ? favorites.toggle : undefined}
               />
             </Reveal>
           ))}
@@ -285,7 +312,9 @@ export default function Dashboard() {
                   onSelect={toggleSelect}
                   onDelete={(s) => setDeleteTarget({ type: 'single', song: s })}
                   canDelete={canDeleteSong(song)}
-                query={query}
+                  query={query}
+                  favorite={favorites.has(song.id)}
+                  onToggleFavorite={favorites.enabled ? favorites.toggle : undefined}
                 />
               </Reveal>
             ))}

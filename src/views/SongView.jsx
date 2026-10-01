@@ -26,11 +26,13 @@ import {
   Mic,
   Music4,
 } from "lucide-react";
+import FavoriteStar from "../components/song/FavoriteStar";
 import {
   useSong,
   useLocalStorage,
   useDisplaySettings,
   useSetlists,
+  useSongFavorites,
   FONT_OPTIONS,
 } from "../lib/hooks";
 import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
@@ -90,6 +92,7 @@ export default function SongView() {
   const { setlists } = useSetlists();
   const toast = useToast();
   const { canEditSong, canDeleteSong } = useAuth();
+  const favorites = useSongFavorites();
 
   // Edit / "Save key" / Delete: superuser does any; a leader does only songs they
   // created. Members can do neither. Mirrors the songs RLS policies (see ROLES.md)
@@ -451,6 +454,13 @@ export default function SongView() {
                 </span>
               )}
             </h1>
+            {favorites.enabled && song && (
+              <FavoriteStar
+                active={favorites.has(song.id)}
+                onToggle={() => favorites.toggle(song.id)}
+                className='self-center'
+              />
+            )}
           </div>
           {song.artist && (
             <p className='text-xs text-[var(--color-ink-soft)] mt-0.5 font-sans'>

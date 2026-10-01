@@ -3,6 +3,7 @@ import { Clock, User, Check, Trash2, Search } from "lucide-react";
 import { Badge } from "../ui";
 import { highlightSegments } from "../../lib/fuzzySearch";
 import { lyricSnippet } from "../../lib/songSearch";
+import FavoriteStar from "./FavoriteStar";
 
 /** Render text with case-insensitive query matches wrapped in <mark>. */
 function Highlight({ text, query }) {
@@ -43,6 +44,8 @@ export default function SongCard({
   onDelete,
   canDelete = true,
   query = "",
+  favorite = false,
+  onToggleFavorite,
 }) {
   // Show a lyric snippet only when the match came from the body, not the
   // title/artist (which are already highlighted above).
@@ -169,6 +172,13 @@ export default function SongCard({
                 : `Added ${formatDate(song.created_at)}`}
             </span>
           </div>
+          {onToggleFavorite && (
+            <FavoriteStar
+              active={favorite}
+              onToggle={() => onToggleFavorite(song.id)}
+              className='-my-1 ml-auto'
+            />
+          )}
           {song.play_count > 0 && (
             <span className='text-[10px] text-[var(--color-ink-muted)] font-mono'>
               ×{song.play_count}
