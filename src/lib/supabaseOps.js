@@ -1,6 +1,37 @@
 import { supabase } from './supabase'
 import { buildEmbedText } from './embedText'
 
+// ── Filter helpers ───────────────────────────────────────────────────────────
+// Escape LIKE/ILIKE wildcards so user text matches literally (backslash is the
+// default Postgres LIKE escape character).
+export function escapeLike(s) {
+  return String(s ?? '').replace(/[\\%_]/g, ch => '\\' + ch)
+}
+
+// Quote a value for a PostgREST `or=(...)` filter: wrap in double quotes and
+// backslash-escape `"` and `\` so reserved chars (, . ( ) :) can't alter it.
+export function quoteFilterValue(s) {
+  return `"${String(s ?? '').replace(/[\\"]/g, ch => '\\' + ch)}"`
+}
+
+// PostgREST "function not found": the RPC migration hasn't been applied yet.
+const isMissingRpc = (error) =>
+  error?.code === 'PGRST202' || /could not find the function/i.test(error?.message || '')
+
+export class PermissionError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'PermissionError'
+  }
+}
+
+export class DuplicateSlotError extends Error {
+  constructor(message = 'Already in this setlist') {
+    super(message)
+    this.name = 'DuplicateSlotError'
+  }
+}
+
 export const supabaseSongOps = {
   async getAll() {
     const { data, error } = await supabase.from('songs').select('*').order('title')
@@ -10,7 +41,9 @@ export const supabaseSongOps = {
 
   async getByTitles(titles) {
     if (!titles.length) return []
-    const filter = titles.map(t => `title.ilike."${t.replace(/"/g, '""')}"`).join(',')
+    // Exact, case-insensitive title match: escape LIKE wildcards (% _) so a
+    // title like "100% Yes" doesn't match unrelated songs.
+    const filter = titles.map(t => `title.ilike.${quoteFilterValue(escapeLike(t))}`).join(',')
     const { data, error } = await supabase.from('songs').select('*').or(filter)
     if (error) throw error
     return data ?? []
@@ -30,41 +63,73 @@ export const supabaseSongOps = {
       .select()
       .single()
     if (error) throw error
-    await this.embedSong(data.id, data)
+    // Fire-and-forget: embedding is slow and must never block or fail the save.
+    this.embedSong(data.id, data)
     return data
   },
 
+  // RLS-blocked UPDATEs return no error and zero rows, so detect that and throw.
   async update(id, updates) {
     const { data, error } = await supabase
       .from('songs')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
-      .single()
     if (error) throw error
-    await this.embedSong(data.id, data)
-    return data
+    const row = data?.[0]
+    if (!row) throw new PermissionError("Not permitted: you can't edit this song (or it no longer exists)")
+    this.embedSong(row.id, row)
+    return row
   },
 
+  // Delete the song FIRST (with .select so an RLS-blocked delete, 0 rows and no
+  // error, is detected), and only then clean up its setlist slots. If a
+  // non-cascading FK blocks the delete (23503), RLS already allowed it, so the
+  // slots are cleared and the delete retried.
   async delete(id) {
-    await supabase.from('setlist_songs').delete().eq('song_id', id)
-    const { error } = await supabase.from('songs').delete().eq('id', id)
+    let { data, error } = await supabase.from('songs').delete().eq('id', id).select('id')
+    if (error?.code === '23503') {
+      const { error: slotErr } = await supabase.from('setlist_songs').delete().eq('song_id', id)
+      if (slotErr) throw slotErr
+      ;({ data, error } = await supabase.from('songs').delete().eq('id', id).select('id'))
+    }
     if (error) throw error
+    if (!data?.length) throw new PermissionError("You don't have permission to delete this song")
+    // Orphaned slots (no FK cascade): best effort, the song itself is gone.
+    const { error: cleanupErr } = await supabase.from('setlist_songs').delete().eq('song_id', id)
+    if (cleanupErr) console.warn('Could not remove deleted song from setlists:', cleanupErr)
   },
 
+  // Deletes each song independently so one forbidden song can't take the
+  // others' setlist slots with it. Returns { deleted: id[], failed: [{ id, error }] }.
   async deleteMany(ids) {
-    if (!ids?.length) return
-    await supabase.from('setlist_songs').delete().in('song_id', ids)
-    const { error } = await supabase.from('songs').delete().in('id', ids)
-    if (error) throw error
+    const deleted = []
+    const failed = []
+    for (const id of ids ?? []) {
+      try {
+        await this.delete(id)
+        deleted.push(id)
+      } catch (error) {
+        failed.push({ id, error })
+      }
+    }
+    return { deleted, failed }
   },
 
+  // Play tracking goes through the mark_song_played RPC (SECURITY DEFINER) so
+  // members, who can't UPDATE songs under RLS, still record plays atomically.
   async markPlayed(id) {
-    const { data: song } = await supabase.from('songs').select('play_count').eq('id', id).single()
-    await supabase.from('songs').update({
+    const { error } = await supabase.rpc('mark_song_played', { p_song_id: id })
+    if (!error) return
+    if (!isMissingRpc(error)) throw error
+    // Migration not applied yet: legacy read-modify-write (owners/superusers only).
+    const { data: song, error: readErr } = await supabase.from('songs').select('play_count').eq('id', id).single()
+    if (readErr) throw readErr
+    const { error: updErr } = await supabase.from('songs').update({
       last_played_at: new Date().toISOString(),
       play_count: (song?.play_count ?? 0) + 1,
     }).eq('id', id)
+    if (updErr) throw updErr
   },
 
   async search(query) {
@@ -189,14 +254,22 @@ export const supabaseSetlistOps = {
       .eq('setlist_id', id)
       .order('position')
     if (e2) throw e2
-    const songs = await Promise.all(
-      (slots ?? []).map(async slot => {
-        // Divider rows have no song_id — skip the lookup, keep the row as-is.
-        if (!slot.song_id) return { ...slot, song: null }
-        const { data: song } = await supabase.from('songs').select('*').eq('id', slot.song_id).single()
-        return { ...slot, song }
-      })
-    )
+    // One request for every song in the setlist (not one per slot).
+    const songIds = [...new Set((slots ?? []).map(s => s.song_id).filter(Boolean))]
+    let byId = new Map()
+    if (songIds.length) {
+      const { data: songRows, error: e3 } = await supabase.from('songs').select('*').in('id', songIds)
+      if (e3) throw e3
+      byId = new Map((songRows ?? []).map(s => [s.id, s]))
+    }
+    const songs = (slots ?? []).map(slot => {
+      // Divider rows have no song_id; keep the row as-is.
+      if (!slot.song_id) return { ...slot, song: null }
+      const song = byId.get(slot.song_id) ?? null
+      // Keep slots whose song is gone/unreadable, flagged so the UI shows it
+      // instead of silently dropping it from the setlist.
+      return song ? { ...slot, song } : { ...slot, song: null, missing: true }
+    })
     return { ...setlist, songs }
   },
 
@@ -223,14 +296,30 @@ export const supabaseSetlistOps = {
   },
 
   async delete(id) {
-    await supabase.from('setlist_songs').delete().eq('setlist_id', id)
-    const { error } = await supabase.from('setlists').delete().eq('id', id)
+    const { error: slotErr } = await supabase.from('setlist_songs').delete().eq('setlist_id', id)
+    if (slotErr) throw slotErr
+    const { data, error } = await supabase.from('setlists').delete().eq('id', id).select('id')
     if (error) throw error
+    if (!data?.length) throw new PermissionError("You don't have permission to delete this setlist")
   },
 
+  // Existing slots + next free position = max(position) + 1 (a row count
+  // collides with existing positions after removals).
+  async _slotState(setlistId) {
+    const { data, error } = await supabase
+      .from('setlist_songs')
+      .select('song_id, position')
+      .eq('setlist_id', setlistId)
+    if (error) throw error
+    const rows = data ?? []
+    const nextPosition = rows.reduce((m, r) => Math.max(m, (r.position ?? -1) + 1), 0)
+    return { rows, nextPosition }
+  },
+
+  // Throws DuplicateSlotError when the song is already in the setlist.
   async addSong(setlistId, songId, chosenKey = null, capo = 0) {
-    const { data: existing } = await supabase.from('setlist_songs').select('id').eq('setlist_id', setlistId)
-    const position = (existing ?? []).length
+    const { rows, nextPosition: position } = await this._slotState(setlistId)
+    if (rows.some(r => r.song_id === songId)) throw new DuplicateSlotError()
     const { data, error } = await supabase
       .from('setlist_songs')
       .insert({ setlist_id: setlistId, song_id: songId, position, chosen_key: chosenKey, capo })
@@ -241,8 +330,7 @@ export const supabaseSetlistOps = {
   },
 
   async addDivider(setlistId, label, pageBreak = false) {
-    const { data: existing } = await supabase.from('setlist_songs').select('id').eq('setlist_id', setlistId)
-    const position = (existing ?? []).length
+    const { nextPosition: position } = await this._slotState(setlistId)
     const { data, error } = await supabase
       .from('setlist_songs')
       .insert({ setlist_id: setlistId, song_id: null, label, page_break: pageBreak, position })
@@ -262,11 +350,23 @@ export const supabaseSetlistOps = {
     if (error) throw error
   },
 
+  // One atomic UPDATE via the reorder_setlist_songs RPC (all-or-nothing; the
+  // function verifies every id belongs to the setlist). Throws on failure so
+  // the caller can roll back its optimistic order.
   async reorderSongs(setlistId, orderedSlotIds) {
-    await Promise.all(
+    const { error } = await supabase.rpc('reorder_setlist_songs', {
+      p_setlist_id: setlistId,
+      p_slot_ids: orderedSlotIds,
+    })
+    if (!error) return
+    if (!isMissingRpc(error)) throw error
+    // Migration not applied yet: per-row fallback, but never ignore failures.
+    const results = await Promise.all(
       orderedSlotIds.map((slotId, position) =>
-        supabase.from('setlist_songs').update({ position }).eq('id', slotId)
+        supabase.from('setlist_songs').update({ position }).eq('id', slotId).eq('setlist_id', setlistId)
       )
     )
+    const failed = results.find(r => r.error)
+    if (failed) throw failed.error
   },
 }

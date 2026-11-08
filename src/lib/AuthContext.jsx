@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import { resetAllCaches } from './cache'
 
 // ── Role model (see ROLES.md) ───────────────────────────────────────────────
 // member     — view-only + setlists. Cannot add/edit/delete songs.
@@ -37,7 +38,9 @@ export function AuthProvider({ children }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Don't leave the previous user's songs/setlists in memory or localStorage.
+      if (event === 'SIGNED_OUT') resetAllCaches()
       setSession(session)
     })
 
