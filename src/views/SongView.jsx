@@ -589,7 +589,7 @@ export default function SongView() {
                 )
               }
               className={
-                twoColumn !== false ? "text-[var(--color-accent)]" : ""
+                twoColumn !== false ? "text-[var(--color-accent-text)]" : ""
               }
               title='Toggle 2-column layout'
             >
@@ -601,7 +601,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowFontPanel((p) => !p)}
-              className={showFontPanel ? "text-[var(--color-accent)]" : ""}
+              className={showFontPanel ? "text-[var(--color-accent-text)]" : ""}
               title='Font & size'
             >
               <Type size={14} />
@@ -612,7 +612,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowPerform((p) => !p)}
-              className={showPerform ? "text-[var(--color-accent)]" : ""}
+              className={showPerform ? "text-[var(--color-accent-text)]" : ""}
               title='Perform mode'
             >
               <PlayCircle size={14} />
@@ -623,7 +623,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowChordPlayer((p) => !p)}
-              className={showChordPlayer ? "text-[var(--color-accent)]" : ""}
+              className={showChordPlayer ? "text-[var(--color-accent-text)]" : ""}
               title='Play chords'
             >
               <Music4 size={14} />
@@ -634,7 +634,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowRangePanel((p) => !p)}
-              className={showRangePanel ? "text-[var(--color-accent)]" : ""}
+              className={showRangePanel ? "text-[var(--color-accent-text)]" : ""}
               title='Fit to my voice'
             >
               <Mic size={14} />
@@ -677,7 +677,7 @@ export default function SongView() {
                 size='icon-sm'
                 onClick={() => setShowArrangement(true)}
                 title='Arrangement'
-                className={arrangeBackup ? "text-[var(--color-accent)]" : ""}
+                className={arrangeBackup ? "text-[var(--color-accent-text)]" : ""}
               >
                 <ListOrdered size={14} />
               </Button>
@@ -744,7 +744,7 @@ export default function SongView() {
       {/* ── Share link banner ─────────────────────────────────────── */}
       {shareLink && (
         <div className='no-print flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg text-xs'>
-          <Link2 size={13} className='text-[var(--color-accent)] shrink-0' />
+          <Link2 size={13} className='text-[var(--color-accent-text)] shrink-0' />
           <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>
             Public link:
           </span>

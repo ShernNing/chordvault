@@ -16,7 +16,7 @@ export default function FavoriteButton({ voicingId, size = 14, className = '' })
         bg-[var(--color-bg-warm)] border border-[var(--color-border)]
         transition-colors
         ${active
-          ? 'text-[var(--color-accent)] border-[var(--color-accent)]'
+          ? 'text-[var(--color-accent-text)] border-[var(--color-accent)]'
           : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:border-[var(--color-ink-muted)]'}
         ${className}
       `}

@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw, Star } from 'lucide-react'
+import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw, Star, LogIn } from 'lucide-react'
 import { useSongs, useSearch, useSetlists, useSemanticSearch, useSongFavorites, addSongToSetlist } from '../lib/hooks'
 import { filterFavorites } from '../lib/favorites'
-import { useAuth } from '../lib/AuthContext'
+import { useAuth, requestSignIn } from '../lib/AuthContext'
 import { DuplicateSlotError } from '../lib/supabaseOps'
 import { selectRelatedSongs } from '../lib/relatedSongs'
 import { Button, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
@@ -27,7 +27,7 @@ export default function Dashboard() {
   const { relatedIds } = useSemanticSearch(query)
   const { setlists } = useSetlists()
   const toast = useToast()
-  const { canAddSongs, canDeleteSong } = useAuth()
+  const { canAddSongs, canDeleteSong, isLoggedIn, loading: authLoading } = useAuth()
   const [keyFilter, setKeyFilter] = useState('')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const favorites = useSongFavorites()
@@ -272,6 +272,19 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => <SongCardSkeleton key={i} />)}
         </div>
+      ) : songs.length === 0 && !authLoading && !isLoggedIn ? (
+        // Songs are readable by signed-in users only (RLS), so a signed-out
+        // visitor's library is always empty — say why instead of "empty".
+        <EmptyState
+          icon={LogIn}
+          title="Sign in to see the song library"
+          description="ChordVault's library is shared with your band. Sign in to view songs and build setlists."
+          action={
+            <Button variant="primary" size="sm" onClick={requestSignIn}>
+              <LogIn size={14} /> Sign in
+            </Button>
+          }
+        />
       ) : songs.length === 0 ? (
         <EmptyState
           icon={Music2}

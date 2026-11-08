@@ -612,7 +612,7 @@ function NoAddPermission() {
       description='Your account is a member, so you can view chords and build setlists but not add songs. Ask a superuser to make you a leader.'
       action={
         <Link to='/'>
-          <span className='text-xs text-[var(--color-accent)]'>
+          <span className='text-xs text-[var(--color-accent-text)]'>
             ← Back to library
           </span>
         </Link>

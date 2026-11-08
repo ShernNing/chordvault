@@ -72,7 +72,7 @@ export default function ImportView() {
         icon={Lock}
         title="Importing is leader-only"
         description="Your account is a member, so you can view chords and build setlists but not import songs. Ask a superuser to make you a leader."
-        action={<Link to="/"><span className="text-xs text-[var(--color-accent)]">← Back to library</span></Link>}
+        action={<Link to="/"><span className="text-xs text-[var(--color-accent-text)]">← Back to library</span></Link>}
       />
     )
   }

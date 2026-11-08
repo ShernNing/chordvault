@@ -525,7 +525,7 @@ export default function SongRenderer({
             ? `${manualVoicingCount} custom voicing${manualVoicingCount === 1 ? "" : "s"}`
             : "No custom voicings"}
           {voicingsDirty ? (
-            <span className='text-[var(--color-accent)]'> · unsaved</span>
+            <span className='text-[var(--color-accent-text)]'> · unsaved</span>
           ) : hasSavedVoicings ? (
             <span className='text-[var(--color-ink-muted)]'> · saved</span>
           ) : null}

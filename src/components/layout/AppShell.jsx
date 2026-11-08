@@ -35,6 +35,7 @@ import { usePerformActive } from "../../lib/stageChrome";
 import { supabase } from "../../lib/supabase";
 import { Button, Tooltip } from "../ui";
 import AuthModal from "../auth/AuthModal";
+import { OPEN_AUTH_EVENT } from "../../lib/AuthContext";
 import { WelcomeModal } from "../onboarding/Onboarding";
 import {
   motion,
@@ -89,6 +90,13 @@ export default function AppShell({ children }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Views (e.g. the signed-out library) can ask for the sign-in dialog.
+  useEffect(() => {
+    const open = () => setAuthOpen(true);
+    window.addEventListener(OPEN_AUTH_EVENT, open);
+    return () => window.removeEventListener(OPEN_AUTH_EVENT, open);
+  }, []);
+
   // Public share pages render their own minimal chrome, no app nav/footer.
   if (location.pathname.startsWith("/share/")) {
     return <>{children}</>;
@@ -135,7 +143,7 @@ export default function AppShell({ children }) {
                 variant='ghost'
                 size='icon-sm'
                 onClick={toggleStage}
-                className={isStage ? "text-[var(--color-accent)]" : ""}
+                className={isStage ? "text-[var(--color-accent-text)]" : ""}
               >
                 <Zap size={14} />
               </Button>

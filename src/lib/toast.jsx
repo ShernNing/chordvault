@@ -17,7 +17,7 @@ export function useToast() {
 const TYPE_META = {
   success: { Icon: CheckCircle2, cls: 'text-green-500' },
   error: { Icon: AlertCircle, cls: 'text-red-500' },
-  info: { Icon: Info, cls: 'text-[var(--color-accent)]' },
+  info: { Icon: Info, cls: 'text-[var(--color-accent-text)]' },
 }
 
 let counter = 0

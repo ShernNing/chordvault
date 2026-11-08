@@ -11,6 +11,11 @@ import { resetAllCaches } from './cache'
 // eslint-disable-next-line react-refresh/only-export-components -- ROLES constant intentionally exported alongside the provider
 export const ROLES = ['member', 'leader', 'superuser']
 
+// Window event a view dispatches to open AppShell's sign-in dialog.
+export const OPEN_AUTH_EVENT = 'cv:open-auth'
+// eslint-disable-next-line react-refresh/only-export-components -- helper shared by views
+export const requestSignIn = () => window.dispatchEvent(new Event(OPEN_AUTH_EVENT))
+
 const AuthContext = createContext({
   session: null,
   isLoggedIn: false,

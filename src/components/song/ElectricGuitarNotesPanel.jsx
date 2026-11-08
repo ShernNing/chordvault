@@ -354,7 +354,7 @@ export default function ElectricGuitarNotesPanel({
 
           {groupBySection(rendered).map(({ section, entries }) => (
             <section key={section} className='space-y-1.5'>
-              <h3 className='text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent)] px-1 pt-1'>
+              <h3 className='text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent-text)] px-1 pt-1'>
                 {section === UNSECTIONED ? "No section" : section}
               </h3>
               {entries.map((entry) =>

@@ -509,7 +509,7 @@ export default function SetlistView() {
 
       {shareLink && (
         <div className='flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg text-xs'>
-          <Link2 size={13} className='text-[var(--color-accent)] shrink-0' />
+          <Link2 size={13} className='text-[var(--color-accent-text)] shrink-0' />
           <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>
             Public link:
           </span>
@@ -702,7 +702,7 @@ export default function SetlistView() {
                         )}
                         <Plus
                           size={11}
-                          className='text-[var(--color-ink-muted)] group-hover:text-[var(--color-accent)] transition-colors'
+                          className='text-[var(--color-ink-muted)] group-hover:text-[var(--color-accent-text)] transition-colors'
                         />
                       </div>
                     </div>
