@@ -4,47 +4,27 @@ ChordVault can mint **read-only public links** to a song or a whole setlist
 (`/share/:token`). Each link is a self-contained _snapshot_, the recipient sees
 only the exact content you shared, never your live library.
 
-This feature needs one table. Run the SQL below **once** in your Supabase project
-(Dashboard → SQL Editor → New query → paste → Run). Until you do, the Share
-buttons show a "needs setup" message instead of failing silently.
-
-```sql
-create table public.shares (
-  token       text primary key,
-  kind        text not null check (kind in ('song','setlist')),
-  payload     jsonb not null,
-  created_by  uuid references auth.users(id) default auth.uid(),
-  created_at  timestamptz default now()
-);
-
-alter table public.shares enable row level security;
-
--- Anyone with the link can read it. The token is a random 32-char id and is
--- the only thing protecting the link (the classic "unlisted link" model).
-create policy "shares are world readable by token"
-  on public.shares for select
-  using (true);
-
--- Only the signed-in owner can create their own shares…
-create policy "owner can create shares"
-  on public.shares for insert
-  with check (auth.uid() = created_by);
-
--- …and delete them.
-create policy "owner can delete shares"
-  on public.shares for delete
-  using (auth.uid() = created_by);
-```
+This feature needs one table plus a `get_share(token)` function. Run
+[`supabase/migrations/20261108000000_shares_get_by_token.sql`](supabase/migrations/20261108000000_shares_get_by_token.sql)
+**once** in your Supabase project (Dashboard → SQL Editor → New query → paste →
+Run, or `supabase db push`). It is idempotent, and safe to run over the older
+setup that used a `using (true)` select policy — it drops that policy. Until you
+run it, the Share buttons show a "needs setup" message instead of failing
+silently.
 
 ## Security notes
 
 - **The token is the secret.** Tokens are 32 random hex chars (`crypto.randomUUID`),
-  so links are effectively unguessable. There is no listing endpoint, you can
-  only read a share if you already have its token.
+  so links are effectively unguessable. There is no table-wide `select` policy:
+  the public can only read a share through `get_share(token)`, which returns the
+  one matching row (never `created_by`). Owners can read their own rows directly.
+- **Why not `using (true)`?** An earlier version of this setup used a
+  world-readable `select` policy. Combined with the public anon key, that let
+  anyone run `GET /rest/v1/shares?select=*` and list every share. Make sure that
+  policy is gone (`select policyname from pg_policies where tablename = 'shares'`).
 - **No library access leaks.** A share stores a _copy_ of the song/setlist content
-  in `payload`. The public `select` policy exposes only the `shares` table, never
-  `songs` or `setlists`, so a link can never be walked back to the rest of your
-  library.
+  in `payload`. `get_share` reads only the `shares` table, never `songs` or
+  `setlists`, so a link can never be walked back to the rest of your library.
 - **Snapshots are frozen.** Editing the original song later does not change an
   already-created link. Re-share to publish an updated snapshot.
 - **Revoking:** delete the row (`delete from public.shares where token = '…';`).

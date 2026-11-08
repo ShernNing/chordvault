@@ -4,27 +4,15 @@ import { supabase } from './supabase'
 //
 // A share is an immutable *snapshot* of a song or setlist stored in the `shares`
 // table and addressed by an unguessable random token. Anyone with the link can
-// read it (RLS allows anonymous SELECT); only the signed-in owner can create or
-// delete their own shares. Because each share is a self-contained snapshot, the
-// recipient never gets read access to the owner's live library — only to the
-// exact content that was shared, frozen at share time.
+// read it via the `get_share(token)` RPC, which returns only the one matching
+// row; there is no table-wide SELECT, so shares can't be listed. Only the
+// signed-in owner can create or delete their own shares. Because each share is
+// a self-contained snapshot, the recipient never gets read access to the
+// owner's live library — only to the exact content that was shared, frozen at
+// share time.
 //
-// Requires this one-time migration in Supabase (see SHARING.md / setup notes):
-//
-//   create table public.shares (
-//     token       text primary key,
-//     kind        text not null check (kind in ('song','setlist')),
-//     payload     jsonb not null,
-//     created_by  uuid references auth.users(id) default auth.uid(),
-//     created_at  timestamptz default now()
-//   );
-//   alter table public.shares enable row level security;
-//   create policy "shares are world readable by token"
-//     on public.shares for select using (true);
-//   create policy "owner can create shares"
-//     on public.shares for insert with check (auth.uid() = created_by);
-//   create policy "owner can delete shares"
-//     on public.shares for delete using (auth.uid() = created_by);
+// Schema + policies: supabase/migrations/20261108000000_shares_get_by_token.sql
+// (see SHARING.md).
 
 const SETUP_HINT =
   'Sharing needs a one-time database setup — run the shares-table SQL in your Supabase project (see SHARING.md).'
@@ -44,6 +32,9 @@ function decorate(error) {
   const missingTable =
     error?.code === '42P01' ||
     error?.code === 'PGRST205' ||
+    // get_share RPC not created yet.
+    error?.code === 'PGRST202' ||
+    /could not find the function .*get_share/i.test(msg) ||
     /relation .*shares.* does not exist/i.test(msg) ||
     /could not find the table .*shares/i.test(msg) ||
     /shares.* in the schema cache/i.test(msg)
@@ -96,7 +87,12 @@ export async function createSetlistShare(setlist, slots) {
 
 export async function getShare(token) {
   if (!supabase) throw new Error('This link cannot be opened — the app is not configured.')
-  const { data, error } = await supabase.from('shares').select('*').eq('token', token).maybeSingle()
+  // Tokens are 32 hex chars (or a base36 fallback); reject anything else
+  // before hitting the network.
+  if (typeof token !== 'string' || !/^[a-z0-9]{8,64}$/i.test(token)) {
+    throw new Error('This shared link was not found or has been removed.')
+  }
+  const { data, error } = await supabase.rpc('get_share', { p_token: token }).maybeSingle()
   if (error) throw decorate(error)
   if (!data) throw new Error('This shared link was not found or has been removed.')
   return data
