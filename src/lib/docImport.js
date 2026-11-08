@@ -148,11 +148,48 @@ const SONG_TITLE_PATTERNS = [
   /^\d+[.)]\s+.{2,}/,
   // "Matchless Love – Sinach (B)" — hyphen + key annotation
   /^[A-Z].+[–-].+\([A-G][#b]?\)/,
-  // "Precious Jesus – Sinach" — em/en-dash without key (strong artist separator signal)
-  /^[A-Z].+[–—].+/,
   // Category separator labels
   /^(?:communion|post[\s-]?sermon)\s*$/i,
 ]
+
+// "Precious Jesus – Sinach" — en/em-dash without key or number. Lyrics use
+// dashes too ("Holy — You are worthy"), so this form is only a title when it
+// reads like "Title — Artist" AND sits where a new song would start
+// (see isDashTitleInContext).
+const DASH_TITLE_RE = /^([A-Z][^–—]*?)\s*[–—]\s*([^–—]+)$/
+const ARTIST_CONNECTORS = new Set(['&', '+', 'x', 'and', 'of', 'the', 'ft', 'ft.', 'feat', 'feat.', 'with', 'for'])
+
+function looksLikeDashTitle(trimmed) {
+  if (trimmed.length > 80) return false
+  if (/[,;!"“”]/.test(trimmed) || /\.$/.test(trimmed)) return false
+  const m = trimmed.match(DASH_TITLE_RE)
+  if (!m) return false
+  const artistWords = m[2].trim().split(/\s+/)
+  if (artistWords.length > 6) return false
+  // Artist credits are capitalised words ("Victory Worship", "for KING & COUNTRY");
+  // lyric continuations aren't ("You are worthy").
+  return artistWords.every((w, i) =>
+    /^[\p{Lu}\d]/u.test(w) || (i > 0 && ARTIST_CONNECTORS.has(w.toLowerCase())),
+  )
+}
+
+function nextNonBlankLine(lines, from) {
+  for (let j = from; j < lines.length; j++) if (lines[j].trim()) return lines[j]
+  return null
+}
+
+// A dash title mid-document must follow a blank line and be followed by
+// something that starts a chart (chord line or section), not more lyrics.
+function isDashTitleInContext(lines, i, hasCurrentSong) {
+  if (!looksLikeDashTitle(lines[i].trim())) return false
+  if (!hasCurrentSong) return true
+  if (i > 0 && lines[i - 1].trim()) return false
+  const next = nextNonBlankLine(lines, i + 1)
+  if (!next) return false
+  if (looksLikeSongTitle(next.trim())) return false
+  const first = parseRawContent(next)[0]
+  return first?.type === 'chord_line' || first?.type === 'section_header'
+}
 
 // Category labels that are section separators, not song titles.
 // When detected as rawTitle, the real song title is the first line of rawContent.
@@ -177,7 +214,7 @@ function looksLikeSongTitle(trimmed) {
  * Each represents one detected song.
  */
 export function splitDocumentIntoSongs(text) {
-  const lines = text.split('\n')
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n')
   const songs = []
   let currentTitle = null
   let currentLines = []
@@ -197,7 +234,7 @@ export function splitDocumentIntoSongs(text) {
     }
     consecutiveBlanks = 0
 
-    if (looksLikeSongTitle(trimmed)) {
+    if (looksLikeSongTitle(trimmed) || isDashTitleInContext(lines, i, !!currentTitle)) {
       // Save the current song if it has real content
       if (currentTitle && currentLines.some(l => l.trim())) {
         songs.push({ rawTitle: currentTitle, rawContent: currentLines.join('\n').trim() })
@@ -284,12 +321,19 @@ export function extractArtistFromTitle(rawTitle) {
  *   status: 'pending' | 'accepted' | 'discarded'
  * }
  */
+/** 'docx' | 'pdf' | null — by extension, case-insensitive (SET.DOCX, scan.PDF). */
+export function getImportFileType(fileName) {
+  const m = String(fileName ?? '').toLowerCase().match(/\.(docx|pdf)$/)
+  return m ? m[1] : null
+}
+
 export async function importDocument(file) {
   let text = ''
+  const fileType = getImportFileType(file.name)
 
-  if (file.name.endsWith('.docx')) {
+  if (fileType === 'docx') {
     text = await extractTextFromDocx(file)
-  } else if (file.name.endsWith('.pdf')) {
+  } else if (fileType === 'pdf') {
     text = await extractTextFromPDF(file)
   } else {
     throw new Error('Unsupported file type. Please upload a .docx or .pdf file.')

@@ -130,3 +130,46 @@ describe('transposeParsedContent', () => {
     expect(content[0].tokens[0].text).toBe('C')
   })
 })
+
+describe('transposeChord — slash qualities', () => {
+  it('keeps 6/9 and sus2/4 as quality, not bass', () => {
+    expect(transposeChord('C6/9', 2)).toBe('D6/9')
+    expect(transposeChord('Csus2/4', 2)).toBe('Dsus2/4')
+  })
+
+  it('transposes every bass note of a polychord', () => {
+    expect(transposeChord('C/E/G', 2)).toBe('D/F#/A')
+  })
+
+  it('transposes chords with extended qualities', () => {
+    expect(transposeChord('Bm7b5', 3)).toBe('Dm7b5')
+    expect(transposeChord('Cm(maj7)', 2)).toBe('Dm(maj7)')
+    expect(transposeChord('C6/9/E', 2)).toBe('D6/9/F#')
+  })
+
+  it('transposes chords wrapped in ( ) or [ ]', () => {
+    expect(transposeChord('(D)', 2)).toBe('(E)')
+    expect(transposeChord('[F/A]', 2)).toBe('[G/B]')
+  })
+})
+
+describe('minor key spelling', () => {
+  it('uses the relative major key signature for minor keys', () => {
+    expect(transposeChord('C', -2, 'Gm')).toBe('Bb')
+    expect(transposeChord('A', 1, 'Dm')).toBe('Bb')
+    expect(transposeChord('F', 1, 'Em')).toBe('F#')
+    expect(keyPrefersFlats('Gm')).toBe(true)
+    expect(keyPrefersFlats('Dm')).toBe(true)
+    expect(keyPrefersSharps('Gm')).toBe(false)
+    expect(keyPrefersSharps('Em')).toBe(true)
+    expect(keyPrefersFlats('Am')).toBe(false)
+    expect(keyPrefersSharps('Am')).toBe(false)
+  })
+
+  it('transposeKey picks the simpler minor key spelling', () => {
+    expect(transposeKey('Em', 4)).toBe('G#m')
+    expect(transposeKey('Am', 1)).toBe('Bbm')
+    expect(transposeKey('Am', 6)).toBe('Ebm')
+    expect(transposeKey('Em', 2)).toBe('F#m')
+  })
+})

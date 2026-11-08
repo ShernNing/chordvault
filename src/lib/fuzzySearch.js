@@ -5,14 +5,26 @@
 // finds "beatls". Exact substrings always win; fuzziness only kicks in for
 // tokens long enough that an edit-distance match isn't just noise.
 
-/** Lowercase, strip diacritics, collapse punctuation to single spaces. */
+/**
+ * Lowercase, strip Latin/Greek/Cyrillic diacritics, collapse everything that
+ * isn't a letter/number (any script) to single spaces. Recomposes to NFC so
+ * Hangul syllables / kana match the raw text again (for highlighting); only
+ * the U+0300–036F accent block is stripped, so Indic vowel signs and kana
+ * voicing marks survive.
+ */
 export function normalizeText(s) {
   return String(s ?? '')
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // combining marks (accents)
-    .replace(/[^a-z0-9]+/g, ' ')
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '') // combining accents
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, ' ')
     .trim()
+}
+
+/** True when the user actually typed nothing (vs. typed only punctuation). */
+function isBlankQuery(query) {
+  return !String(query ?? '').trim()
 }
 
 /**
@@ -73,7 +85,7 @@ export function wordMatches(qWord, hayWord) {
  */
 export function fuzzyMatch(query, fields) {
   const qn = normalizeText(query)
-  if (!qn) return true
+  if (!qn) return isBlankQuery(query)
   const hay = normalizeText(Array.isArray(fields) ? fields.join(' ') : fields)
   if (!hay) return false
   if (hay.includes(qn)) return true // fast path: exact contiguous match
@@ -93,7 +105,7 @@ export function fuzzyMatch(query, fields) {
  */
 export function scoreFields(query, fields) {
   const qn = normalizeText(query)
-  if (!qn) return 1
+  if (!qn) return isBlankQuery(query) ? 1 : 0
   const qTokens = qn.split(' ')
   const norm = fields.map((f) => {
     const text = normalizeText(f.text)
