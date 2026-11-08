@@ -59,6 +59,7 @@ import { numberSlots } from "../lib/setlistSegments";
 import SetlistFullEditor from "../components/setlist/SetlistFullEditor";
 import SetlistPerformer from "../components/setlist/SetlistPerformer";
 import { useToast } from "../lib/toast";
+import { DuplicateSlotError } from "../lib/supabaseOps";
 import {
   Button,
   Input,
@@ -99,6 +100,7 @@ export default function SetlistView() {
   const [shareLink, setShareLink] = useState("");
   const [selected, setSelected] = useState(() => new Set()); // multi-select slot ids
   const [activeId, setActiveId] = useState(null); // slot currently being dragged
+  const [addingSongIds, setAddingSongIds] = useState(() => new Set()); // add-panel in-flight guard
   const toast = useToast();
 
   const toggleSelect = (slotId) =>
@@ -200,7 +202,50 @@ export default function SetlistView() {
         : new Set([active.id]);
     const newOrder = reorderWithSelection(ids, movingSet, active.id, over.id);
     setSelected(new Set()); // commit clears the selection
-    await reorder(newOrder);
+    try {
+      await reorder(newOrder);
+    } catch (e) {
+      toast.error(`Couldn't save the new order: ${e?.message || e}`);
+    }
+  };
+
+  // Every setlist mutation reports failure instead of rejecting unhandled.
+  const guarded = async (fn, failMsg) => {
+    try {
+      await fn();
+      return true;
+    } catch (e) {
+      toast.error(`${failMsg}: ${e?.message || e}`);
+      return false;
+    }
+  };
+
+  const handleAddDivider = () =>
+    guarded(() => addDivider("New segment", false), "Couldn't add segment");
+  const handleRemoveSlot = (slotId) =>
+    guarded(() => removeSong(slotId), "Couldn't remove");
+  const handleUpdateSlot = (slotId, updates) =>
+    guarded(() => updateSlot(slotId, updates), "Couldn't save change");
+
+  // In-flight guard: a double click must not insert the same song twice.
+  const handleAddSong = async (song) => {
+    if (addingSongIds.has(song.id)) return;
+    setAddingSongIds((prev) => new Set(prev).add(song.id));
+    try {
+      await addSong(song.id, song.original_key, 0);
+    } catch (e) {
+      toast.error(
+        e instanceof DuplicateSlotError
+          ? "Already in this setlist"
+          : `Couldn't add song: ${e?.message || e}`,
+      );
+    } finally {
+      setAddingSongIds((prev) => {
+        const next = new Set(prev);
+        next.delete(song.id);
+        return next;
+      });
+    }
   };
 
   const filteredSongs = allSongs.filter((song) => {
@@ -219,9 +264,9 @@ export default function SetlistView() {
 
   const handleExportPDF = async (slotsOverride) => {
     setExporting(true);
+    const containers = [];
+    const roots = [];
     try {
-      const containers = [];
-      const roots = [];
       const exportSlots = Array.isArray(slotsOverride) ? slotsOverride : slots;
 
       // Step 1: turn slots into ordered print entries. numberSlots keeps
@@ -278,7 +323,11 @@ export default function SetlistView() {
 
       await document.fonts?.ready;
       await exportSetlistToPDF(setlist.name, containers);
-
+    } catch (e) {
+      console.error("PDF export error:", e);
+      toast.error("PDF export failed");
+    } finally {
+      // Always tear down the offscreen roots/containers, even on failure.
       roots.forEach((r) => {
         try {
           r.unmount();
@@ -289,9 +338,6 @@ export default function SetlistView() {
           document.body.removeChild(c);
         } catch {}
       });
-    } catch (e) {
-      console.error("PDF export error:", e);
-    } finally {
       setExporting(false);
     }
   };
@@ -329,6 +375,7 @@ export default function SetlistView() {
       );
     } catch (e) {
       console.error("Docx export error:", e);
+      toast.error("Word export failed");
     } finally {
       setExportingDocx(false);
     }
@@ -340,7 +387,10 @@ export default function SetlistView() {
   };
 
   const handleRename = async () => {
-    if (newName.trim()) await rename(newName.trim());
+    if (newName.trim()) {
+      const ok = await guarded(() => rename(newName.trim()), "Couldn't rename");
+      if (!ok) return; // keep the editor open so the name isn't lost
+    }
     setRenaming(false);
   };
 
@@ -417,7 +467,7 @@ export default function SetlistView() {
           <Button
             variant='secondary'
             size='sm'
-            onClick={() => addDivider("New segment", false)}
+            onClick={handleAddDivider}
           >
             <Plus size={13} /> Add segment
           </Button>
@@ -459,7 +509,7 @@ export default function SetlistView() {
 
       {shareLink && (
         <div className='flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg text-xs'>
-          <Link2 size={13} className='text-[var(--color-accent)] shrink-0' />
+          <Link2 size={13} className='text-[var(--color-accent-text)] shrink-0' />
           <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>
             Public link:
           </span>
@@ -555,9 +605,9 @@ export default function SetlistView() {
                           <SortableDivider
                             slot={slot}
                             onUpdateSlot={(updates) =>
-                              updateSlot(slot.id, updates)
+                              handleUpdateSlot(slot.id, updates)
                             }
-                            onRemove={() => removeSong(slot.id)}
+                            onRemove={() => handleRemoveSlot(slot.id)}
                           />
                         </motion.div>
                       ) : (
@@ -584,9 +634,9 @@ export default function SetlistView() {
                           onDurationChange={(s) =>
                             handleDurationChange(slot.song_id, s)
                           }
-                          onRemove={() => removeSong(slot.id)}
+                          onRemove={() => handleRemoveSlot(slot.id)}
                           onUpdateSlot={(updates) =>
-                            updateSlot(slot.id, updates)
+                            handleUpdateSlot(slot.id, updates)
                           }
                         />
                       </motion.div>
@@ -638,8 +688,9 @@ export default function SetlistView() {
                 addableSongs.map((song) => (
                   <button
                     key={song.id}
-                    onClick={() => addSong(song.id, song.original_key, 0)}
-                    className='w-full text-left p-2.5 rounded border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-all group'
+                    onClick={() => handleAddSong(song)}
+                    disabled={addingSongIds.has(song.id)}
+                    className='w-full text-left p-2.5 rounded border border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-bg)] transition-all group disabled:opacity-50'
                   >
                     <div className='flex items-center justify-between'>
                       <span className='text-xs font-medium text-[var(--color-ink)] truncate'>
@@ -651,7 +702,7 @@ export default function SetlistView() {
                         )}
                         <Plus
                           size={11}
-                          className='text-[var(--color-ink-muted)] group-hover:text-[var(--color-accent)] transition-colors'
+                          className='text-[var(--color-ink-muted)] group-hover:text-[var(--color-accent-text)] transition-colors'
                         />
                       </div>
                     </div>
@@ -842,15 +893,21 @@ function SortableSlot({
   const capoHint =
     displayKey && localCapo > 0 ? getCapoDisplay(displayKey, localCapo) : null;
 
-  const handleKeyChange = (key) => {
+  // Optimistic local value; roll back if the write fails (onUpdateSlot
+  // resolves false after toasting the error).
+  const handleKeyChange = async (key) => {
+    const prev = localKey;
     setLocalKey(key);
-    onUpdateSlot({ chosen_key: key || null });
+    const ok = await onUpdateSlot({ chosen_key: key || null });
+    if (ok === false) setLocalKey(prev);
   };
 
-  const handleCapoChange = (val) => {
+  const handleCapoChange = async (val) => {
     const c = Math.max(0, Math.min(12, Number(val) || 0));
+    const prev = localCapo;
     setLocalCapo(c);
-    onUpdateSlot({ capo: c });
+    const ok = await onUpdateSlot({ capo: c });
+    if (ok === false) setLocalCapo(prev);
   };
 
   return (
@@ -899,12 +956,23 @@ function SortableSlot({
       <div className='flex-1 min-w-0'>
         <div className='flex items-start justify-between gap-2'>
           <div className='min-w-0'>
-            <Link
-              to={`/songs/${slot.song_id}`}
-              className='text-sm font-semibold text-[var(--color-ink)] hover:underline truncate block'
-            >
-              {slot.song?.title || "Unknown song"}
-            </Link>
+            {slot.missing ? (
+              // The song was deleted or can't be read: keep the slot visible
+              // (it is skipped in exports) so it doesn't silently vanish.
+              <span
+                className='text-sm font-semibold text-red-500 truncate block'
+                title='This song was deleted or is unavailable. It is left out of exports; remove it from the setlist.'
+              >
+                Missing song
+              </span>
+            ) : (
+              <Link
+                to={`/songs/${slot.song_id}`}
+                className='text-sm font-semibold text-[var(--color-ink)] hover:underline truncate block'
+              >
+                {slot.song?.title || "Unknown song"}
+              </Link>
+            )}
             {slot.song?.artist && (
               <span className='text-[10px] text-[var(--color-ink-muted)]'>
                 {slot.song.artist}

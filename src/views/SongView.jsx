@@ -34,8 +34,11 @@ import {
   useSetlists,
   useSongFavorites,
   FONT_OPTIONS,
+  deleteSongRecord,
+  addSongToSetlist,
 } from "../lib/hooks";
-import { supabaseSongOps, supabaseSetlistOps } from "../lib/supabaseOps";
+import { DuplicateSlotError } from "../lib/supabaseOps";
+import { serializeParsedContent } from "../lib/serializeContent";
 import {
   transposeKey,
   getCapoShapeKey,
@@ -189,18 +192,17 @@ export default function SongView() {
         transpose.semitones,
         displayKey,
       );
-      // Rebuild raw_content from transposed tokens so re-ingestion stays consistent
-      const rebuiltRaw = transposed
-        .map((line) => {
-          if (line.type === "chord_line")
-            return line.tokens
-              .map((t) => " ".repeat(t.leadingSpaces || 0) + t.text)
-              .join("");
-          if (line.type === "blank") return "";
-          return line.text ?? "";
-        })
-        .join("\n");
-      const updates = { original_key: displayKey, raw_content: rebuiltRaw };
+      // Write the transposed parsed_content as-is (keeps "!" cues and manual
+      // line-type fixes) plus a raw_content that re-parses to the same lines,
+      // so a later Edit → Save doesn't undo it.
+      const updates = {
+        original_key: displayKey,
+        parsed_content: transposed,
+        raw_content: serializeParsedContent(transposed),
+      };
+      // Saved inline voicings are relative to the old key/positions; drop them.
+      if (song.inline_voicings && Object.keys(song.inline_voicings).length)
+        updates.inline_voicings = {};
       if (song.electric_guitar_notes?.length) {
         updates.electric_guitar_notes = song.electric_guitar_notes.map((e) => {
           if (e.type === "lick") {
@@ -263,14 +265,47 @@ export default function SongView() {
     const newContent = song.parsed_content.map((l, i) =>
       i === index ? updatedLine : l,
     );
-    await update({ parsed_content: newContent });
+    // update() derives a matching raw_content from parsed_content.
+    try {
+      await update({ parsed_content: newContent });
+    } catch (e) {
+      toast.error(e.message || "Could not save line type");
+    }
   };
 
   const handleAcceptAllWarnings = async () => {
     const newContent = song.parsed_content.map((l) =>
       l.uncertain ? { ...l, uncertain: false } : l,
     );
-    await update({ parsed_content: newContent });
+    try {
+      await update({ parsed_content: newContent });
+    } catch (e) {
+      toast.error(e.message || "Could not save");
+    }
+  };
+
+  const handleRedetectKey = async () => {
+    const result = detectKey(extractChords(song.parsed_content));
+    if (!result?.key) {
+      toast.error("Couldn't detect a key from the chords");
+      return;
+    }
+    if (result.key === song.original_key) {
+      toast.success(`Key is already ${result.key}`);
+      return;
+    }
+    if (
+      !window.confirm(
+        `Change this song's key from ${song.original_key || "(none)"} to ${result.key}?`,
+      )
+    )
+      return;
+    try {
+      await update({ original_key: result.key });
+      toast.success(`Key set to ${result.key}`);
+    } catch (e) {
+      toast.error(e.message || "Could not update key");
+    }
   };
 
   const handleSaveVoicings = async (nextStore) => {
@@ -297,7 +332,12 @@ export default function SongView() {
         JSON.stringify(song.parsed_content),
       );
     } catch { /* quota — proceed without backup */ }
-    await update({ parsed_content: newContent });
+    try {
+      await update({ parsed_content: newContent });
+    } catch (e) {
+      toast.error(`Could not apply arrangement: ${e?.message || e}`);
+      return;
+    }
     setArrangeBackup(true);
     setShowArrangement(false);
     toast.success("Arrangement applied");
@@ -370,10 +410,12 @@ export default function SongView() {
 
   const handleExportPDF = async () => {
     setExporting(true);
+    let container = null;
+    let root = null;
     try {
-      const container = createPrintContainer();
+      container = createPrintContainer();
       // Render a PrintableSongSheet into the container
-      const root = createRoot(container);
+      root = createRoot(container);
       root.render(
         <PrintableSongSheet
           song={song}
@@ -393,21 +435,24 @@ export default function SongView() {
         displayKey || song.original_key,
         container,
       );
-      root.unmount();
-      document.body.removeChild(container);
     } catch (e) {
       console.error("PDF export failed:", e);
       toast.error("PDF export failed");
     } finally {
+      // Always tear down the offscreen render, even when export throws.
+      try {
+        root?.unmount();
+      } catch { /* already unmounted */ }
+      container?.remove();
       setExporting(false);
     }
   };
 
   const handleAddToSetlist = async () => {
-    if (!chosenSetlistId) return;
+    if (!chosenSetlistId || addingToSetlist) return;
     setAddingToSetlist(true);
     try {
-      await supabaseSetlistOps.addSong(
+      await addSongToSetlist(
         chosenSetlistId,
         song.id,
         song.original_key || null,
@@ -419,7 +464,8 @@ export default function SongView() {
       setChosenSetlistId("");
       toast.success(`Added to ${dest}`);
     } catch (e) {
-      toast.error(e.message || "Could not add to setlist");
+      if (e instanceof DuplicateSlotError) toast.error("Already in this setlist");
+      else toast.error(e.message || "Could not add to setlist");
     } finally {
       setAddingToSetlist(false);
     }
@@ -543,7 +589,7 @@ export default function SongView() {
                 )
               }
               className={
-                twoColumn !== false ? "text-[var(--color-accent)]" : ""
+                twoColumn !== false ? "text-[var(--color-accent-text)]" : ""
               }
               title='Toggle 2-column layout'
             >
@@ -555,7 +601,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowFontPanel((p) => !p)}
-              className={showFontPanel ? "text-[var(--color-accent)]" : ""}
+              className={showFontPanel ? "text-[var(--color-accent-text)]" : ""}
               title='Font & size'
             >
               <Type size={14} />
@@ -566,7 +612,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowPerform((p) => !p)}
-              className={showPerform ? "text-[var(--color-accent)]" : ""}
+              className={showPerform ? "text-[var(--color-accent-text)]" : ""}
               title='Perform mode'
             >
               <PlayCircle size={14} />
@@ -577,7 +623,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowChordPlayer((p) => !p)}
-              className={showChordPlayer ? "text-[var(--color-accent)]" : ""}
+              className={showChordPlayer ? "text-[var(--color-accent-text)]" : ""}
               title='Play chords'
             >
               <Music4 size={14} />
@@ -588,7 +634,7 @@ export default function SongView() {
               variant='ghost'
               size='icon-sm'
               onClick={() => setShowRangePanel((p) => !p)}
-              className={showRangePanel ? "text-[var(--color-accent)]" : ""}
+              className={showRangePanel ? "text-[var(--color-accent-text)]" : ""}
               title='Fit to my voice'
             >
               <Mic size={14} />
@@ -631,7 +677,7 @@ export default function SongView() {
                 size='icon-sm'
                 onClick={() => setShowArrangement(true)}
                 title='Arrangement'
-                className={arrangeBackup ? "text-[var(--color-accent)]" : ""}
+                className={arrangeBackup ? "text-[var(--color-accent-text)]" : ""}
               >
                 <ListOrdered size={14} />
               </Button>
@@ -662,20 +708,18 @@ export default function SongView() {
               </Button>
             </Tooltip>
           )}
-          <Tooltip content='Re-detect key from chords'>
-            <Button
-              variant='ghost'
-              size='icon-sm'
-              title='Re-detect key'
-              onClick={async () => {
-                const chords = extractChords(song.parsed_content);
-                const result = detectKey(chords);
-                if (result?.key) await update({ original_key: result.key });
-              }}
-            >
-              <RefreshCw size={14} />
-            </Button>
-          </Tooltip>
+          {canEdit && (
+            <Tooltip content='Re-detect key from chords'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                title='Re-detect key'
+                onClick={handleRedetectKey}
+              >
+                <RefreshCw size={14} />
+              </Button>
+            </Tooltip>
+          )}
         </div>
       </div>
 
@@ -700,7 +744,7 @@ export default function SongView() {
       {/* ── Share link banner ─────────────────────────────────────── */}
       {shareLink && (
         <div className='no-print flex items-center gap-2 px-3 py-2 bg-[var(--color-accent-soft)] border border-[var(--color-border)] rounded-lg text-xs'>
-          <Link2 size={13} className='text-[var(--color-accent)] shrink-0' />
+          <Link2 size={13} className='text-[var(--color-accent-text)] shrink-0' />
           <span className='text-[var(--color-ink-soft)] shrink-0 hidden sm:inline'>
             Public link:
           </span>
@@ -808,7 +852,7 @@ export default function SongView() {
       )}
 
       {/* ── Uncertain Lines Banner ───────────────────────────────── */}
-      {hasUncertain && (
+      {canEdit && hasUncertain && (
         <div className='no-print flex items-center justify-between gap-3 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg'>
           <span className='text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5'>
             <AlertTriangle size={12} />
@@ -835,7 +879,7 @@ export default function SongView() {
         printRef={printRef}
         fontSize={fontSize}
         onReload={reload}
-        onLineTypeOverride={handleLineTypeOverride}
+        onLineTypeOverride={canEdit ? handleLineTypeOverride : null}
         onChordClick={setActiveVoicingChord}
         nashville={nashville}
         voicings={voicingsInline}
@@ -1021,7 +1065,7 @@ export default function SongView() {
             onClick={async () => {
               setDeleting(true);
               try {
-                await supabaseSongOps.delete(song.id);
+                await deleteSongRecord(song.id);
                 toast.success(`Deleted "${song.title}"`);
                 navigate("/");
               } catch (e) {
@@ -1083,8 +1127,26 @@ function EditSongModal({ song, onSave, onClose }) {
   const [lookingUpArtist, setLookingUpArtist] = useState(false);
   const [artistLookupMsg, setArtistLookupMsg] = useState("");
 
-  // Live preview of re-parsed content
-  const liveResult = rawContent.trim() ? ingest(rawContent, title) : null;
+  // Live preview of re-parsed content (memoised: parsing every render is slow
+  // on long sheets).
+  const liveResult = useMemo(
+    () => (rawContent.trim() ? ingest(rawContent, title) : null),
+    [rawContent, title],
+  );
+
+  const isDirty =
+    title !== (song.title || "") ||
+    artist !== (song.artist || "") ||
+    rawContent !== (song.raw_content || "") ||
+    originalKey !== (song.original_key || "") ||
+    JSON.stringify(tags) !== JSON.stringify(song.tags || []);
+
+  // Backdrop click must not silently throw away edits.
+  const handleBackdropClick = () => {
+    if (saving) return;
+    if (isDirty && !window.confirm("Discard your unsaved changes?")) return;
+    onClose();
+  };
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -1094,13 +1156,16 @@ function EditSongModal({ song, onSave, onClose }) {
     setSaving(true);
     setError(null);
     try {
-      await onSave({
+      const updates = {
         title: title.trim(),
         artist: artist.trim(),
         tags,
-        raw_content: rawContent,
         original_key: originalKey || null,
-      });
+      };
+      // Only re-parse when the sheet text actually changed, so saving a
+      // metadata-only edit keeps line-type fixes made on the rendered sheet.
+      if (rawContent !== (song.raw_content || "")) updates.raw_content = rawContent;
+      await onSave(updates);
     } catch (e) {
       setError(e.message);
       setSaving(false);
@@ -1111,7 +1176,7 @@ function EditSongModal({ song, onSave, onClose }) {
     <div className='fixed inset-0 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto'>
       <div
         className='absolute inset-0 bg-black/40 backdrop-blur-sm'
-        onClick={onClose}
+        onClick={handleBackdropClick}
       />
       <div className='relative z-10 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg shadow-2xl w-full max-w-5xl animate-slide-up'>
         {/* Header */}

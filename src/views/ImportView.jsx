@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
   FileUp, CheckCircle, XCircle, Edit3,
@@ -8,6 +8,9 @@ import {
 import { importDocument } from '../lib/docImport'
 import { ingest } from '../lib/ingestion'
 import { supabaseSongOps } from '../lib/supabaseOps'
+import { createSongRecord, updateSongRecord } from '../lib/hooks'
+import { prepareSongUpdates } from '../lib/songUpdates'
+import { useToast } from '../lib/toast'
 import { useAuth } from '../lib/AuthContext'
 import { Button, Input, Textarea, TagInput, Badge, EmptyState } from '../components/ui'
 import SongRenderer from '../components/song/SongRenderer'
@@ -26,7 +29,10 @@ export default function ImportView() {
   const [error, setError] = useState(null)
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 })
   const [savedCount, setSavedCount] = useState(0)
+  const [saveFailures, setSaveFailures] = useState([]) // [{ title, message }]
+  const [checkingDupes, setCheckingDupes] = useState(false)
   const { canAddSongs } = useAuth()
+  const toast = useToast()
 
   // ── File handler ──────────────────────────────────────────────────────────
   const handleFile = useCallback(async (file) => {
@@ -66,7 +72,7 @@ export default function ImportView() {
         icon={Lock}
         title="Importing is leader-only"
         description="Your account is a member, so you can view chords and build setlists but not import songs. Ask a superuser to make you a leader."
-        action={<Link to="/"><span className="text-xs text-[var(--color-accent)]">← Back to library</span></Link>}
+        action={<Link to="/"><span className="text-xs text-[var(--color-accent-text)]">← Back to library</span></Link>}
       />
     )
   }
@@ -85,17 +91,35 @@ export default function ImportView() {
   // ── Save accepted songs ───────────────────────────────────────────────────
   const handleSave = async () => {
     const toSave = songs.filter(s => s.status === 'accepted' || s.status === 'edited')
-    if (toSave.length === 0) return
+    if (toSave.length === 0 || checkingDupes) return
 
-    const existing = await supabaseSongOps.getByTitles(toSave.map(s => s.title))
-    if (existing.length > 0) {
-      const conflictList = existing.map(ex => {
-        const imported = toSave.find(s => s.title.toLowerCase() === ex.title.toLowerCase())
-        return { importedSong: imported, existingSong: ex, resolution: 'skip', newTitle: imported.title + ' (2)', incomingEdits: null, existingEdits: null }
-      })
-      setConflicts(conflictList)
-      setPhase('conflicts')
+    let existing
+    setCheckingDupes(true)
+    try {
+      existing = await supabaseSongOps.getByTitles(toSave.map(s => s.title))
+    } catch (e) {
+      toast.error(`Couldn't check for duplicate songs: ${e?.message || e}`)
       return
+    } finally {
+      setCheckingDupes(false)
+    }
+    if (existing.length > 0) {
+      // One conflict per imported song: several case-variant library titles
+      // can match the same import, which would duplicate React keys and
+      // apply the import twice.
+      const seen = new Set()
+      const conflictList = []
+      for (const ex of existing) {
+        const imported = toSave.find(s => s.title.toLowerCase() === (ex.title || '').toLowerCase())
+        if (!imported || seen.has(imported.id)) continue
+        seen.add(imported.id)
+        conflictList.push({ importedSong: imported, existingSong: ex, resolution: 'skip', newTitle: imported.title + ' (2)', incomingEdits: null, existingEdits: null })
+      }
+      if (conflictList.length > 0) {
+        setConflicts(conflictList)
+        setPhase('conflicts')
+        return
+      }
     }
 
     await executeSave(toSave, [])
@@ -105,6 +129,7 @@ export default function ImportView() {
     setPhase('saving')
     setSaveProgress({ done: 0, total: toSave.length })
     let saved = 0
+    const failures = []
 
     const conflictMap = Object.fromEntries(resolvedConflicts.map(c => [c.importedSong.id, c]))
 
@@ -127,19 +152,17 @@ export default function ImportView() {
           const applyExistingEdits = async () => {
             const ee = conflict.existingEdits
             if (!ee) return
-            const exParsed = ee.raw_content ? ingest(ee.raw_content, ee.title) : null
-            await supabaseSongOps.update(conflict.existingSong.id, {
+            await updateSongRecord(conflict.existingSong.id, prepareSongUpdates({
               title: ee.title, artist: ee.artist, original_key: ee.original_key,
               raw_content: ee.raw_content,
-              ...(exParsed ? { parsed_content: exParsed.parsed_content } : {}),
-            })
+            }, conflict.existingSong.title))
           }
 
           if (conflict.resolution === 'replace') {
-            await supabaseSongOps.update(conflict.existingSong.id, inc)
+            await updateSongRecord(conflict.existingSong.id, inc)
             saved++
           } else if (conflict.resolution === 'keep-both') {
-            await supabaseSongOps.create({ ...inc, title: conflict.newTitle || inc.title + ' (2)' })
+            await createSongRecord({ ...inc, title: conflict.newTitle || inc.title + ' (2)' })
             await applyExistingEdits()
             saved++
           } else {
@@ -147,7 +170,7 @@ export default function ImportView() {
             await applyExistingEdits()
           }
         } else {
-          await supabaseSongOps.create({
+          await createSongRecord({
             title: song.title, artist: song.artist || '',
             raw_content: song.rawContent, parsed_content: song.parsed_content,
             original_key: song.original_key, tags: song.tags || [],
@@ -156,11 +179,13 @@ export default function ImportView() {
         }
       } catch (e) {
         console.error('Failed to save song:', song.title, e)
+        failures.push({ title: song.title, message: e?.message || String(e) })
       }
       setSaveProgress(p => ({ ...p, done: p.done + 1 }))
     }
 
     setSavedCount(saved)
+    setSaveFailures(failures)
     setPhase('done')
   }
 
@@ -182,14 +207,28 @@ export default function ImportView() {
         <h2 className="font-display text-2xl text-[var(--color-ink)]">
           {savedCount} {savedCount === 1 ? 'song' : 'songs'} imported
         </h2>
-        <p className="text-sm text-[var(--color-ink-soft)]">
-          All accepted songs have been added to your library.
-        </p>
+        {saveFailures.length === 0 ? (
+          <p className="text-sm text-[var(--color-ink-soft)]">
+            All accepted songs have been saved to your library.
+          </p>
+        ) : (
+          <div className="text-left p-3 border border-red-200 bg-red-50 rounded text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+            <p className="font-medium flex items-center gap-1.5">
+              <AlertTriangle size={14} />
+              {saveFailures.length} {saveFailures.length === 1 ? 'song' : 'songs'} failed to save:
+            </p>
+            <ul className="mt-1.5 space-y-0.5 text-xs">
+              {saveFailures.map((f, i) => (
+                <li key={i}><strong>{f.title}</strong>: {f.message}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="flex items-center justify-center gap-3 pt-2">
           <Button variant="primary" onClick={() => navigate('/')}>
             <Music2 size={14} /> Go to library
           </Button>
-          <Button variant="secondary" onClick={() => { setPhase('idle'); setSongs([]) }}>
+          <Button variant="secondary" onClick={() => { setPhase('idle'); setSongs([]); setSaveFailures([]) }}>
             Import another
           </Button>
         </div>
@@ -353,6 +392,7 @@ export default function ImportView() {
             variant="primary"
             size="sm"
             onClick={handleSave}
+            loading={checkingDupes}
             disabled={acceptedCount === 0}
           >
             <Save size={13} /> Save {acceptedCount} {acceptedCount === 1 ? 'song' : 'songs'}
@@ -492,12 +532,18 @@ function ImportSongCard({ song, index, onAccept, onDiscard, onRestore, onUpdate 
             <EditForm
               song={song}
               onSave={(updates) => {
+                // EditForm sends `originalKey`; the card/save path reads
+                // `original_key`. Map it so key edits actually apply.
+                const { originalKey, ...rest } = updates
+                let finalUpdates = { ...rest, status: 'edited' }
+                const keyOverride = (originalKey || '').trim()
+                if (originalKey !== undefined) finalUpdates.original_key = keyOverride || song.original_key || null
                 // Re-parse if raw content changed
-                let finalUpdates = { ...updates, status: 'edited' }
-                if (updates.rawContent && updates.rawContent !== song.rawContent) {
+                if (updates.rawContent !== undefined && updates.rawContent !== song.rawContent) {
                   const result = ingest(updates.rawContent, updates.title || song.title)
                   finalUpdates.parsed_content = result.parsed_content
-                  finalUpdates.original_key = updates.original_key || result.original_key
+                  finalUpdates.chord_count = result.chord_count
+                  finalUpdates.original_key = keyOverride || result.original_key
                 }
                 onUpdate(finalUpdates)
                 setEditing(false)
@@ -527,8 +573,11 @@ function EditForm({ song, onSave, onCancel }) {
   const [rawContent, setRawContent] = useState(song.rawContent || '')
   const [tags, setTags] = useState(song.tags || [])
 
-  // Live preview
-  const liveResult = rawContent.trim() ? ingest(rawContent, title) : null
+  // Live preview (memoised: re-parsing on every render is slow)
+  const liveResult = useMemo(
+    () => (rawContent.trim() ? ingest(rawContent, title) : null),
+    [rawContent, title],
+  )
 
   return (
     <div className="p-4 bg-[var(--color-bg-warm)] space-y-3">

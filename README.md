@@ -81,16 +81,37 @@ That's it. Free tier is more than enough.
 
 ---
 
+## Development
+
+```bash
+npm run lint       # ESLint, zero warnings allowed
+npm run test:run   # Vitest unit tests
+npm run build      # production build
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs all three on every push to
+`main` and every pull request. Print/PDF layout changes must also pass the
+`/print-lab.html` harness (see `CLAUDE.md`).
+
+### Database
+
+- `docs/database-schema.md`: the full schema (the base tables predate
+  `supabase/migrations/`).
+- `ROLES.md`: the role model and its RLS policies.
+- `SHARING.md`: how public share links work.
+- `supabase/migrations/`: apply with `supabase db push --remote`. Check
+  `supabase migration list --remote` first: anything applied by hand in the
+  SQL editor must be marked with `supabase migration repair --status applied <version>`.
+- Edge functions (`supabase/functions/`): deploy with
+  `supabase functions deploy embed-song search-songs`.
+
+---
+
 ## PWA Icons
 
-The app needs two icon files in `public/icons/` for full PWA support:
-
-- `public/icons/icon-192.png`, 192×192px
-- `public/icons/icon-512.png`, 512×512px
-
-You can generate these from `public/favicon.svg` using any SVG-to-PNG converter, or use a tool like [realfavicongenerator.net](https://realfavicongenerator.net).
-
-Until you add these, the PWA will still work but won't show a custom install icon.
+`public/pwa-192.png`, `public/pwa-512.png` (also used as the maskable icon) and
+`public/apple-touch-icon.png` (180×180) are rendered from a full-bleed version
+of `public/favicon.svg`, with the glyph kept inside the 80% maskable safe zone.
 
 ---
 
@@ -121,8 +142,14 @@ The Workbox service worker caches Supabase REST GETs (NetworkFirst, 5s timeout) 
 - Auto-detects key with confidence score
 - Real-time parse preview while pasting
 - Tags for organisation
-- Search by title, artist, or tag
+- Search by title, artist, or tag, plus semantic "find songs like…" search
+  (gte-small embeddings via the `embed-song` / `search-songs` edge functions)
+- Favourites (per user, starred from the card or song view)
 - Sort by title, artist, recently added, recently played
+- Import from `.docx`, `.pdf`, or a photo of a chord sheet (on-device OCR via tesseract.js)
+- Arrangement editor: reorder, repeat and cut sections
+- Read-only public share links for a song or setlist (see `SHARING.md`)
+- Roles: member / leader / superuser (see `ROLES.md`)
 
 ### Chord Rendering
 
@@ -154,7 +181,10 @@ The Workbox service worker caches Supabase REST GETs (NetworkFirst, 5s timeout) 
 - Create named setlists
 - Drag-and-drop reorder
 - Per-slot key and capo override (applies only within the setlist)
-- Export entire setlist to PDF (one song per page, 2-column A4)
+- Segment dividers (e.g. "Communion"), optionally forcing a new PDF page
+- Perform mode: full-screen, auto-scroll, metronome, page-turner pedal support
+- Export to PDF: songs are packed onto A4 pages (half-width columns where they
+  fit) and are never split across pages; also DOCX export
 
 ### PDF Export
 
@@ -165,7 +195,8 @@ The Workbox service worker caches Supabase REST GETs (NetworkFirst, 5s timeout) 
 ### PWA / Offline
 
 - Install to home screen on iOS/Android/desktop
-- Works fully offline after first load
+- Works offline after first load (PDF export and `.docx` import load on first
+  use, since they aren't needed on stage)
 - Offline banner when no connection detected
 
 ---

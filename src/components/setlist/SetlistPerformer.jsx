@@ -18,13 +18,19 @@ import {
   getCapoDisplay,
 } from "../../lib/transposition";
 import { supabaseSongOps } from "../../lib/supabaseOps";
-import { Metronome, tapsToBpm } from "../../lib/metronome";
+import { tapsToBpm } from "../../lib/metronome";
+import { useMetronome } from "../../lib/useMetronome";
+import { createScrollAccumulator } from "../../lib/autoScroll";
+import { useWakeLock } from "../../lib/wakeLock";
+import { usePerformSurface } from "../../lib/stageChrome";
+import BeatIndicator from "../song/BeatIndicator";
 import { useKeyboardControls, useDisplaySettings } from "../../lib/hooks";
 import { cycleNashville, normalizeNashville } from "../../lib/nashville";
 import { estimateSongSeconds, formatDuration } from "../../lib/songDuration";
 import SongRenderer from "../song/SongRenderer";
 import { Button, Tooltip, Badge } from "../ui";
 
+// Per-song tempo, same key + JSON encoding SongView's useLocalStorage uses.
 function readBpm(songId) {
   try {
     const v = localStorage.getItem(`cv-bpm-${songId}`);
@@ -32,6 +38,12 @@ function readBpm(songId) {
   } catch {
     return 100;
   }
+}
+
+function writeBpm(songId, bpm) {
+  try {
+    localStorage.setItem(`cv-bpm-${songId}`, JSON.stringify(bpm));
+  } catch {}
 }
 
 function slotDisplay(slot) {
@@ -69,13 +81,32 @@ export default function SetlistPerformer({ slots, onClose }) {
   const slot = playable[index];
   const song = slot?.song;
 
+  // Keep the screen awake for the whole set; hide floating app chrome.
+  useWakeLock(true);
+  usePerformSurface(true);
+
   // Metronome
-  const metroRef = useRef(null);
-  const [metroOn, setMetroOn] = useState(false);
-  const [beat, setBeat] = useState(-1);
-  const [bpm, setBpm] = useState(() => (song ? readBpm(song.id) : 100));
+  const [bpm, setBpmState] = useState(() => (song ? readBpm(song.id) : 100));
   const tapsRef = useRef([]);
   const beatsPerBar = 4;
+  const songId = song?.id;
+  // Tempo edits persist per song, so they survive song changes and carry
+  // over to the song's own Perform bar.
+  const setBpm = useCallback(
+    (updater) => {
+      setBpmState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (songId != null) writeBpm(songId, next);
+        return next;
+      });
+    },
+    [songId],
+  );
+  const {
+    metroOn,
+    toggle: toggleMetro,
+    subscribeBeat,
+  } = useMetronome({ bpm, beatsPerBar });
 
   // BPM-synced scroll: derive px/s so the chart scrolls over the song's
   // estimated single-pass length at the current tempo.
@@ -129,7 +160,7 @@ export default function SetlistPerformer({ slots, onClose }) {
     if (!song) return;
     scrollRef.current?.scrollTo({ top: 0 });
     setScrolling(false);
-    setBpm(readBpm(song.id));
+    setBpmState(readBpm(song.id));
     supabaseSongOps.markPlayed(song.id).catch(() => {});
   }, [index, song]);
 
@@ -138,13 +169,17 @@ export default function SetlistPerformer({ slots, onClose }) {
     if (!scrolling) return undefined;
     let raf;
     let last = null;
+    // Float accumulator: scrollTop rounds to device pixels, so slow speeds
+    // would otherwise never move.
+    const acc = createScrollAccumulator();
     const step = (ts) => {
       if (last == null) last = ts;
       const dt = (ts - last) / 1000;
       last = ts;
       const el = scrollRef.current;
       if (el) {
-        el.scrollTop += speedRef.current * dt;
+        const px = acc.step(el.scrollTop, speedRef.current * dt);
+        if (px) el.scrollTop += px;
         if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
           setScrolling(false);
           return;
@@ -155,40 +190,6 @@ export default function SetlistPerformer({ slots, onClose }) {
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [scrolling]);
-
-  // Keep the metronome's tempo in sync.
-  useEffect(() => {
-    metroRef.current?.setBpm(bpm);
-  }, [bpm]);
-  useEffect(
-    () => () => {
-      metroRef.current?.dispose();
-    },
-    [],
-  );
-
-  const getMetro = useCallback(() => {
-    if (!metroRef.current) {
-      const m = new Metronome();
-      m.beatsPerBar = beatsPerBar;
-      m.onBeat = (b) => setBeat(b);
-      metroRef.current = m;
-    }
-    return metroRef.current;
-  }, []);
-
-  const toggleMetro = async () => {
-    const m = getMetro();
-    m.setBpm(bpm);
-    if (metroOn) {
-      m.stop();
-      setMetroOn(false);
-      setBeat(-1);
-    } else {
-      await m.start();
-      setMetroOn(true);
-    }
-  };
 
   const nudgeBpm = (d) => setBpm((b) => Math.max(30, Math.min(300, b + d)));
   const tap = () => {
@@ -206,9 +207,18 @@ export default function SetlistPerformer({ slots, onClose }) {
     displayKey && capo > 0 ? getCapoDisplay(displayKey, capo) : null;
 
   return createPortal(
-    <div className='fixed inset-0 z-[60] bg-[var(--color-bg)] flex flex-col'>
+    <div
+      className='fixed inset-0 z-[60] bg-[var(--color-bg)] flex flex-col'
+      role='dialog'
+      aria-modal='true'
+      aria-label={`Performing ${song.title}`}
+    >
       {/* ── Top bar ─────────────────────────────────────────────── */}
-      <div className='flex items-center gap-3 px-4 h-12 border-b border-[var(--color-border)] shrink-0'>
+      {/* Safe-area padding keeps Exit clear of the notch / status bar. */}
+      <div
+        className='flex items-center gap-3 px-4 border-b border-[var(--color-border)] shrink-0 safe-top safe-x'
+        style={{ height: "calc(3rem + env(safe-area-inset-top, 0px))" }}
+      >
         <span className='text-xs font-mono text-[var(--color-ink-muted)] tabular-nums shrink-0'>
           {index + 1}/{playable.length}
         </span>
@@ -237,6 +247,7 @@ export default function SetlistPerformer({ slots, onClose }) {
           <Button
             variant='ghost'
             size='icon-sm'
+            aria-label='Smaller text'
             onClick={() => setFontSize((s) => Math.max(10, s - 1))}
             disabled={fontSize <= 10}
           >
@@ -248,6 +259,7 @@ export default function SetlistPerformer({ slots, onClose }) {
           <Button
             variant='ghost'
             size='icon-sm'
+            aria-label='Larger text'
             onClick={() => setFontSize((s) => Math.min(28, s + 1))}
             disabled={fontSize >= 28}
           >
@@ -271,6 +283,7 @@ export default function SetlistPerformer({ slots, onClose }) {
               normalizeNashville(nashville) !== "off" ? "primary" : "ghost"
             }
             size='icon-sm'
+            hitArea
             onClick={() => setNashville(cycleNashville)}
             disabled={!displayKey}
           >
@@ -286,21 +299,23 @@ export default function SetlistPerformer({ slots, onClose }) {
         <Button
           variant='ghost'
           size='icon-sm'
+          hitArea
           onClick={onClose}
           title='Exit (Esc)'
+          aria-label='Exit performance'
         >
           <X size={16} />
         </Button>
       </div>
 
       {capoHint && (
-        <div className='px-4 py-1 text-[10px] text-[var(--color-ink-muted)] font-mono border-b border-[var(--color-border)] shrink-0'>
+        <div className='px-4 py-1 text-[10px] text-[var(--color-ink-muted)] font-mono border-b border-[var(--color-border)] shrink-0 safe-x'>
           {capoHint}
         </div>
       )}
 
       {/* ── Scrollable chart ────────────────────────────────────── */}
-      <div ref={scrollRef} className='flex-1 overflow-y-auto px-5 py-6'>
+      <div ref={scrollRef} className='flex-1 overflow-y-auto px-5 py-6 safe-x'>
         <div className='max-w-3xl mx-auto'>
           <SongRenderer
             key={song.id}
@@ -316,11 +331,16 @@ export default function SetlistPerformer({ slots, onClose }) {
       </div>
 
       {/* ── Bottom control bar ──────────────────────────────────── */}
-      <div className='flex items-center justify-between gap-3 px-3 sm:px-4 h-16 border-t border-[var(--color-border)] bg-[var(--color-bg-warm)] shrink-0'>
+      <div
+        className='flex items-center justify-between gap-3 px-3 sm:px-4 border-t border-[var(--color-border)] bg-[var(--color-bg-warm)] shrink-0 safe-bottom safe-x'
+        style={{ height: "calc(4rem + env(safe-area-inset-bottom, 0px))" }}
+      >
         {/* Prev */}
         <Button
           variant='secondary'
           size='md'
+          hitArea
+          aria-label='Previous song'
           onClick={onPrev}
           disabled={index <= 0}
         >
@@ -339,6 +359,8 @@ export default function SetlistPerformer({ slots, onClose }) {
               <Button
                 variant={scrolling ? "primary" : "secondary"}
                 size='icon-sm'
+                hitArea
+                aria-pressed={scrolling}
                 onClick={toggleScroll}
               >
                 {scrolling ? <Pause size={14} /> : <Play size={14} />}
@@ -352,6 +374,8 @@ export default function SetlistPerformer({ slots, onClose }) {
               <Button
                 variant={bpmSync ? "primary" : "secondary"}
                 size='icon-sm'
+                hitArea
+                aria-pressed={bpmSync}
                 onClick={() => setBpmSync((v) => !v)}
               >
                 <Timer size={14} />
@@ -373,6 +397,8 @@ export default function SetlistPerformer({ slots, onClose }) {
                   onChange={(e) => setManualSpeed(Number(e.target.value))}
                   className='w-16 sm:w-24 accent-[var(--color-accent)]'
                   title={`Scroll ${manualSpeed}px/s`}
+                  aria-label='Scroll speed'
+                  aria-valuetext={`${manualSpeed} pixels per second`}
                 />
               </>
             )}
@@ -385,6 +411,8 @@ export default function SetlistPerformer({ slots, onClose }) {
               <Button
                 variant={metroOn ? "primary" : "secondary"}
                 size='icon-sm'
+                hitArea
+                aria-pressed={metroOn}
                 onClick={toggleMetro}
               >
                 <Music2 size={14} />
@@ -393,12 +421,17 @@ export default function SetlistPerformer({ slots, onClose }) {
             <Button
               variant='ghost'
               size='icon-sm'
+              hitArea
+              aria-label='Decrease tempo'
               onClick={() => nudgeBpm(-1)}
               disabled={bpm <= 30}
             >
               −
             </Button>
-            <span className='w-12 text-center font-mono text-sm font-semibold tabular-nums'>
+            <span
+              className='w-12 text-center font-mono text-sm font-semibold tabular-nums'
+              aria-live='polite'
+            >
               {bpm}
               <span className='text-[9px] text-[var(--color-ink-muted)] ml-0.5'>
                 bpm
@@ -407,28 +440,29 @@ export default function SetlistPerformer({ slots, onClose }) {
             <Button
               variant='ghost'
               size='icon-sm'
+              hitArea
+              aria-label='Increase tempo'
               onClick={() => nudgeBpm(1)}
               disabled={bpm >= 300}
             >
               +
             </Button>
-            <Button variant='secondary' size='sm' onClick={tap}>
+            <Button
+              variant='secondary'
+              size='sm'
+              hitArea
+              aria-label='Tap tempo'
+              onClick={tap}
+            >
               Tap
             </Button>
-            <div className='hidden sm:flex items-center gap-1 ml-1'>
-              {Array.from({ length: beatsPerBar }, (_, i) => (
-                <span
-                  key={i}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    metroOn && beat === i
-                      ? i === 0
-                        ? "bg-[var(--color-accent)]"
-                        : "bg-[var(--color-ink)]"
-                      : "bg-[var(--color-border)]"
-                  }`}
-                />
-              ))}
-            </div>
+            {/* Owns its own beat state so the chart doesn't re-render per beat. */}
+            <BeatIndicator
+              subscribe={subscribeBeat}
+              beatsPerBar={beatsPerBar}
+              active={metroOn}
+              className='hidden sm:flex ml-1'
+            />
           </div>
         </div>
 
@@ -436,6 +470,8 @@ export default function SetlistPerformer({ slots, onClose }) {
         <Button
           variant='secondary'
           size='md'
+          hitArea
+          aria-label='Next song'
           onClick={onNext}
           disabled={index >= playable.length - 1}
         >

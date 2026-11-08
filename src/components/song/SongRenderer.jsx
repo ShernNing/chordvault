@@ -307,7 +307,15 @@ export default function SongRenderer({
       setSavedVoicings({});
       return;
     }
-    const saved = voicingStore?.[voicingComboKey] || {};
+    // Saved picks are positional ("lineIndex:tokenIndex"). After an edit,
+    // arrangement or key change a slot can hold a different chord, so keep
+    // only picks whose recorded chord name still matches the chord there.
+    const raw = voicingStore?.[voicingComboKey] || {};
+    const saved = {};
+    for (const [slotKey, pick] of Object.entries(raw)) {
+      const here = voicingMap?.get(slotKey)?.name;
+      if (here && pick?.name === here) saved[slotKey] = pick;
+    }
     setVoicingOverrides(saved);
     setSavedVoicings(saved);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -374,8 +382,13 @@ export default function SongRenderer({
     onLineTypeOverride?.(index, newType);
   };
 
-  const lookupVoicing = (key) =>
-    voicingOverrides[key] ?? voicingMap?.get(key) ?? null;
+  // An override only applies while the chord at that slot is the one it was
+  // picked for (each pick records `name`, see cycleVoicing).
+  const lookupVoicing = (key) => {
+    const auto = voicingMap?.get(key) ?? null;
+    const pick = voicingOverrides[key];
+    return pick && auto && pick.name === auto.name ? pick : auto;
+  };
 
   const handleCycleVoicing = (key, name, dir) => {
     const current = lookupVoicing(key);
@@ -512,7 +525,7 @@ export default function SongRenderer({
             ? `${manualVoicingCount} custom voicing${manualVoicingCount === 1 ? "" : "s"}`
             : "No custom voicings"}
           {voicingsDirty ? (
-            <span className='text-[var(--color-accent)]'> · unsaved</span>
+            <span className='text-[var(--color-accent-text)]'> · unsaved</span>
           ) : hasSavedVoicings ? (
             <span className='text-[var(--color-ink-muted)]'> · saved</span>
           ) : null}

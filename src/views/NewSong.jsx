@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -11,9 +11,11 @@ import {
   Lock,
   ImageUp,
 } from "lucide-react";
-import { useSongs } from "../lib/hooks";
+import { useSongs, updateSongRecord } from "../lib/hooks";
 import { useAuth } from "../lib/AuthContext";
 import { supabaseSongOps } from "../lib/supabaseOps";
+import { prepareSongUpdates } from "../lib/songUpdates";
+import { shouldAutoDetectTitle } from "../lib/titleAutoDetect";
 import { ingest, classifyLine, cleanArtistName } from "../lib/ingestion";
 import {
   Button,
@@ -62,8 +64,14 @@ export default function NewSong() {
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
 
-  // Live parse result
-  const ingestionResult = rawContent.trim() ? ingest(rawContent, title) : null;
+  // Set by the textarea's onPaste so the following onChange knows it was a paste.
+  const pastedRef = useRef(false);
+
+  // Live parse result (memoised: re-parsing on every render is slow)
+  const ingestionResult = useMemo(
+    () => (rawContent.trim() ? ingest(rawContent, title) : null),
+    [rawContent, title],
+  );
 
   const handlePhotoImport = async (e) => {
     const file = e.target.files?.[0];
@@ -101,7 +109,12 @@ export default function NewSong() {
     const isCategoryLabel = (line) =>
       /^(?:\d+[.)]\s*)?(?:communion|post[\s-]?sermon)\s*$/i.test(line.trim());
 
-    if (!title.trim() && content.trim()) {
+    const pasted = pastedRef.current;
+    pastedRef.current = false;
+    if (
+      !title.trim() &&
+      shouldAutoDetectTitle(rawContent, content, { pasted })
+    ) {
       const contentLines = content.split("\n");
       let firstIdx = contentLines.findIndex((l) => l.trim());
 
@@ -231,20 +244,24 @@ export default function NewSong() {
       const applyExistingEdits = async () => {
         const ee = conflict.existingEdits;
         if (!ee) return;
-        const exParsed = ee.raw_content
-          ? ingest(ee.raw_content, ee.title)
-          : null;
-        await supabaseSongOps.update(conflict.existingSong.id, {
-          title: ee.title,
-          artist: ee.artist,
-          original_key: ee.original_key,
-          raw_content: ee.raw_content,
-          ...(exParsed ? { parsed_content: exParsed.parsed_content } : {}),
-        });
+        await updateSongRecord(
+          conflict.existingSong.id,
+          prepareSongUpdates(
+            {
+              title: ee.title,
+              artist: ee.artist,
+              original_key: ee.original_key,
+              raw_content: ee.raw_content,
+            },
+            conflict.existingSong.title,
+          ),
+        );
       };
 
       if (conflict.resolution === "replace") {
-        await supabaseSongOps.update(conflict.existingSong.id, {
+        // Cache-aware: refreshes the song, library list and any setlist
+        // embedding this song.
+        await updateSongRecord(conflict.existingSong.id, {
           title: incTitle,
           artist: incArtist,
           original_key: incKey || parsed.original_key,
@@ -471,6 +488,9 @@ export default function NewSong() {
           <Textarea
             value={rawContent}
             onChange={handleRawContentChange}
+            onPaste={() => {
+              pastedRef.current = true;
+            }}
             placeholder={PASTE_PLACEHOLDER}
             className='h-[500px] leading-relaxed'
             spellCheck={false}
@@ -592,7 +612,7 @@ function NoAddPermission() {
       description='Your account is a member, so you can view chords and build setlists but not add songs. Ask a superuser to make you a leader.'
       action={
         <Link to='/'>
-          <span className='text-xs text-[var(--color-accent)]'>
+          <span className='text-xs text-[var(--color-accent-text)]'>
             ← Back to library
           </span>
         </Link>

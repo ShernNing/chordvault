@@ -70,7 +70,15 @@ export function normalizeSectionHeader(text) {
   return `[${titleCased}]`
 }
 
-export const CHORD_REGEX = /^[A-G][#b]?(maj|min|m|M|dim|aug|add)?[0-9]*(sus[0-9]*)?(\/[A-G][#b]?)?$/
+// One quality/extension token after the root: Bm7b5, C7#9, Cmaj7#11, Cdim7,
+// C°, Cø, C+, Cadd9, Csus2… Digit runs use (?!\d) so the repetition can't
+// backtrack exponentially over long numbers. A bare "b"/"#" only counts when
+// followed by digits (b9, #11), so lyric words like "Abb"/"Ebb" stay lyrics.
+// No "o" (dim) or "-" (minor) shorthands — "Do"/"Go" are lyric words.
+const CHORD_QUALITY_TOKEN = '(?:maj|min|dim|aug|add|sus|m|M|ø|°|\\+|[#b]?\\d+(?!\\d))'
+// Slash segments: a bass note (C/E, C/E/G) or an extension (C6/9, Csus2/4).
+const CHORD_SLASH_SEGMENT = '(?:\\/(?:[A-G][#b]?|\\d+(?!\\d)))'
+export const CHORD_REGEX = new RegExp(`^[A-G][#b]?${CHORD_QUALITY_TOKEN}*${CHORD_SLASH_SEGMENT}*$`)
 
 function normalizeChordChars(s) {
   return s
@@ -126,15 +134,19 @@ export function tokenizeChordLine(line) {
 }
 
 export function parseInlineChordFormat(line) {
-  const chordPattern = /\[([A-G][#b]?(?:maj|min|m|M|sus|dim|aug|add)?[0-9]*(?:\/[A-G][#b]?)?)\]/g
-  if (!chordPattern.test(line)) return null
-  chordPattern.lastIndex = 0
-  let chordLine = '', lyricLine = '', lastIndex = 0, lyricPos = 0, match
-  while ((match = chordPattern.exec(line)) !== null) {
+  // Any bracketed run without whitespace that isChord accepts (incl. Cm(maj7)).
+  // Non-chord tags like [Bridge] are skipped here and stripped from the lyric.
+  const bracketPattern = /\[([A-G][^\]\s]*)\]/g
+  const matches = [...line.matchAll(bracketPattern)].filter(m => isChord(m[1]))
+  if (matches.length === 0) return null
+  let chordLine = '', lyricLine = '', lastIndex = 0, lyricPos = 0
+  for (const match of matches) {
     const beforeChord = line.slice(lastIndex, match.index).replace(/\[[^\]]*\]/g, '')
     lyricLine += beforeChord
     lyricPos += beforeChord.length
     while (chordLine.length < lyricPos) chordLine += ' '
+    // Long chord names over short syllables must not run together ("Bm7b5C6/9").
+    if (chordLine.length > 0 && !chordLine.endsWith(' ')) chordLine += ' '
     chordLine += match[1]
     lastIndex = match.index + match[0].length
   }
@@ -144,8 +156,14 @@ export function parseInlineChordFormat(line) {
 
 const INLINE_SECTION_RE = /^(verse|chorus|bridge|pre-?chorus|prechorus|intro|outro|tag|hook|interlude|instrumental|coda|vamp|ending|turnaround)\s*(\d*)\s*(?:[-:]\s*|\s+)(.+)$/i
 
+// Capitalise each token's root letter only ("am f" → "Am F") — upper-casing the
+// whole token would turn Am into AM (major).
+function capitalizeChordRoots(s) {
+  return s.replace(/(^|\s)([a-g])/g, (_, sp, root) => sp + root.toUpperCase())
+}
+
 export function parseRawContent(rawText) {
-  const rawLines = rawText.split('\n')
+  const rawLines = String(rawText ?? '').replace(/\r\n?/g, '\n').split('\n')
   const parsedLines = []
   for (let i = 0; i < rawLines.length; i++) {
     // Strip bar separators and beat-divider slashes: "| Eb / / / | Eb / / / |" → "Eb Eb"
@@ -166,7 +184,7 @@ export function parseRawContent(rawText) {
     const inlineSec = INLINE_SECTION_RE.exec(line)
     if (inlineSec) {
       const secLabel = inlineSec[2] ? `${inlineSec[1]} ${inlineSec[2]}` : inlineSec[1]
-      const chordPart = inlineSec[3].trim().toUpperCase()
+      const chordPart = capitalizeChordRoots(inlineSec[3].trim())
       if (isChordLine(chordPart)) {
         parsedLines.push({ type: 'section_header', text: normalizeSectionHeader(secLabel) })
         const tokens = tokenizeChordLine(chordPart)
@@ -266,6 +284,8 @@ export function extractChordsWithSections(parsedContent) {
 // Title annotation "(F)" or "(Key G)" always overrides detection — it's ground truth.
 
 const CHROMATIC = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+// Conventional minor-key tonic spellings by pitch class (Ebm/Bbm, not D#m/A#m).
+const MINOR_TONICS = ['C','C#','D','Eb','E','F','F#','G','G#','A','Bb','B']
 
 function pcIndex(note) {
   const pc = Note.pitchClass(note)
@@ -328,7 +348,7 @@ export function detectKey(chords) {
     const ms = scoreKey(keyName, chords, MAJ_W, MAJ_Q, 'major')
     if (ms > 0) results.push({ key: keyName, mode: 'major', score: ms })
     const minorIdx = (pcIndex(keyName) + 9) % 12
-    const minorTonic = CHROMATIC[minorIdx]
+    const minorTonic = MINOR_TONICS[minorIdx]
     const mns = scoreKey(minorTonic, chords, MIN_W, MIN_Q, 'minor')
     if (mns > 0) results.push({ key: minorTonic + 'm', mode: 'minor', score: mns })
   }

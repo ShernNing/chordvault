@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import { resetAllCaches } from './cache'
 
 // ── Role model (see ROLES.md) ───────────────────────────────────────────────
 // member     — view-only + setlists. Cannot add/edit/delete songs.
@@ -9,6 +10,11 @@ import { supabase } from './supabase'
 // New signups default to member; a superuser promotes them afterwards.
 // eslint-disable-next-line react-refresh/only-export-components -- ROLES constant intentionally exported alongside the provider
 export const ROLES = ['member', 'leader', 'superuser']
+
+// Window event a view dispatches to open AppShell's sign-in dialog.
+export const OPEN_AUTH_EVENT = 'cv:open-auth'
+// eslint-disable-next-line react-refresh/only-export-components -- helper shared by views
+export const requestSignIn = () => window.dispatchEvent(new Event(OPEN_AUTH_EVENT))
 
 const AuthContext = createContext({
   session: null,
@@ -37,7 +43,9 @@ export function AuthProvider({ children }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Don't leave the previous user's songs/setlists in memory or localStorage.
+      if (event === 'SIGNED_OUT') resetAllCaches()
       setSession(session)
     })
 

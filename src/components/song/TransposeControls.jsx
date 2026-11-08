@@ -75,6 +75,7 @@ export default function TransposeControls({
           <Button
             variant='secondary'
             size='icon-sm'
+            hitArea
             onClick={() => handleSemitones(-1)}
             disabled={semitones <= -12}
           >
@@ -93,6 +94,7 @@ export default function TransposeControls({
           <Button
             variant='secondary'
             size='icon-sm'
+            hitArea
             onClick={() => handleSemitones(+1)}
             disabled={semitones >= 12}
           >
@@ -120,6 +122,7 @@ export default function TransposeControls({
           value={displayKey || ""}
           onChange={(e) => handleKeySelect(e.target.value)}
           title='Jump to key'
+          aria-label='Jump to key'
         >
           <option value=''>Jump…</option>
           {ALL_KEYS.map((k) => (
@@ -137,6 +140,8 @@ export default function TransposeControls({
           <Button
             variant='secondary'
             size='icon-sm'
+            hitArea
+            aria-label='Capo down'
             onClick={() => handleCapo(capo - 1)}
             disabled={capo <= 0}
           >
@@ -148,6 +153,8 @@ export default function TransposeControls({
           <Button
             variant='secondary'
             size='icon-sm'
+            hitArea
+            aria-label='Capo up'
             onClick={() => handleCapo(capo + 1)}
             disabled={capo >= 12}
           >
@@ -247,7 +254,7 @@ export default function TransposeControls({
       {/* ── Reset ────────────────────────────────────────────────────── */}
       {isDirty && (
         <Tooltip content='Reset to original key'>
-          <Button variant='ghost' size='icon-sm' onClick={handleReset}>
+          <Button variant='ghost' size='icon-sm' hitArea onClick={handleReset}>
             <RotateCcw size={13} />
           </Button>
         </Tooltip>

@@ -75,7 +75,7 @@ export default function Stats() {
           icon={Music2}
           title="Nothing to chart yet"
           description="Add songs and start playing them — your stats build up automatically."
-          action={<Link to="/songs/new"><span className="text-xs text-[var(--color-accent)]">Add a song →</span></Link>}
+          action={<Link to="/songs/new"><span className="text-xs text-[var(--color-accent-text)]">Add a song →</span></Link>}
         />
       ) : (
         <>

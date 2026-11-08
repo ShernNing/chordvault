@@ -31,9 +31,11 @@ import {
   DARK_THEMES,
 } from "../../lib/hooks";
 import { useAuth } from "../../lib/AuthContext";
+import { usePerformActive } from "../../lib/stageChrome";
 import { supabase } from "../../lib/supabase";
 import { Button, Tooltip } from "../ui";
 import AuthModal from "../auth/AuthModal";
+import { OPEN_AUTH_EVENT } from "../../lib/AuthContext";
 import { WelcomeModal } from "../onboarding/Onboarding";
 import {
   motion,
@@ -73,6 +75,10 @@ export default function AppShell({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  // While the Perform bar / setlist performer is up, the floating back-to-top
+  // button would sit on the bar and could yank the chart to the top mid-song.
+  const performActive = usePerformActive();
+  const scrollTopVisible = showScrollTop && !performActive;
   const [welcomeSeen, setWelcomeSeen] = useLocalStorage(
     "cv-welcome-seen",
     false,
@@ -82,6 +88,13 @@ export default function AppShell({ children }) {
     const onScroll = () => setShowScrollTop(window.scrollY > 400);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Views (e.g. the signed-out library) can ask for the sign-in dialog.
+  useEffect(() => {
+    const open = () => setAuthOpen(true);
+    window.addEventListener(OPEN_AUTH_EVENT, open);
+    return () => window.removeEventListener(OPEN_AUTH_EVENT, open);
   }, []);
 
   // Public share pages render their own minimal chrome, no app nav/footer.
@@ -104,7 +117,7 @@ export default function AppShell({ children }) {
       )}
 
       {/* ── Top Bar ───────────────────────────────────────────────── */}
-      <header className='sticky top-0 z-40 bg-[var(--color-bg)] border-b border-[var(--color-border)] no-print'>
+      <header className='sticky top-0 z-40 bg-[var(--color-bg)] border-b border-[var(--color-border)] no-print safe-top safe-x'>
         <div className='max-w-6xl mx-auto px-4 h-12 flex items-center justify-between gap-4'>
           {/* Wordmark */}
           <NavLink to='/' className='flex items-center gap-2 shrink-0'>
@@ -130,7 +143,7 @@ export default function AppShell({ children }) {
                 variant='ghost'
                 size='icon-sm'
                 onClick={toggleStage}
-                className={isStage ? "text-[var(--color-accent)]" : ""}
+                className={isStage ? "text-[var(--color-accent-text)]" : ""}
               >
                 <Zap size={14} />
               </Button>
@@ -139,11 +152,19 @@ export default function AppShell({ children }) {
               STAGE_COLORS.map((c) => (
                 <button
                   key={c.id}
+                  type='button'
                   onClick={() => setStageColorId(c.id)}
                   title={c.label}
-                  className={`w-3.5 h-3.5 rounded-full border-2 transition-all shrink-0 ${stageColorId === c.id ? "border-white scale-125" : "border-transparent opacity-50 hover:opacity-80"}`}
-                  style={{ backgroundColor: c.chord }}
-                />
+                  aria-label={`Stage colour: ${c.label}`}
+                  aria-pressed={stageColorId === c.id}
+                  className='hit-area-sm w-6 h-6 shrink-0 flex items-center justify-center rounded-full'
+                >
+                  <span
+                    aria-hidden='true'
+                    className={`block w-3.5 h-3.5 rounded-full border-2 transition-all ${stageColorId === c.id ? "border-white scale-125" : "border-transparent opacity-50 hover:opacity-80"}`}
+                    style={{ backgroundColor: c.chord }}
+                  />
+                </button>
               ))}
 
             <Tooltip content={isDark ? "Light mode" : "Dark mode"}>
@@ -156,11 +177,19 @@ export default function AppShell({ children }) {
               DARK_THEMES.map((t) => (
                 <button
                   key={t.id}
+                  type='button'
                   onClick={() => setDarkThemeId(t.id)}
                   title={t.label}
-                  className={`w-3.5 h-3.5 rounded-sm border transition-all shrink-0 ${darkThemeId === t.id ? "ring-1 ring-[var(--color-ink)] ring-offset-1 ring-offset-[var(--color-bg)] opacity-100" : "opacity-50 hover:opacity-80"}`}
-                  style={{ backgroundColor: t.swatch, borderColor: "#555" }}
-                />
+                  aria-label={`Dark theme: ${t.label}`}
+                  aria-pressed={darkThemeId === t.id}
+                  className='hit-area-sm w-6 h-6 shrink-0 flex items-center justify-center rounded'
+                >
+                  <span
+                    aria-hidden='true'
+                    className={`block w-3.5 h-3.5 rounded-sm border transition-all ${darkThemeId === t.id ? "ring-1 ring-[var(--color-ink)] ring-offset-1 ring-offset-[var(--color-bg)] opacity-100" : "opacity-50 hover:opacity-80"}`}
+                    style={{ backgroundColor: t.swatch, borderColor: "#555" }}
+                  />
+                </button>
               ))}
 
             {/* Auth (desktop) */}
@@ -177,7 +206,7 @@ export default function AppShell({ children }) {
                     </span>
                     <span className='max-w-[110px] truncate'>{email}</span>
                     {ROLE_LABEL[role] && (
-                      <span className='text-[9px] font-semibold uppercase tracking-wide text-[var(--color-accent)]'>
+                      <span className='text-[9px] font-semibold uppercase tracking-wide text-[var(--color-accent-text)]'>
                         {ROLE_LABEL[role]}
                       </span>
                     )}
@@ -200,6 +229,10 @@ export default function AppShell({ children }) {
               variant='ghost'
               size='icon-sm'
               className='md:hidden'
+              hitArea
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls='mobile-nav'
               onClick={() => setMobileMenuOpen((o) => !o)}
             >
               {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
@@ -211,6 +244,7 @@ export default function AppShell({ children }) {
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div
+              id='mobile-nav'
               className='md:hidden border-t border-[var(--color-border)] bg-[var(--color-bg)] overflow-hidden'
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
@@ -346,19 +380,27 @@ export default function AppShell({ children }) {
 
       {/* ── Scroll To Top ─────────────────────────────────────────── */}
       <button
+        type='button'
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         title='Back to top'
+        aria-label='Back to top'
+        style={{
+          bottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))",
+          right: "calc(1.5rem + env(safe-area-inset-right, 0px))",
+        }}
         className={`
-          fixed bottom-6 right-6 z-50 no-print
+          fixed z-50 no-print hit-area
           h-9 w-9 rounded-full
           bg-[var(--color-ink)] text-[var(--color-bg)]
           border border-[var(--color-border)]
           flex items-center justify-center
           shadow-md hover:opacity-80 active:scale-95
           transition-all duration-200
-          ${showScrollTop ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"}
+          ${scrollTopVisible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"}
         `}
-        aria-hidden={!showScrollTop}
+        aria-hidden={!scrollTopVisible}
+        tabIndex={scrollTopVisible ? 0 : -1}
+        inert={scrollTopVisible ? undefined : ""}
       >
         <ArrowUp size={15} />
       </button>

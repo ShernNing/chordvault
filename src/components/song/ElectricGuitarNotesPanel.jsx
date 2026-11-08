@@ -6,6 +6,7 @@ import { bestTransposeFrets } from "../../lib/voicings/transpose";
 import { smartTransposeLick } from "../../lib/voicings/lickTranspose";
 import { transposeChord } from "../../lib/transposition";
 import { Button, Input } from "../ui";
+import { useDialogA11y } from "../../lib/useDialogA11y";
 
 // Entries stored in song.original_key reference frame.
 // Two entry types:
@@ -298,13 +299,20 @@ export default function ElectricGuitarNotesPanel({
     await onSave(stored.filter((e) => e.id !== id));
   };
 
+  const dialogRef = useDialogA11y({ onClose });
+
   return (
     <>
       <div
         className='fixed inset-0 z-[45] bg-black/40 no-print'
         onClick={onClose}
+        aria-hidden='true'
       />
       <aside
+        ref={dialogRef}
+        role='dialog'
+        aria-modal='true'
+        aria-labelledby='eg-notes-panel-title'
         style={{ width: panelW, maxWidth: "100vw" }}
         className='fixed top-0 right-0 bottom-0 z-50 w-full sm:w-auto bg-[var(--color-bg)] border-l border-[var(--color-border)] shadow-2xl no-print flex flex-col'
       >
@@ -319,7 +327,10 @@ export default function ElectricGuitarNotesPanel({
         <header className='flex items-center justify-between gap-3 px-4 h-12 border-b border-[var(--color-border)] shrink-0'>
           <div className='flex items-center gap-2 min-w-0'>
             <Zap size={16} className='text-[var(--color-ink-soft)] shrink-0' />
-            <span className='font-display text-base text-[var(--color-ink)] truncate'>
+            <span
+              id='eg-notes-panel-title'
+              className='font-display text-base text-[var(--color-ink)] truncate'
+            >
               Electric guitar voicings
             </span>
           </div>
@@ -343,7 +354,7 @@ export default function ElectricGuitarNotesPanel({
 
           {groupBySection(rendered).map(({ section, entries }) => (
             <section key={section} className='space-y-1.5'>
-              <h3 className='text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent)] px-1 pt-1'>
+              <h3 className='text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent-text)] px-1 pt-1'>
                 {section === UNSECTIONED ? "No section" : section}
               </h3>
               {entries.map((entry) =>

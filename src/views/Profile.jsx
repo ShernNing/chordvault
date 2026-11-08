@@ -217,7 +217,7 @@ function SongsYouAdded({ mine }) {
     <Panel title="Songs you added" icon={Music2}>
       {mine.length === 0 ? (
         <p className="text-xs text-[var(--color-ink-muted)] italic">
-          You haven't added any songs yet. <Link to="/songs/new" className="text-[var(--color-accent)] not-italic">Add one →</Link>
+          You haven't added any songs yet. <Link to="/songs/new" className="text-[var(--color-accent-text)] not-italic">Add one →</Link>
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -305,7 +305,7 @@ function AdminPanel({ meUserId }) {
     <div className="border border-[var(--color-accent)] rounded-lg bg-[var(--color-accent-soft)] p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--color-ink)]">
-          <ShieldCheck size={15} className="text-[var(--color-accent)]" /> Admin · User management
+          <ShieldCheck size={15} className="text-[var(--color-accent-text)]" /> Admin · User management
         </h2>
         {Array.isArray(users) && (
           <Badge variant="default">{users.length} user{users.length === 1 ? '' : 's'}</Badge>
@@ -323,7 +323,7 @@ function AdminPanel({ meUserId }) {
           return (
             <div key={r} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-warm)] p-3">
               <div className="flex items-center gap-1.5 mb-1.5 text-[var(--color-ink)]">
-                <Icon size={13} className={r === 'superuser' ? 'text-[var(--color-accent)]' : ''} />
+                <Icon size={13} className={r === 'superuser' ? 'text-[var(--color-accent-text)]' : ''} />
                 <span className="text-xs font-semibold">{info.label}</span>
               </div>
               <ul className="space-y-0.5">

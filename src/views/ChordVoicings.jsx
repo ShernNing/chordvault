@@ -332,7 +332,7 @@ export default function ChordVoicings() {
                     <section key={rootChord} className="flex flex-col gap-3">
                       <h2 className="font-display text-xl text-[var(--color-ink)] border-b border-[var(--color-border)] pb-1 flex items-baseline gap-2">
                         {label}
-                        {roman && <span className="font-sans text-xs text-[var(--color-accent)]">{roman} · key of {displayKey}</span>}
+                        {roman && <span className="font-sans text-xs text-[var(--color-accent-text)]">{roman} · key of {displayKey}</span>}
                       </h2>
                       <VoicingGrid
                         voicings={voicings}

@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw, Star } from 'lucide-react'
-import { useSongs, useSearch, useSetlists, useSemanticSearch, useSongFavorites } from '../lib/hooks'
+import { Search, Plus, Music2, Trash2, ListMusic, X, RefreshCw, Star, LogIn } from 'lucide-react'
+import { useSongs, useSearch, useSetlists, useSemanticSearch, useSongFavorites, addSongToSetlist } from '../lib/hooks'
 import { filterFavorites } from '../lib/favorites'
-import { useAuth } from '../lib/AuthContext'
-import { supabaseSetlistOps } from '../lib/supabaseOps'
+import { useAuth, requestSignIn } from '../lib/AuthContext'
+import { DuplicateSlotError } from '../lib/supabaseOps'
 import { selectRelatedSongs } from '../lib/relatedSongs'
 import { Button, Select, EmptyState, ErrorState, SongCardSkeleton, Modal, Tooltip } from '../components/ui'
 import SongCard from '../components/song/SongCard'
@@ -27,7 +27,7 @@ export default function Dashboard() {
   const { relatedIds } = useSemanticSearch(query)
   const { setlists } = useSetlists()
   const toast = useToast()
-  const { canAddSongs, canDeleteSong } = useAuth()
+  const { canAddSongs, canDeleteSong, isLoggedIn, loading: authLoading } = useAuth()
   const [keyFilter, setKeyFilter] = useState('')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
   const favorites = useSongFavorites()
@@ -87,10 +87,22 @@ export default function Dashboard() {
         // Only delete songs this user owns (or all, if admin); RLS would reject
         // the rest anyway.
         const ids = deletableSelected.map(s => s.id)
-        const n = ids.length
-        await bulkDeleteSongs(ids)
-        setSelectedIds(new Set())
-        toast.success(`Deleted ${n} song${n === 1 ? '' : 's'}`)
+        const { deleted, failed } = await bulkDeleteSongs(ids)
+        const n = deleted.length
+        // Keep failed songs selected so the user can see/retry them.
+        setSelectedIds(new Set(failed.map(f => f.id)))
+        if (n) toast.success(`Deleted ${n} song${n === 1 ? '' : 's'}`)
+        if (failed.length) {
+          const names = failed
+            .map(f => songs.find(s => s.id === f.id)?.title || 'Unknown')
+            .slice(0, 5)
+            .join(', ')
+          toast.error(
+            `${failed.length} song${failed.length === 1 ? '' : 's'} could not be deleted: ${names}` +
+              (failed.length > 5 ? '…' : '') +
+              ` (${failed[0].error?.message || 'error'})`,
+          )
+        }
       }
     } catch (e) {
       toast.error(e.message || 'Delete failed')
@@ -101,21 +113,34 @@ export default function Dashboard() {
   }
 
   const handleAddToSetlist = async () => {
-    if (!chosenSetlistId) return
+    if (!chosenSetlistId || bulkAdding) return
     setBulkAdding(true)
+    const dest = setlists.find(s => s.id === chosenSetlistId)?.name || 'setlist'
+    let added = 0
+    let dupes = 0
+    const failed = []
     try {
-      const n = selectedIds.size
       for (const songId of selectedIds) {
         const song = songs.find(s => s.id === songId)
-        await supabaseSetlistOps.addSong(chosenSetlistId, songId, song?.original_key || null, 0)
+        try {
+          await addSongToSetlist(chosenSetlistId, songId, song?.original_key || null, 0)
+          added++
+        } catch (e) {
+          if (e instanceof DuplicateSlotError) dupes++
+          else failed.push({ title: song?.title || 'Unknown', message: e?.message })
+        }
       }
-      const dest = setlists.find(s => s.id === chosenSetlistId)?.name || 'setlist'
-      setAddToSetlistOpen(false)
-      setChosenSetlistId('')
-      setSelectedIds(new Set())
-      toast.success(`Added ${n} song${n === 1 ? '' : 's'} to ${dest}`)
-    } catch (e) {
-      toast.error(e.message || 'Could not add to setlist')
+      if (added) toast.success(`Added ${added} song${added === 1 ? '' : 's'} to ${dest}`)
+      if (dupes) toast.info(`${dupes} already in ${dest}, skipped`)
+      if (failed.length) {
+        toast.error(
+          `Could not add ${failed.length}: ${failed.map(f => f.title).slice(0, 5).join(', ')} (${failed[0].message || 'error'})`,
+        )
+      } else {
+        setAddToSetlistOpen(false)
+        setChosenSetlistId('')
+        setSelectedIds(new Set())
+      }
     } finally {
       setBulkAdding(false)
     }
@@ -247,6 +272,19 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => <SongCardSkeleton key={i} />)}
         </div>
+      ) : songs.length === 0 && !authLoading && !isLoggedIn ? (
+        // Songs are readable by signed-in users only (RLS), so a signed-out
+        // visitor's library is always empty — say why instead of "empty".
+        <EmptyState
+          icon={LogIn}
+          title="Sign in to see the song library"
+          description="ChordVault's library is shared with your band. Sign in to view songs and build setlists."
+          action={
+            <Button variant="primary" size="sm" onClick={requestSignIn}>
+              <LogIn size={14} /> Sign in
+            </Button>
+          }
+        />
       ) : songs.length === 0 ? (
         <EmptyState
           icon={Music2}

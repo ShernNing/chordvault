@@ -5,6 +5,7 @@ import { voicingsForChord } from '../../lib/voicings/lookup'
 import { useTheme, useLocalStorage } from '../../lib/hooks'
 import { useFavorites } from '../../lib/voicings/favorites'
 import { Reveal } from '../../lib/motion'
+import { useDialogA11y } from '../../lib/useDialogA11y'
 
 /**
  * Right-side slide-in drawer showing voicings for a clicked chord.
@@ -22,12 +23,8 @@ export default function VoicingDrawer({ chord, onClose, displayMode = 'both', pr
   const [dotLabels] = useLocalStorage('chordvault-voicings-dotlabels', 'fret')
   const { has: isFav } = useFavorites()
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  // Focus trap + Escape + focus restore while open.
+  const dialogRef = useDialogA11y({ open, onClose })
 
   useEffect(() => {
     if (!open) return
@@ -63,9 +60,11 @@ export default function VoicingDrawer({ chord, onClose, displayMode = 'both', pr
         aria-hidden="true"
       />
 
+      {/* Always mounted (it slides): when closed it must be out of the tab
+          order and the accessibility tree, not an off-screen modal. */}
       <aside
         className={`
-          fixed top-0 right-0 bottom-0 z-50
+          fixed top-0 right-0 bottom-0 z-50 safe-top safe-bottom
           ${isStage ? 'w-[min(560px,98vw)]' : 'w-[min(420px,92vw)]'}
           bg-[var(--color-bg)] border-l border-[var(--color-border)]
           shadow-xl no-print
@@ -73,8 +72,11 @@ export default function VoicingDrawer({ chord, onClose, displayMode = 'both', pr
           ${open ? 'translate-x-0' : 'translate-x-full'}
           flex flex-col
         `}
+        ref={dialogRef}
         role="dialog"
-        aria-modal="true"
+        aria-modal={open ? 'true' : undefined}
+        aria-hidden={open ? undefined : 'true'}
+        inert={open ? undefined : ''}
         aria-label={`Voicings for ${chord || ''}`}
       >
         <header className="flex items-center justify-between gap-3 px-4 h-12 border-b border-[var(--color-border)]">
