@@ -179,9 +179,13 @@ export default function SetlistFullEditor({
 
   const refreshLayout = async () => {
     setLayoutBusy(true);
-    const p = await computePageLayout(editedSlots);
-    setPages(p);
-    setLayoutBusy(false);
+    try {
+      const p = await computePageLayout(editedSlots);
+      setPages(p);
+    } finally {
+      // A measurement error must not leave the editor stuck "busy".
+      setLayoutBusy(false);
+    }
   };
 
   // ── section mutations ─────────────────────────────────────────────────────
@@ -601,11 +605,13 @@ function EditableSection({ section, onEditLine, onCut }) {
     transition,
     isDragging,
   } = useSortable({ id: section.id });
-  const [hovered, setHovered] = useState(false);
 
+  // Tools are always mounted; CSS (.cv-section-tools in index.css) shows them
+  // on hover, on keyboard focus within the section, and always on touch.
   return (
     <div
       ref={setNodeRef}
+      className='cv-section'
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
@@ -613,55 +619,59 @@ function EditableSection({ section, onEditLine, onCut }) {
         position: "relative",
         marginTop: section.header ? "12px" : 0,
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
-      {(hovered || isDragging) && (
-        <div
+      <div
+        className='cv-section-tools'
+        data-dragging={isDragging ? "true" : undefined}
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: "2px",
+          background: "#fff",
+          border: "1px solid #ddd",
+          borderRadius: "4px",
+          padding: "2px 4px",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
+        }}
+      >
+        <button
+          type='button'
+          title='Drag to reorder section'
+          aria-label='Drag to reorder section'
+          className='hit-area-sm'
           style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            zIndex: 10,
-            display: "flex",
-            alignItems: "center",
-            gap: "2px",
-            background: "#fff",
-            border: "1px solid #ddd",
-            borderRadius: "4px",
-            padding: "2px 4px",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
+            color: "#aaa",
+            cursor: "grab",
+            lineHeight: 0,
+            padding: "2px",
           }}
+          {...attributes}
+          {...listeners}
         >
-          <button
-            title='Drag to reorder section'
-            style={{
-              color: "#aaa",
-              cursor: "grab",
-              lineHeight: 0,
-              padding: "2px",
-            }}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical size={13} />
-          </button>
-          <button
-            title='Cut section'
-            style={{
-              color: "#aaa",
-              cursor: "pointer",
-              lineHeight: 0,
-              padding: "2px",
-            }}
-            onClick={onCut}
-            onMouseOver={(e) => (e.currentTarget.style.color = "#ef4444")}
-            onMouseOut={(e) => (e.currentTarget.style.color = "#aaa")}
-          >
-            <Scissors size={13} />
-          </button>
-        </div>
-      )}
+          <GripVertical size={13} />
+        </button>
+        <button
+          type='button'
+          title='Cut section'
+          aria-label='Cut section'
+          className='hit-area-sm'
+          style={{
+            color: "#aaa",
+            cursor: "pointer",
+            lineHeight: 0,
+            padding: "2px",
+          }}
+          onClick={onCut}
+          onMouseOver={(e) => (e.currentTarget.style.color = "#ef4444")}
+          onMouseOut={(e) => (e.currentTarget.style.color = "#aaa")}
+        >
+          <Scissors size={13} />
+        </button>
+      </div>
       {section.header && (
         <EditableLineItem
           line={section.header}
@@ -794,9 +804,20 @@ function EditableLineItem({ line, onCommit }) {
     <span
       style={{ ...baseStyle, background: "transparent" }}
       title='Click to edit'
+      role='button'
+      tabIndex={0}
+      aria-label={`Edit line: ${displayText || (line.type === "section_header" ? "section header" : "blank")}`}
       onClick={startEdit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          startEdit();
+        }
+      }}
       onMouseOver={(e) => (e.currentTarget.style.background = hoverBg)}
       onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+      onFocus={(e) => (e.currentTarget.style.background = hoverBg)}
+      onBlur={(e) => (e.currentTarget.style.background = "transparent")}
     >
       {displayText ||
         (line.type === "section_header" ? (

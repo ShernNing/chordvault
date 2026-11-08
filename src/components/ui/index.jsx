@@ -1,6 +1,7 @@
-import React, { useEffect, forwardRef } from 'react'
+import React, { forwardRef, useId } from 'react'
 import { Loader2, AlertCircle, RefreshCw, Music } from 'lucide-react'
 import { motion, AnimatePresence, useMotionEnabled, spring, ease } from '../../lib/motion'
+import { useDialogA11y } from '../../lib/useDialogA11y'
 
 // ─── Button ────────────────────────────────────────────────────────────────
 export function Button({
@@ -13,6 +14,9 @@ export function Button({
   onClick,
   type = 'button',
   title,
+  // Stage-critical controls: expand the invisible hit area to ≥44×44px without
+  // changing the visual size (see .hit-area in index.css).
+  hitArea = false,
   ...props
 }) {
   const base = 'inline-flex items-center justify-center gap-2 font-sans font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed select-none'
@@ -38,7 +42,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`${base} ${variants[variant]} ${sizes[size]} ${hitArea ? 'hit-area' : ''} ${className}`}
       disabled={disabled || loading}
       onClick={onClick}
       title={title}
@@ -57,8 +61,11 @@ export const Input = forwardRef(function Input({
   className = '',
   containerClassName = '',
   size = 'md',
+  id,
   ...props
 }, ref) {
+  const autoId = useId()
+  const inputId = id || autoId
   const sizes = {
     sm: 'h-7 px-2 text-xs',
     md: 'h-8 px-3 text-sm',
@@ -68,12 +75,13 @@ export const Input = forwardRef(function Input({
   return (
     <div className={`flex flex-col gap-1 ${containerClassName}`}>
       {label && (
-        <label className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">
+        <label htmlFor={inputId} className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">
           {label}
         </label>
       )}
       <input
         ref={ref}
+        id={inputId}
         className={`
           w-full bg-[var(--color-bg)] border border-[var(--color-border)]
           text-[var(--color-ink)] placeholder-[var(--color-ink-muted)]
@@ -95,15 +103,18 @@ export const Input = forwardRef(function Input({
 })
 
 // ─── Textarea ──────────────────────────────────────────────────────────────
-export function Textarea({ label, error, hint, className = '', containerClassName = '', ...props }) {
+export function Textarea({ label, error, hint, className = '', containerClassName = '', id, ...props }) {
+  const autoId = useId()
+  const fieldId = id || autoId
   return (
     <div className={`flex flex-col gap-1 ${containerClassName}`}>
       {label && (
-        <label className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">
+        <label htmlFor={fieldId} className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">
           {label}
         </label>
       )}
       <textarea
+        id={fieldId}
         className={`
           w-full bg-[var(--color-bg)] border border-[var(--color-border)]
           text-[var(--color-ink)] placeholder-[var(--color-ink-muted)]
@@ -124,15 +135,18 @@ export function Textarea({ label, error, hint, className = '', containerClassNam
 }
 
 // ─── Select ────────────────────────────────────────────────────────────────
-export function Select({ label, children, className = '', containerClassName = '', ...props }) {
+export function Select({ label, children, className = '', containerClassName = '', id, ...props }) {
+  const autoId = useId()
+  const fieldId = id || autoId
   return (
     <div className={`flex flex-col gap-1 ${containerClassName}`}>
       {label && (
-        <label className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">
+        <label htmlFor={fieldId} className="text-xs font-medium text-[var(--color-ink-soft)] uppercase tracking-wide">
           {label}
         </label>
       )}
       <select
+        id={fieldId}
         className={`
           h-8 px-2 bg-[var(--color-bg)] border border-[var(--color-border)]
           text-[var(--color-ink)] text-sm rounded
@@ -154,7 +168,7 @@ export function Badge({ children, variant = 'default', className = '' }) {
   const variants = {
     default: 'bg-[var(--color-bg-warm)] text-[var(--color-ink-soft)] border border-[var(--color-border)]',
     key: 'bg-[var(--color-ink)] text-[var(--color-bg)] font-mono',
-    accent: 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] border border-[var(--color-accent)]',
+    accent: 'bg-[var(--color-accent-soft)] text-[var(--color-accent-text)] border border-[var(--color-accent)]',
     warning: 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
     success: 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950 dark:text-green-300',
   }
@@ -266,7 +280,8 @@ export function TagInput({ tags = [], onChange, placeholder = 'Add tag...' }) {
           <button
             type="button"
             onClick={() => removeTag(tag)}
-            className="text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] leading-none"
+            aria-label={`Remove tag ${tag}`}
+            className="hit-area-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] leading-none"
           >
             ×
           </button>
@@ -294,14 +309,13 @@ export function TagInput({ tags = [], onChange, placeholder = 'Add tag...' }) {
 }
 
 // ─── Modal ─────────────────────────────────────────────────────────────────
-export function Modal({ isOpen, onClose, title, children, className = '' }) {
+// Accessible dialog: role/aria-modal, labelled by its title (or `ariaLabel`
+// when there's no title), focus moves in on open, Tab is trapped, Escape
+// closes, and focus returns to the opener on close.
+export function Modal({ isOpen, onClose, title, ariaLabel, children, className = '' }) {
   const enabled = useMotionEnabled()
-  useEffect(() => {
-    if (!isOpen) return
-    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [isOpen, onClose])
+  const titleId = useId()
+  const dialogRef = useDialogA11y({ open: !!isOpen, onClose })
 
   return (
     <AnimatePresence>
@@ -314,11 +328,17 @@ export function Modal({ isOpen, onClose, title, children, className = '' }) {
           exit={enabled ? { opacity: 0 } : undefined}
           transition={ease}
         >
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
           <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={title ? titleId : undefined}
+            aria-label={!title ? ariaLabel : undefined}
+            tabIndex={-1}
             className={`
               relative z-10 bg-[var(--color-bg)] border border-[var(--color-border)]
-              rounded-lg shadow-2xl w-full max-w-md
+              rounded-lg shadow-2xl w-full max-w-md focus:outline-none
               ${className}
             `}
             initial={enabled ? { opacity: 0, scale: 0.96, y: 10 } : false}
@@ -328,10 +348,12 @@ export function Modal({ isOpen, onClose, title, children, className = '' }) {
           >
             {title && (
               <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-                <h2 className="text-sm font-semibold text-[var(--color-ink)]">{title}</h2>
+                <h2 id={titleId} className="text-sm font-semibold text-[var(--color-ink)]">{title}</h2>
                 <button
+                  type="button"
                   onClick={onClose}
-                  className="text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors text-lg leading-none"
+                  aria-label="Close"
+                  className="hit-area-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors text-lg leading-none"
                 >
                   ×
                 </button>
@@ -347,15 +369,29 @@ export function Modal({ isOpen, onClose, title, children, className = '' }) {
 
 // ─── Tooltip ──────────────────────────────────────────────────────────────
 // direction: 'below' (default) | 'above'
+// The label doubles as the child's accessible name (aria-label) when the child
+// has none, so icon-only buttons wrapped in a Tooltip are announced. The bubble
+// shows on hover (real hover devices only — it doesn't stick after a tap) and
+// on keyboard focus.
 export function Tooltip({ children, content, direction = 'below' }) {
   const posClass = direction === 'above'
     ? 'bottom-full left-1/2 -translate-x-1/2 mb-1.5'
     : 'top-full left-1/2 -translate-x-1/2 mt-1.5'
 
+  let child = children
+  if (
+    typeof content === 'string' &&
+    React.isValidElement(children) &&
+    children.props['aria-label'] == null &&
+    children.props['aria-labelledby'] == null
+  ) {
+    child = React.cloneElement(children, { 'aria-label': content })
+  }
+
   return (
     <div className="relative group inline-flex">
-      {children}
-      <div className={`absolute ${posClass} px-2 py-1 bg-[var(--color-ink)] text-[var(--color-bg)] text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50`}>
+      {child}
+      <div aria-hidden="true" className={`cv-tooltip absolute ${posClass} px-2 py-1 bg-[var(--color-ink)] text-[var(--color-bg)] text-xs rounded whitespace-nowrap transition-opacity pointer-events-none z-50`}>
         {content}
         {/* Small arrow */}
         <span className={`absolute left-1/2 -translate-x-1/2 w-0 h-0 ${
@@ -367,4 +403,3 @@ export function Tooltip({ children, content, direction = 'below' }) {
     </div>
   )
 }
-
