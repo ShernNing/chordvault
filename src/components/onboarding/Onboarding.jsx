@@ -122,7 +122,7 @@ function StepRow({ step, onNavigate }) {
   const Icon = step.icon;
   const inner = (
     <div className='flex gap-3'>
-      <div className='shrink-0 w-8 h-8 rounded-lg bg-[var(--color-accent-soft)] text-[var(--color-accent)] flex items-center justify-center'>
+      <div className='shrink-0 w-8 h-8 rounded-lg bg-[var(--color-accent-soft)] text-[var(--color-accent-text)] flex items-center justify-center'>
         <Icon size={15} />
       </div>
       <div className='min-w-0'>
@@ -178,7 +178,7 @@ function RoleNote({ role }) {
 
   return (
     <div className='flex items-start gap-2 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-warm)]'>
-      <Icon size={14} className='text-[var(--color-accent)] mt-0.5 shrink-0' />
+      <Icon size={14} className='text-[var(--color-accent-text)] mt-0.5 shrink-0' />
       <div className='min-w-0 space-y-2.5'>
         <p className='text-xs text-[var(--color-ink-soft)] leading-relaxed'>
           {note.text}
@@ -217,7 +217,13 @@ export function WelcomeModal({ isOpen, onClose }) {
   const steps = visibleSteps(auth);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={null} className='max-w-lg'>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={null}
+      ariaLabel='Welcome to ChordVault'
+      className='max-w-lg'
+    >
       <div className='space-y-4'>
         <div className='flex items-center gap-2'>
           <div className='w-9 h-9 rounded-lg bg-[var(--color-ink)] text-[var(--color-bg)] flex items-center justify-center'>
@@ -226,7 +232,7 @@ export function WelcomeModal({ isOpen, onClose }) {
           <div>
             <h2 className='font-display text-lg text-[var(--color-ink)] flex items-center gap-1.5'>
               Welcome to ChordVault{" "}
-              <Sparkles size={15} className='text-[var(--color-accent)]' />
+              <Sparkles size={15} className='text-[var(--color-accent-text)]' />
             </h2>
             <p className='text-xs text-[var(--color-ink-muted)]'>
               Your team's chord charts, setlists and stage view, here's the
@@ -279,7 +285,7 @@ export function GuideSection() {
         onClick={() => setOpen((o) => !o)}
         className='w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-[var(--color-bg)] transition-colors'
       >
-        <BookOpen size={15} className='text-[var(--color-accent)] shrink-0' />
+        <BookOpen size={15} className='text-[var(--color-accent-text)] shrink-0' />
         <div className='flex-1 min-w-0'>
           <h2 className='text-sm font-semibold text-[var(--color-ink)]'>
             How ChordVault works

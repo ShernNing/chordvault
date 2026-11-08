@@ -13,6 +13,8 @@ import { Button, Tooltip, Select } from "../ui";
  *   sections [{label,start,end}] , optional ranges for section looping
  *   bpm      number     , tempo (shared with the perform bar)
  *   raised   boolean    , lift above the perform bar when both are open
+ *                          (stacks on the bar's measured height, which the
+ *                          PerformBar publishes as --perform-bar-h)
  *   onClose  () => void
  */
 export default function ChordPlayer({
@@ -89,14 +91,22 @@ export default function ChordPlayer({
 
   return (
     <div
-      className='no-print fixed inset-x-0 z-30 flex justify-center px-3 pb-3 pointer-events-none'
-      style={{ bottom: raised ? "3.75rem" : 0 }}
+      className='no-print fixed inset-x-0 z-30 flex justify-center px-3 pointer-events-none safe-x'
+      style={{
+        bottom: raised ? "var(--perform-bar-h, 3.75rem)" : 0,
+        // The perform bar below already clears the home indicator.
+        paddingBottom: raised
+          ? "0.75rem"
+          : "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+      }}
     >
-      <div className='pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[var(--color-bg-warm)] border border-[var(--color-border)] shadow-lg max-w-full'>
+      {/* Wraps onto two rows on narrow phones so Loop/Close never fall off-screen. */}
+      <div className='pointer-events-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-2 px-3 sm:px-4 py-2.5 rounded-xl bg-[var(--color-bg-warm)] border border-[var(--color-border)] shadow-lg max-w-full'>
         <Tooltip content={playing ? "Stop" : "Play chords"}>
           <Button
             variant={playing ? "primary" : "secondary"}
             size='icon-sm'
+            hitArea
             onClick={toggle}
           >
             {playing ? <Pause size={14} /> : <Play size={14} />}
@@ -113,7 +123,7 @@ export default function ChordPlayer({
             </span>
           ) : playing && currentChord ? (
             <>
-              <span className='font-mono text-base font-bold text-[var(--color-accent)] min-w-[2.5rem]'>
+              <span className='font-mono text-base font-bold text-[var(--color-accent-text)] min-w-[2.5rem]'>
                 {currentChord}
               </span>
               {nextChord && (
@@ -129,7 +139,7 @@ export default function ChordPlayer({
           )}
         </div>
 
-        <div className='w-px h-6 bg-[var(--color-border)]' />
+        <div className='w-px h-6 bg-[var(--color-border)] hidden sm:block' />
 
         {/* Beats per chord */}
         <div className='flex items-center gap-1.5'>
@@ -140,6 +150,7 @@ export default function ChordPlayer({
             value={beatsPerChord}
             onChange={(e) => setBeatsPerChord(Number(e.target.value))}
             className='h-7 w-14 text-xs py-0'
+            aria-label='Beats per chord'
           >
             {[1, 2, 4, 8].map((n) => (
               <option key={n} value={n}>
@@ -153,6 +164,7 @@ export default function ChordPlayer({
           <Button
             variant={countIn ? "primary" : "secondary"}
             size='icon-sm'
+            aria-pressed={countIn}
             onClick={() => setCountIn((c) => !c)}
           >
             <Timer size={13} />
@@ -163,8 +175,9 @@ export default function ChordPlayer({
           <Select
             value={sectionIdx}
             onChange={(e) => setSectionIdx(Number(e.target.value))}
-            className='h-7 w-28 text-xs py-0'
+            className='h-7 w-24 sm:w-28 text-xs py-0'
             title='Loop a section'
+            aria-label='Loop a section'
           >
             <option value={-1}>Whole song</option>
             {sections.map((s, i) => (
@@ -179,6 +192,7 @@ export default function ChordPlayer({
           <Button
             variant={loop ? "primary" : "secondary"}
             size='icon-sm'
+            aria-pressed={loop}
             onClick={() => setLoop((l) => !l)}
           >
             <Repeat size={13} />
@@ -187,12 +201,13 @@ export default function ChordPlayer({
 
         {onClose && (
           <>
-            <div className='w-px h-6 bg-[var(--color-border)]' />
+            <div className='w-px h-6 bg-[var(--color-border)] hidden sm:block' />
             <Button
               variant='ghost'
               size='icon-sm'
               onClick={onClose}
               title='Close chord player'
+              aria-label='Close chord player'
             >
               <X size={14} />
             </Button>

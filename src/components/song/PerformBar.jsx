@@ -9,11 +9,17 @@ import {
   Timer,
   X,
 } from "lucide-react";
-import { Metronome, tapsToBpm } from "../../lib/metronome";
+import { tapsToBpm } from "../../lib/metronome";
+import { useMetronome } from "../../lib/useMetronome";
+import { createScrollAccumulator } from "../../lib/autoScroll";
+import { useWakeLock } from "../../lib/wakeLock";
+import { usePerformSurface } from "../../lib/stageChrome";
 import { estimateSongSeconds, formatDuration } from "../../lib/songDuration";
 import { Button, Tooltip } from "../ui";
+import BeatIndicator from "./BeatIndicator";
 
 // Hands-free auto-scroll: scroll the window at `speed` px/sec while active.
+// Sub-pixel steps are accumulated (see lib/autoScroll) so slow speeds still move.
 function useAutoScroll(speed) {
   const [scrolling, setScrolling] = useState(false);
   const rafRef = useRef(null);
@@ -24,11 +30,13 @@ function useAutoScroll(speed) {
   useEffect(() => {
     if (!scrolling) return undefined;
     lastRef.current = null;
+    const acc = createScrollAccumulator();
     const step = (ts) => {
       if (lastRef.current == null) lastRef.current = ts;
       const dt = (ts - lastRef.current) / 1000;
       lastRef.current = ts;
-      window.scrollBy(0, speedRef.current * dt);
+      const px = acc.step(window.scrollY, speedRef.current * dt);
+      if (px) window.scrollBy(0, px);
       const atBottom =
         window.innerHeight + window.scrollY >=
         document.documentElement.scrollHeight - 1;
@@ -91,45 +99,41 @@ export default function PerformBar({
     setScrolling((s) => !s);
   };
 
-  const metroRef = useRef(null);
-  const [metroOn, setMetroOn] = useState(false);
-  const [beat, setBeat] = useState(-1);
   const tapsRef = useRef([]);
+  const {
+    metroOn,
+    toggle: toggleMetro,
+    subscribeBeat,
+  } = useMetronome({ bpm, beatsPerBar });
 
-  // Lazily create the metronome; keep its bpm in sync.
-  const getMetro = useCallback(() => {
-    if (!metroRef.current) {
-      const m = new Metronome();
-      m.beatsPerBar = beatsPerBar;
-      m.onBeat = (b) => setBeat(b);
-      metroRef.current = m;
-    }
-    return metroRef.current;
-  }, [beatsPerBar]);
+  // Keep the phone awake while it's driving the performance.
+  useWakeLock(scrolling || metroOn);
+  // Hide floating app chrome (back-to-top) that would sit on top of the bar.
+  usePerformSurface(true);
 
+  // Publish the bar's real height so the ChordPlayer can stack above it even
+  // when the bar wraps onto two rows on a phone.
+  const barRef = useRef(null);
   useEffect(() => {
-    if (metroRef.current) metroRef.current.setBpm(bpm);
-  }, [bpm]);
-
-  useEffect(
-    () => () => {
-      metroRef.current?.dispose();
-    },
-    [],
-  );
-
-  const toggleMetro = async () => {
-    const m = getMetro();
-    m.setBpm(bpm);
-    if (metroOn) {
-      m.stop();
-      setMetroOn(false);
-      setBeat(-1);
-    } else {
-      await m.start();
-      setMetroOn(true);
+    const el = barRef.current;
+    const rootStyle = document.documentElement.style;
+    if (!el) return undefined;
+    const publish = () =>
+      rootStyle.setProperty(
+        "--perform-bar-h",
+        `${Math.ceil(el.getBoundingClientRect().height)}px`,
+      );
+    publish();
+    let ro;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(publish);
+      ro.observe(el);
     }
-  };
+    return () => {
+      ro?.disconnect();
+      rootStyle.removeProperty("--perform-bar-h");
+    };
+  }, []);
 
   const nudgeBpm = (d) => onBpmChange?.(Math.max(30, Math.min(300, bpm + d)));
 
@@ -143,14 +147,20 @@ export default function PerformBar({
   };
 
   return (
-    <div className='no-print fixed bottom-0 inset-x-0 z-30 flex justify-center px-3 pb-3 pointer-events-none'>
-      <div className='pointer-events-auto flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 rounded-xl bg-[var(--color-bg-warm)] border border-[var(--color-border)] shadow-lg'>
+    <div
+      ref={barRef}
+      className='no-print fixed bottom-0 inset-x-0 z-30 flex justify-center px-3 pointer-events-none safe-x'
+      style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+    >
+      <div className='pointer-events-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-4 py-2.5 rounded-xl bg-[var(--color-bg-warm)] border border-[var(--color-border)] shadow-lg max-w-full'>
         {/* Auto-scroll */}
         <div className='flex items-center gap-2'>
           <Tooltip content={scrolling ? "Pause scroll" : "Auto-scroll"}>
             <Button
               variant={scrolling ? "primary" : "secondary"}
               size='icon-sm'
+              hitArea
+              aria-pressed={scrolling}
               onClick={toggleScroll}
             >
               {scrolling ? <Pause size={14} /> : <Play size={14} />}
@@ -168,6 +178,8 @@ export default function PerformBar({
               <Button
                 variant={bpmSync ? "primary" : "secondary"}
                 size='icon-sm'
+                hitArea
+                aria-pressed={bpmSync}
                 onClick={() => setBpmSync((v) => !v)}
               >
                 <Timer size={14} />
@@ -191,6 +203,8 @@ export default function PerformBar({
                 onChange={(e) => setManualSpeed(Number(e.target.value))}
                 className='w-24 accent-[var(--color-accent)]'
                 title={`Scroll speed ${manualSpeed}px/s`}
+                aria-label='Scroll speed'
+                aria-valuetext={`${manualSpeed} pixels per second`}
               />
             </>
           )}
@@ -204,6 +218,8 @@ export default function PerformBar({
             <Button
               variant={metroOn ? "primary" : "secondary"}
               size='icon-sm'
+              hitArea
+              aria-pressed={metroOn}
               onClick={toggleMetro}
             >
               <Music2 size={14} />
@@ -212,12 +228,17 @@ export default function PerformBar({
           <Button
             variant='secondary'
             size='icon-sm'
+            hitArea
+            aria-label='Decrease tempo'
             onClick={() => nudgeBpm(-1)}
             disabled={bpm <= 30}
           >
             <ChevronDown size={13} />
           </Button>
-          <div className='w-14 text-center font-mono text-sm font-semibold text-[var(--color-ink)] select-none leading-none'>
+          <div
+            className='w-14 text-center font-mono text-sm font-semibold text-[var(--color-ink)] select-none leading-none'
+            aria-live='polite'
+          >
             {bpm}
             <span className='text-[9px] text-[var(--color-ink-muted)] ml-0.5'>
               bpm
@@ -226,30 +247,30 @@ export default function PerformBar({
           <Button
             variant='secondary'
             size='icon-sm'
+            hitArea
+            aria-label='Increase tempo'
             onClick={() => nudgeBpm(+1)}
             disabled={bpm >= 300}
           >
             <ChevronUp size={13} />
           </Button>
-          <Button variant='secondary' size='sm' onClick={tap}>
+          <Button
+            variant='secondary'
+            size='sm'
+            hitArea
+            aria-label='Tap tempo'
+            onClick={tap}
+          >
             Tap
           </Button>
 
-          {/* beat indicator */}
-          <div className='flex items-center gap-1 ml-1'>
-            {Array.from({ length: beatsPerBar }, (_, i) => (
-              <span
-                key={i}
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  metroOn && beat === i
-                    ? i === 0
-                      ? "bg-[var(--color-accent)]"
-                      : "bg-[var(--color-ink)]"
-                    : "bg-[var(--color-border)]"
-                }`}
-              />
-            ))}
-          </div>
+          {/* beat indicator — owns its own beat state */}
+          <BeatIndicator
+            subscribe={subscribeBeat}
+            beatsPerBar={beatsPerBar}
+            active={metroOn}
+            className='ml-1'
+          />
         </div>
 
         {onClose && (
@@ -258,8 +279,10 @@ export default function PerformBar({
             <Button
               variant='ghost'
               size='icon-sm'
+              hitArea
               onClick={onClose}
               title='Close perform bar'
+              aria-label='Close perform bar'
             >
               <X size={14} />
             </Button>

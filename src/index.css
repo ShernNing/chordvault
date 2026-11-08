@@ -10,9 +10,13 @@
   --color-border: #e5e5e5;
   --color-ink: #111111;
   --color-ink-soft: #444444;
-  --color-ink-muted: #888888;
+  /* Muted text: ≥4.5:1 on both --color-bg and --color-bg-warm in every theme
+     (enforced by src/lib/contrast.test.js). */
+  --color-ink-muted: #727272;
   --color-accent: #f59e0b;
   --color-accent-soft: #fef3c7;
+  /* Accent used AS TEXT (the fill accent is too light on white for text). */
+  --color-accent-text: #b45309;
 
   /* Chord sheet specific */
   --chord-font: Arial, sans-serif;
@@ -41,9 +45,10 @@
   --color-border: #334155;
   --color-ink: #f1f5f9;
   --color-ink-soft: #94a3b8;
-  --color-ink-muted: #64748b;
+  --color-ink-muted: #8592a4;
   --color-accent: #f59e0b;
   --color-accent-soft: #1c1405;
+  --color-accent-text: #f59e0b;
 
   --chord-color: #fcd34d;
   --lyric-color: #e2e8f0;
@@ -59,6 +64,79 @@
   --color-ink-soft: #cccccc;
   --color-ink-muted: #888888;
   --color-accent-soft: #111111;
+  /* Stage accent is set inline on <html> from the chosen stage colour. */
+  --color-accent-text: var(--color-accent);
+}
+
+/* ─── Touch targets ───────────────────────────────────────────────────── */
+/* Invisible hit-area expansion: the control keeps its visual size, but the
+   tappable box grows to at least 44×44 (.hit-area) or 24×24 (.hit-area-sm)
+   — stage controls get hit with a thumb in the dark. */
+.hit-area,
+.hit-area-sm {
+  position: relative;
+}
+.hit-area::before,
+.hit-area-sm::before {
+  content: "";
+  position: absolute;
+  top: min(0px, calc((100% - var(--hit-min)) / 2));
+  bottom: min(0px, calc((100% - var(--hit-min)) / 2));
+  left: min(0px, calc((100% - var(--hit-min)) / 2));
+  right: min(0px, calc((100% - var(--hit-min)) / 2));
+}
+.hit-area {
+  --hit-min: 44px;
+}
+.hit-area-sm {
+  --hit-min: 24px;
+}
+
+/* ─── Tooltip ─────────────────────────────────────────────────────────── */
+/* Hover only on devices that really hover (no sticky tooltip after a tap);
+   always on keyboard focus. */
+.cv-tooltip {
+  opacity: 0;
+}
+@media (hover: hover) {
+  .group:hover > .cv-tooltip {
+    opacity: 1;
+  }
+}
+.group:has(:focus-visible) > .cv-tooltip {
+  opacity: 1;
+}
+
+/* ─── Safe areas (iOS notch / home indicator, viewport-fit=cover) ────── */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ─── Full setlist editor: section tools ──────────────────────────────── */
+/* Drag handle + Cut: visible on hover, on keyboard focus inside the section,
+   and always on touch (coarse pointer) where hover doesn't exist. */
+.cv-section-tools {
+  opacity: 0;
+  pointer-events: none;
+}
+.cv-section:hover .cv-section-tools,
+.cv-section:focus-within .cv-section-tools,
+.cv-section-tools[data-dragging="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (pointer: coarse) {
+  .cv-section-tools {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /* ─── Base Styles ─────────────────────────────────────────────────────── */
@@ -144,7 +222,7 @@ body {
   font-size: 0.8em;
   line-height: 1;
   font-weight: 600;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   white-space: nowrap;
 }
 
@@ -188,7 +266,7 @@ body {
   font-size: calc(var(--lyric-size) - 1px);
   font-weight: 600;
   font-style: italic;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   white-space: pre-wrap;
   display: block;
   line-height: var(--lyric-line-height);

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { splitSections, defaultPlan, applyArrangement } from "../../lib/arrangement";
 import { Button } from "../ui";
+import { useDialogA11y } from "../../lib/useDialogA11y";
 
 /**
  * Non-destructive-feeling arrangement builder. Reorder / repeat the song's
@@ -73,15 +74,25 @@ export default function ArrangementEditor({
   };
 
   const noSections = segments.length === 0;
+  const dialogRef = useDialogA11y({ onClose });
 
   return (
     <>
-      <div className='fixed inset-0 z-[45] bg-black/40 no-print' onClick={onClose} />
-      <aside className='fixed top-0 right-0 bottom-0 z-50 w-full sm:w-[420px] max-w-[100vw] bg-[var(--color-bg)] border-l border-[var(--color-border)] shadow-2xl no-print flex flex-col'>
+      <div className='fixed inset-0 z-[45] bg-black/40 no-print' onClick={onClose} aria-hidden='true' />
+      <aside
+        ref={dialogRef}
+        role='dialog'
+        aria-modal='true'
+        aria-labelledby='arrangement-editor-title'
+        className='fixed top-0 right-0 bottom-0 z-50 w-full sm:w-[420px] max-w-[100vw] bg-[var(--color-bg)] border-l border-[var(--color-border)] shadow-2xl no-print flex flex-col safe-top safe-bottom'
+      >
         <header className='flex items-center justify-between gap-3 px-4 h-12 border-b border-[var(--color-border)] shrink-0'>
           <div className='flex items-center gap-2 min-w-0'>
             <ListOrdered size={16} className='text-[var(--color-ink-soft)] shrink-0' />
-            <span className='font-display text-base text-[var(--color-ink)] truncate'>
+            <span
+              id='arrangement-editor-title'
+              className='font-display text-base text-[var(--color-ink)] truncate'
+            >
               Arrangement
             </span>
             <span className='text-xs text-[var(--color-ink-muted)] shrink-0'>
@@ -120,9 +131,11 @@ export default function ArrangementEditor({
                   {/* Repeat stepper */}
                   <div className='flex items-center gap-0.5 shrink-0'>
                     <button
+                      type='button'
                       onClick={() => setRepeat(i, -1)}
                       disabled={(step.repeat || 1) <= 1}
-                      className='w-5 h-5 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)] disabled:opacity-30'
+                      aria-label={`Play ${labelOf(step.index)} fewer times`}
+                      className='hit-area-sm w-6 h-6 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)] disabled:opacity-30'
                     >
                       −
                     </button>
@@ -130,24 +143,26 @@ export default function ArrangementEditor({
                       ×{step.repeat || 1}
                     </span>
                     <button
+                      type='button'
                       onClick={() => setRepeat(i, +1)}
-                      className='w-5 h-5 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)]'
+                      aria-label={`Play ${labelOf(step.index)} more times`}
+                      className='hit-area-sm w-6 h-6 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)]'
                     >
                       +
                     </button>
                   </div>
 
                   <div className='flex items-center gap-0.5 shrink-0'>
-                    <button onClick={() => move(i, -1)} disabled={i === 0} title='Move up' className='p-1 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)] disabled:opacity-30'>
+                    <button onClick={() => move(i, -1)} disabled={i === 0} title='Move up' aria-label='Move up' className='hit-area-sm p-1 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)] disabled:opacity-30'>
                       <ArrowUp size={13} />
                     </button>
-                    <button onClick={() => move(i, +1)} disabled={i === plan.length - 1} title='Move down' className='p-1 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)] disabled:opacity-30'>
+                    <button onClick={() => move(i, +1)} disabled={i === plan.length - 1} title='Move down' aria-label='Move down' className='hit-area-sm p-1 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)] disabled:opacity-30'>
                       <ArrowDown size={13} />
                     </button>
-                    <button onClick={() => duplicate(i)} title='Duplicate' className='p-1 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)]'>
+                    <button onClick={() => duplicate(i)} title='Duplicate' aria-label='Duplicate' className='hit-area-sm p-1 rounded text-[var(--color-ink-soft)] hover:bg-[var(--color-bg)]'>
                       <Copy size={13} />
                     </button>
-                    <button onClick={() => remove(i)} title='Remove' className='p-1 rounded text-red-500 hover:bg-[var(--color-bg)]'>
+                    <button onClick={() => remove(i)} title='Remove' aria-label='Remove' className='hit-area-sm p-1 rounded text-red-500 hover:bg-[var(--color-bg)]'>
                       <Trash2 size={13} />
                     </button>
                   </div>

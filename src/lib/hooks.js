@@ -51,8 +51,8 @@ export const DARK_THEMES = [
     id: 'black', label: 'Black', swatch: '#000000',
     vars: {
       '--color-bg': '#000000', '--color-bg-warm': '#111111', '--color-border': '#222222',
-      '--color-ink': '#f0f0f0', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#666666',
-      '--color-accent': '#f59e0b', '--color-accent-soft': '#1a1200',
+      '--color-ink': '#f0f0f0', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#7e7e7e',
+      '--color-accent': '#f59e0b', '--color-accent-soft': '#1a1200', '--color-accent-text': '#f59e0b',
       '--chord-color': '#fbbf24', '--lyric-color': '#f0f0f0', '--section-header-color': '#fbbf24',
     },
   },
@@ -60,8 +60,8 @@ export const DARK_THEMES = [
     id: 'gray', label: 'Gray', swatch: '#252525',
     vars: {
       '--color-bg': '#1a1a1a', '--color-bg-warm': '#252525', '--color-border': '#383838',
-      '--color-ink': '#eeeeee', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#666666',
-      '--color-accent': '#f59e0b', '--color-accent-soft': '#1c1405',
+      '--color-ink': '#eeeeee', '--color-ink-soft': '#aaaaaa', '--color-ink-muted': '#8d8d8d',
+      '--color-accent': '#f59e0b', '--color-accent-soft': '#1c1405', '--color-accent-text': '#f59e0b',
       '--chord-color': '#fbbf24', '--lyric-color': '#eeeeee', '--section-header-color': '#fbbf24',
     },
   },
@@ -69,8 +69,8 @@ export const DARK_THEMES = [
     id: 'cream', label: 'Cream', swatch: '#2a2318',
     vars: {
       '--color-bg': '#1e1a14', '--color-bg-warm': '#2a2318', '--color-border': '#3d3426',
-      '--color-ink': '#f0e6d0', '--color-ink-soft': '#b8a88a', '--color-ink-muted': '#7a6a52',
-      '--color-accent': '#e8a020', '--color-accent-soft': '#2a1e08',
+      '--color-ink': '#f0e6d0', '--color-ink-soft': '#b8a88a', '--color-ink-muted': '#978b78',
+      '--color-accent': '#e8a020', '--color-accent-soft': '#2a1e08', '--color-accent-text': '#e8a020',
       '--chord-color': '#e8a020', '--lyric-color': '#f0e6d0', '--section-header-color': '#e8a020',
     },
   },

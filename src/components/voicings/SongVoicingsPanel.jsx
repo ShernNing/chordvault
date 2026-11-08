@@ -7,6 +7,7 @@ import { keyPrefersFlats } from '../../lib/voicings/notes'
 import { difficultyOf } from '../../lib/voicings/difficulty'
 import { exportSongToPDF, createPrintContainer } from '../../lib/pdf'
 import { useSongs } from '../../lib/hooks'
+import { useDialogA11y } from '../../lib/useDialogA11y'
 
 /**
  * Slide-up panel listing every unique chord in a song with its best voicings.
@@ -117,6 +118,8 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
     return map
   }, [allSongs, song?.id])
 
+  const dialogRef = useDialogA11y({ onClose })
+
   const onExport = async () => {
     if (!printRef.current) return
     setExporting(true)
@@ -149,12 +152,18 @@ export default function SongVoicingsPanel({ song, semitones = 0, targetKey = nul
 
   return (
     <>
-      <div className="fixed inset-0 z-[45] bg-black/40 no-print" onClick={onClose} />
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-bg)] border-t border-[var(--color-border)] shadow-2xl no-print max-h-[85vh] flex flex-col">
+      <div className="fixed inset-0 z-[45] bg-black/40 no-print" onClick={onClose} aria-hidden="true" />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="song-voicings-panel-title"
+        className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-bg)] border-t border-[var(--color-border)] shadow-2xl no-print max-h-[85vh] flex flex-col safe-bottom safe-x"
+      >
         <header className="flex items-center justify-between gap-3 px-4 h-12 border-b border-[var(--color-border)] shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Music2 size={16} className="text-[var(--color-ink-soft)] shrink-0" />
-            <span className="font-display text-base text-[var(--color-ink)] truncate">
+            <span id="song-voicings-panel-title" className="font-display text-base text-[var(--color-ink)] truncate">
               Voicings for {song.title}
             </span>
             <span className="text-xs text-[var(--color-ink-muted)] shrink-0">

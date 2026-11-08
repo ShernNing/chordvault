@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Cloud, Mail, X, AlertCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Button, Input } from "../ui";
@@ -9,6 +9,7 @@ import {
   spring,
   ease,
 } from "../../lib/motion";
+import { useDialogA11y } from "../../lib/useDialogA11y";
 
 function GoogleIcon() {
   return (
@@ -47,6 +48,9 @@ export default function AuthModal({ isOpen, onClose }) {
     setError("");
     onClose();
   };
+
+  const titleId = useId();
+  const dialogRef = useDialogA11y({ open: !!isOpen, onClose: handleClose });
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
@@ -94,7 +98,12 @@ export default function AuthModal({ isOpen, onClose }) {
           transition={ease}
         >
           <motion.div
-            className='bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-sm p-6'
+            ref={dialogRef}
+            role='dialog'
+            aria-modal='true'
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            className='bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-sm p-6 focus:outline-none'
             onClick={(e) => e.stopPropagation()}
             initial={enabled ? { opacity: 0, scale: 0.96, y: 10 } : false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -112,7 +121,10 @@ export default function AuthModal({ isOpen, onClose }) {
                   )}
                 </div>
                 <div>
-                  <h2 className='text-sm font-semibold text-[var(--color-ink)]'>
+                  <h2
+                    id={titleId}
+                    className='text-sm font-semibold text-[var(--color-ink)]'
+                  >
                     {step === "sent" ? "Check your email" : "Sign in to sync"}
                   </h2>
                   <p className='text-xs text-[var(--color-ink-muted)] mt-0.5'>
@@ -123,8 +135,10 @@ export default function AuthModal({ isOpen, onClose }) {
                 </div>
               </div>
               <button
+                type='button'
                 onClick={handleClose}
-                className='text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors'
+                aria-label='Close'
+                className='hit-area-sm text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] transition-colors'
               >
                 <X size={16} />
               </button>
