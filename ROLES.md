@@ -134,10 +134,16 @@ drop policy if exists "edit own or superuser"            on public.songs;
 drop policy if exists "owner or admin can delete songs"  on public.songs;
 drop policy if exists "only superuser deletes"           on public.songs;
 drop policy if exists "delete own or superuser"          on public.songs;
+-- Leftovers from older setups. Permissive policies are OR'd, so a stray
+-- "for all using (true)" silently overrides every rule below.
+drop policy if exists "auth_all"                         on public.songs;
+drop policy if exists "anon_read_songs"                  on public.songs;
+drop policy if exists "signed-in users read songs"       on public.songs;
 
--- READ: everyone (shared band library), members included.
-create policy "songs are readable by all"
-  on public.songs for select using (true);
+-- READ: every signed-in user (shared band library), members included.
+-- Logged-out visitors can't read songs; public share links use get_share().
+create policy "signed-in users read songs"
+  on public.songs for select to authenticated using (true);
 
 -- ADD: leader or superuser, only as themselves.
 create policy "leaders and superusers add songs"
@@ -172,6 +178,20 @@ update public.profiles set role = 'superuser' where email = 'sherningtan@gmail.c
    Changes take effect on their next page load.
 3. **Find a user id** if you need it: Authentication → Users, or
    `select id, email, role from public.profiles order by created_at;`.
+
+## Audit: confirm no stray policies
+
+The rules above only hold if nothing else grants access. Postgres ORs permissive
+policies, so one leftover `using (true)` policy defeats them all. Check with:
+
+```sql
+select tablename, policyname, cmd, roles, qual, with_check
+from pg_policies where schemaname = 'public' and tablename = 'songs';
+```
+
+Expected: exactly `signed-in users read songs`, `leaders and superusers add songs`,
+`edit own or superuser`, `delete own or superuser`. (Migration
+`20261108020000_songs_rls_enforce_roles.sql` enforces this.)
 
 ## Notes
 

@@ -6,6 +6,7 @@ import { ToastProvider } from './lib/toast'
 import { AuthProvider } from './lib/AuthContext'
 import AppShell from './components/layout/AppShell'
 import ScrollRestoration from './lib/ScrollRestoration'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const Dashboard = lazy(() => import('./views/Dashboard'))
 const NewSong = lazy(() => import('./views/NewSong'))
@@ -38,6 +39,7 @@ function AnimatedRoutes() {
         exit={enabled ? { opacity: 0, y: -8 } : undefined}
         transition={{ duration: 0.2, ease: 'easeOut' }}
       >
+        <ErrorBoundary resetKey={location.pathname}>
         <Suspense fallback={<RouteFallback />}>
           <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
@@ -53,6 +55,7 @@ function AnimatedRoutes() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
       </motion.div>
     </AnimatePresence>
   )
