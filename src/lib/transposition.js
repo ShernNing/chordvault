@@ -8,16 +8,26 @@ const FLAT_KEYS  = ['F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb']
 /**
  * Determine if a key prefers sharps or flats based on music theory convention.
  */
+/**
+ * The major key whose signature a key uses: itself for major keys, the
+ * relative major (a minor third up) for minor keys — Gm → Bb, Em → G.
+ */
+function signatureKey(keyName) {
+  const m = String(keyName).trim().match(/^([A-G][#b]?)\s*(maj(?:or)?|m(?:in(?:or)?)?)?$/)
+  if (!m) return String(keyName).trim()
+  const isMinor = !!m[2] && !/^maj/.test(m[2])
+  if (!isMinor) return m[1]
+  return Key.minorKey(m[1]).relativeMajor || m[1]
+}
+
 export function keyPrefersFlats(keyName) {
   if (!keyName) return false
-  const root = keyName.replace('m', '').replace('minor', '').trim()
-  return FLAT_KEYS.includes(root)
+  return FLAT_KEYS.includes(signatureKey(keyName))
 }
 
 export function keyPrefersSharps(keyName) {
   if (!keyName) return false
-  const root = keyName.replace('m', '').replace('minor', '').trim()
-  return SHARP_KEYS.includes(root)
+  return SHARP_KEYS.includes(signatureKey(keyName))
 }
 
 /**
@@ -63,15 +73,24 @@ export function transposeChord(chordName, semitones, targetKey = null) {
   if (semitones === 0) return chordName
   if (!chordName) return chordName
 
+  // Optional/passing chords wrapped in ( ) or [ ]: transpose the inner chord.
+  const wrap = chordName.match(/^([([])(.+)([)\]])$/)
+  if (wrap) return wrap[1] + transposeChord(wrap[2], semitones, targetKey) + wrap[3]
+
   try {
     const interval = Interval.fromSemitones(semitones)
 
-    // Handle slash chords: "F/A" → transpose both parts
+    // Slash segments: only a note name is a bass note ("F/A", "C/E/G").
+    // Anything else ("6/9", "sus2/4") belongs to the chord quality.
     if (chordName.includes('/')) {
-      const [chordPart, bassPart] = chordName.split('/')
-      const transposedChord = transposeSingleChord(chordPart, interval, targetKey)
-      const transposedBass = transposeNote(bassPart, interval, targetKey)
-      return `${transposedChord}/${transposedBass}`
+      const parts = chordName.split('/')
+      let firstBass = parts.findIndex((p, i) => i > 0 && BASS_NOTE_RE.test(p))
+      if (firstBass === -1) firstBass = parts.length
+      const chordPart = parts.slice(0, firstBass).join('/')
+      const tail = parts.slice(firstBass).map(p =>
+        BASS_NOTE_RE.test(p) ? transposeNote(p, interval, targetKey) : p
+      )
+      return [transposeSingleChord(chordPart, interval, targetKey), ...tail].join('/')
     }
 
     return transposeSingleChord(chordName, interval, targetKey)
@@ -81,10 +100,12 @@ export function transposeChord(chordName, semitones, targetKey = null) {
   }
 }
 
+const BASS_NOTE_RE = /^[A-G][#b]?$/
+
 function transposeSingleChord(chordName, interval, targetKey) {
   // Parse the chord to extract root + quality
   const parsed = Chord.get(chordName)
-  if (!parsed || !parsed.tonic) {
+  if (!parsed || !parsed.tonic || !chordName.startsWith(parsed.tonic)) {
     // Fallback: try to transpose just the root
     const rootMatch = chordName.match(/^([A-G][#b]?)(.*)$/)
     if (rootMatch) {
@@ -150,7 +171,7 @@ export function transposeKey(key, semitones) {
 
     // Find correct enharmonic spelling
     // A target key's enharmonic is determined by how many accidentals it would have
-    newRoot = chooseBestSpelling(newRoot)
+    newRoot = chooseBestSpelling(newRoot, isMinor)
 
     return isMinor ? newRoot + 'm' : newRoot
   } catch (e) {
@@ -160,9 +181,10 @@ export function transposeKey(key, semitones) {
 
 /**
  * Choose the enharmonic spelling that results in fewer accidentals
- * (i.e. the "simpler" key)
+ * (i.e. the "simpler" key). Minor keys are judged by the minor key signature
+ * (G#m = 5 sharps beats Abm = 7 flats, even though Ab major beats G# major).
  */
-function chooseBestSpelling(noteName) {
+function chooseBestSpelling(noteName, isMinor = false) {
   if (!noteName) return noteName
   const enharmonic = Note.enharmonic(noteName)
   if (!enharmonic || enharmonic === noteName) return noteName
@@ -170,8 +192,8 @@ function chooseBestSpelling(noteName) {
   // Count accidentals in the key signature for each spelling
   const countAccidentals = (note) => {
     try {
-      const keyInfo = Key.majorKey(note)
-      return Math.abs(keyInfo?.keySignature?.length || 99)
+      const keyInfo = isMinor ? Key.minorKey(note) : Key.majorKey(note)
+      return Math.abs(keyInfo?.keySignature?.length ?? 99)
     } catch (_) {
       return 99
     }

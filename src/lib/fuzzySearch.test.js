@@ -94,3 +94,36 @@ describe('highlightSegments', () => {
     expect(highlightSegments('Hello', '')).toEqual([{ text: 'Hello', hit: false }])
   })
 })
+
+describe('Unicode search', () => {
+  it('keeps non-Latin letters when normalising', () => {
+    expect(normalizeText('Слава Богу!')).toBe('слава богу')
+    expect(normalizeText('주님의 사랑')).toBe('주님의 사랑')
+    expect(normalizeText('奇異恩典')).toBe('奇異恩典')
+  })
+
+  it('matches Cyrillic / Korean / CJK titles and not unrelated ones', () => {
+    expect(fuzzyMatch('слава', ['Слава Богу'])).toBe(true)
+    expect(fuzzyMatch('слава', ['Amazing Grace'])).toBe(false)
+    expect(fuzzyMatch('사랑', ['주님의 사랑'])).toBe(true)
+    expect(fuzzyMatch('사랑', ['Amazing Grace'])).toBe(false)
+    expect(fuzzyMatch('恩典', ['奇異恩典'])).toBe(true)
+    expect(scoreFields('恩典', [{ text: 'Amazing Grace' }])).toBe(0)
+    expect(scoreFields('恩典', [{ text: '奇異恩典' }])).toBeGreaterThan(0)
+  })
+
+  it('a punctuation-only query matches nothing; an empty query matches everything', () => {
+    expect(fuzzyMatch('!!!', ['Amazing Grace'])).toBe(false)
+    expect(scoreFields('!!!', [{ text: 'Amazing Grace' }])).toBe(0)
+    expect(fuzzyMatch('', ['Amazing Grace'])).toBe(true)
+    expect(fuzzyMatch('  ', ['Amazing Grace'])).toBe(true)
+    expect(scoreFields('', [{ text: 'Amazing Grace' }])).toBe(1)
+  })
+
+  it('highlights non-Latin matches', () => {
+    expect(highlightSegments('주님의 사랑', '사랑')).toEqual([
+      { text: '주님의 ', hit: false },
+      { text: '사랑', hit: true },
+    ])
+  })
+})
